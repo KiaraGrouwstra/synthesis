@@ -1,0 +1,12 @@
+name: thesis
+channels:
+- pytorch
+- defaults
+- conda-forge
+dependencies:
+- cudatoolkit=10.1.168=0
+- cudnn=7.6.0=cuda10.1_0
+- pytorch=1.2.0=cpu_py37h00be3c6_0
+- tqdm=4.36.1=py_0
+- pyyaml=5.1.2=py37h7b6447c_0
+- pandas=0.25.2=py37he6710b0_0
