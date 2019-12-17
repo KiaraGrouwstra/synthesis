@@ -1,0 +1,79 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: f6ace83b76941bdba160696cc1e8742b7b3808afd0d30e05109709d918ad215b
+
+name:           synthesis
+version:        0.0.0
+homepage:       https://github.com/githubuser/synthesis#readme
+bug-reports:    https://github.com/githubuser/synthesis/issues
+author:         Author name here
+maintainer:     Author name here
+license:        MIT
+build-type:     Simple
+extra-source-files:
+    CHANGELOG.md
+    LICENSE.md
+    package.yaml
+    README.md
+    stack.yaml
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/synthesis
+
+library
+  exposed-modules:
+      Example
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      library
+  ghc-options: -Wall
+  build-depends:
+      base
+  default-language: Haskell2010
+
+executable synthesis
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      executable
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , synthesis
+  default-language: Haskell2010
+
+test-suite synthesis-test-suite
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      test-suite
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , synthesis
+    , tasty
+    , tasty-hspec
+  default-language: Haskell2010
+
+benchmark synthesis-benchmarks
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      benchmark
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      base
+    , criterion
+    , synthesis
+  default-language: Haskell2010
