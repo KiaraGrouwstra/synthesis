@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleInstances, TypeFamilies, Rank2Types #-}
+-- {-# LANGUAGE ScopedTypeVariables #-}
+-- TemplateHaskell, QuasiQuotes
 
 -- | An example module.
 module Example (main) where
@@ -54,6 +55,19 @@ testHint = do
     mapM_ (say . show) triplets
     return ()
 
+-- TODO: do sample generation not for each function but for each function type?
+-- TODO: deduplicate functions by identical types + io, keeping the shortest
+fromFn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
+fromFn fn_str = do
+    fn_tp_str <- typeOf fn_str
+    in_tp <- fnInTp fn_tp_str
+    nested_types <- lift $ instantiateType in_tp
+    let in_types = nub $ flatten nested_types
+    triplets <- mapM (handleInTp fn_tp_str fn_str) in_types
+    --  :: [] (String, String, String)
+    let hole_expr = skeleton fn_tp_str
+    return (hole_expr, triplets)
+
 data Item a = One [a] | Many [Item a]
 
 flatten :: Item a -> [a]
@@ -70,18 +84,6 @@ instantiateType tp = case tp of
                       where
                           maxInstances = 5  -- may get less after nub filters out duplicate type instances
                           nestLimit = 2
-
--- TODO: do sample generation not for each function but for each function type?
--- TODO: deduplicate functions by identical types + io, keeping the shortest
-fromFn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
-fromFn fn_str = do
-    fn_tp_str <- typeOf fn_str
-    in_tp <- fnInTp fn_tp_str
-    nested_types <- lift $ instantiateType in_tp
-    let in_types = nub $ flatten nested_types
-    triplets :: [] (String, String, String) <- mapM (handleInTp fn_tp_str fn_str) in_types
-    let hole_expr = skeleton fn_tp_str
-    return (hole_expr, triplets)
 
 interpretIO :: String -> Interpreter String
 interpretIO cmd = do
