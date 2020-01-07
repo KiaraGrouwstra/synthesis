@@ -4,16 +4,16 @@
 -- | An example module.
 module Example (main) where
 
-import Language.Haskell.Exts.Build --( wildcard, intE )
+-- import Language.Haskell.Exts.Build --( wildcard, intE )
 import Language.Haskell.Exts.Pretty --( prettyPrint )
-import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), SpecialCon(ExprHole), Type(TyFun, TyCon, TyApp, TyVar), Name(Symbol, Ident), QName(UnQual) )
+import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), Type(TyFun, TyCon, TyApp, TyVar), Name(Ident), QName(UnQual) ) -- , SpecialCon(ExprHole)
 import Language.Haskell.Exts.Parser --( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.SrcLoc --( SrcSpanInfo )
-import qualified Data.Typeable -- ( TypeRep, typeOf, funResultTy, typeRepArgs )
-import Test.QuickCheck -- ( Gen, arbitrary, sample, sample', variant, generate )
+-- import qualified Data.Typeable -- ( TypeRep, typeOf, funResultTy, typeRepArgs )
+-- import Test.QuickCheck -- ( Gen, arbitrary, sample, sample', variant, generate )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter -- (Interpreter, MonadInterpreter, InterpreterError(..), GhcError, interpret, as, infer, eval, typeOf, typeChecks, kindOf, runInterpreter)
-import Language.Haskell.Interpreter.Unsafe (unsafeInterpret)
+-- import Language.Haskell.Interpreter.Unsafe (unsafeInterpret)
 import Data.List (intercalate, nub, replicate)
 import System.Random (randomRIO)
 
@@ -59,7 +59,7 @@ testHint = do
     -- do trplt <- triplets
     --     say trplt
     --     return ()
-    mapM (say . show) triplets
+    mapM_ (say . show) triplets
     return ()
 
 data Item a = One [a] | Many [Item a]
@@ -70,12 +70,14 @@ flatten (Many x) = concatMap flatten x
 
 -- TODO: this isn't right, I shouldn't replace each type variable instance, but find the type variables and their occurrences, then for each one (e.g. a) instantiate types and substitute all occurrences for these.
 instantiateType :: (Type SrcSpanInfo) -> IO (Item (Type SrcSpanInfo))
--- instantiateType tp = return $ One [tp]
 instantiateType tp = case tp of
                         TyCon _l qname -> return $ One $ [TyCon _l qname]
-                        TyVar _l _name -> (Many . fmap (One . pure)) <$> ((mapM id $ replicate n randomType) :: IO ([] (Type SrcSpanInfo)))
+                        TyVar _l _name -> (Many . fmap (One . pure)) <$> (mapM id $ replicate maxInstances $ randomType nestLimit)
                         -- TyApp _l a b -> Many [instantiateType ?]
-                      where n = 5
+                        x -> fail $ "unexpected " ++ show x
+                      where
+                          maxInstances = 5  -- may get less after nub filters out duplicate type instances
+                          nestLimit = 2
 
 -- Exp SrcSpanInfo
 -- String, String, 
@@ -87,7 +89,6 @@ fromFn fn_str = do  -- expr
     let hole_expr = skeleton fn_tp_str
     in_tp <- fnInTp fn_tp_str
     -- checking if the input type *is* a type variable -- what about nested occurrences?
-    let randomTypes = 5
     nested_types <- lift $ instantiateType in_tp
     let in_types = nub $ flatten nested_types
     triplets :: [] (String, String, String) <- mapM (handleInTp fn_str fn_tp_str) in_types
@@ -99,7 +100,7 @@ handleInTp fn_str fn_tp_str in_type = do
     let cmd :: String = "do \n\
     \    let seed = 0 -- somehow this won't make it deterministic? \n\
     \    let n = 10 \n\
-    \    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen " ++ in_tp_str ++ ") \n\
+    \    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen (" ++ in_tp_str ++ ")) \n\
     \    let outs = (" ++ fn_str ++ ") <$> ins \n\
     \    return $ show $ zip ins outs \n\
     \    "
@@ -108,14 +109,14 @@ handleInTp fn_str fn_tp_str in_type = do
     out_tp_str <- returnType fn_tp_str in_tp_str
     return (in_tp_str, out_tp_str, io_pairs)
 
--- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
-gen_io :: Bool -> (Bool -> Int) -> IO String
-gen_io tp fn = do
-    let seed = 0 -- somehow this won't make it deterministic?
-    let n = 10
-    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen Bool)
-    let outs = fn <$> ins
-    return $ show $ zip ins outs
+-- -- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
+-- genIO :: (Bool -> Int) -> IO String
+-- genIO fn = do
+--     let seed = 0 -- somehow this won't make it deterministic?
+--     let n = 10
+--     ins <- nub <$> sample' (resize n $ variant seed arbitrary :: (Gen Bool))
+--     let outs = (fn) <$> ins
+--     return $ show $ zip ins outs
 
 -- str = show $ funResultTy (typeOf (reverse :: [Char] -> [Char])) $ typeOf "abc"
 returnType :: String -> String -> Interpreter String
@@ -124,34 +125,39 @@ returnType fn_tp_str par_tp_str = typeOf $ "(undefined :: " ++ fn_tp_str ++ ") (
 fnInTp :: String -> Interpreter (Type SrcSpanInfo)
 fnInTp fn_tp_str = do
     let tp_ast = fromParseResult (parse ("_ :: " ++ fn_tp_str) :: ParseResult (Exp SrcSpanInfo))
-    let tp_fn = case tp_ast of
-                    ExpTypeSig _mdl _exp tp -> tp
-    let in_tp = case tp_fn of
-                    TyFun _mdl i _o -> i
+    tp_fn <- case tp_ast of
+                ExpTypeSig _mdl _exp tp -> return tp
+                x -> fail $ "expected ExpTypeSig, not" ++ show x
+    in_tp <- case tp_fn of
+                TyFun _mdl i _o -> return i
+                x -> fail $ "expected TyFun, not " ++ show x
     say $ prettyPrint in_tp
     return in_tp
  
 pick :: [a] -> IO a
 pick xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
 
-randomType :: IO (Type SrcSpanInfo)
-randomType = do
-    io <- pick [
-                simple "Bool",
-                simple "Int",
-                mono "[]"
-            ]
+randomType :: Int -> IO (Type SrcSpanInfo)
+randomType nestLimit = do
+    io <- pick $ case nestLimit of
+            0 -> simples
+            _ -> simples ++ monos
     io
     where
+        simples = [ simple "Bool"
+                  , simple "Int"
+                  ]
+        monos = [ mono "[]"
+                ]
         simple = return . typeNode
         mono str = do
-            tp <- randomType
+            tp <- randomType (nestLimit - 1)
             return $ polyTypeNode str tp
 
 l :: SrcSpanInfo
-l = SrcSpanInfo {srcInfoSpan = span, srcInfoPoints = []}  -- [span]
-    where 
-        span = SrcSpan "<unknown>.hs" 1 1 1 1
+l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
+    where
+        spn = SrcSpan "<unknown>.hs" 1 1 1 1
 
 typeNode :: String -> (Type SrcSpanInfo)
 typeNode str = TyCon l $ UnQual l $ Ident l str
