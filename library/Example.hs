@@ -13,6 +13,7 @@ import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan,
 import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, typeOf, runInterpreter, lift, liftIO, setImports) -- , MonadInterpreter, infer, eval, kindOf, typeChecks
 import Data.List (intercalate, nub, replicate)
 import System.Random (randomRIO)
+import Control.Monad (forM_)
 
 errorString :: InterpreterError -> String
 errorString (WontCompile es) = intercalate "\n" (header : map unbox es)
@@ -44,16 +45,14 @@ testHint = do
     (hole_expr, triplets) <- fromFn src
     say $ src
     say $ prettyPrint hole_expr
-    -- say $ io_pairs
-    -- do (in_tp_str, out_tp_str, io_pairs) <- triplets
-    --     say (in_tp_str, out_tp_str)
-    --     say io_pairs
-    --     return ()
-    -- do trplt <- triplets
-    --     say trplt
-    --     return ()
-    mapM_ (say . show) triplets
+    forM_ triplets $ \trplt -> do
+        let (in_tp_str, out_tp_str, io_pairs) = trplt
+        say $ fnStr in_tp_str out_tp_str
+        say io_pairs
     return ()
+
+fnStr :: String -> String -> String
+fnStr i o  = i ++ " -> " ++ o
 
 -- TODO: do sample generation not for each function but for each function type?
 -- TODO: deduplicate functions by identical types + io, keeping the shortest
