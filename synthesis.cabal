@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 02912d0a501d5644db1e16016bd9b7847266acec4427f48ae29d4a6a3df52f6c
+-- hash: 21e243ca115179acbfe4fba18f27ccc3653fa43a279b37a6bd99f37116a29c5d
 
 name:           synthesis
 version:        0.0.0
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Blocks
       Example
+      Utility
   other-modules:
       Paths_synthesis
   hs-source-dirs:
