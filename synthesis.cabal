@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f6ace83b76941bdba160696cc1e8742b7b3808afd0d30e05109709d918ad215b
+-- hash: 02912d0a501d5644db1e16016bd9b7847266acec4427f48ae29d4a6a3df52f6c
 
 name:           synthesis
 version:        0.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Blocks
       Example
   other-modules:
       Paths_synthesis
@@ -34,7 +35,14 @@ library
       library
   ghc-options: -Wall
   build-depends:
-      base
+      QuickCheck
+    , base
+    , ghc-lib-parser
+    , haskell-src-exts
+    , hint
+    , random
+    , template-haskell
+    , transformers
   default-language: Haskell2010
 
 executable synthesis

@@ -41,6 +41,9 @@ stack bench
 
 # Generate documentation.
 stack haddock
+
+# Run
+stack exec -- synthesis
 ```
 
 Thanks again, and happy hacking!

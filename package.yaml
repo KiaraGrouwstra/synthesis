@@ -23,6 +23,13 @@ ghc-options: -Wall
 library:
   dependencies:
   - base
+  - template-haskell
+  - haskell-src-exts
+  - ghc-lib-parser
+  - QuickCheck
+  - hint
+  - random
+  - transformers
   source-dirs: library
 
 executables:
