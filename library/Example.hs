@@ -1,19 +1,15 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleInstances, TypeFamilies, Rank2Types #-}
--- , OverlappingInstances
 
 -- | An example module.
 module Example (main) where
 
--- import Language.Haskell.Exts.Build --( wildcard, intE )
-import Language.Haskell.Exts.Pretty --( prettyPrint )
+import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), Type(TyFun, TyCon, TyApp, TyVar), Name(Ident), QName(UnQual) ) -- , SpecialCon(ExprHole)
-import Language.Haskell.Exts.Parser --( ParseResult, parse, fromParseResult )
-import Language.Haskell.Exts.SrcLoc --( SrcSpanInfo )
--- import qualified Data.Typeable -- ( TypeRep, typeOf, funResultTy, typeRepArgs )
--- import Test.QuickCheck -- ( Gen, arbitrary, sample, sample', variant, generate )
+import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
+import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
+-- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter -- (Interpreter, MonadInterpreter, InterpreterError(..), GhcError, interpret, as, infer, eval, typeOf, typeChecks, kindOf, runInterpreter)
--- import Language.Haskell.Interpreter.Unsafe (unsafeInterpret)
+import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, typeOf, runInterpreter, lift, liftIO, setImports) -- , MonadInterpreter, infer, eval, kindOf, typeChecks
 import Data.List (intercalate, nub, replicate)
 import System.Random (randomRIO)
 
@@ -37,18 +33,14 @@ say = liftIO . putStrLn
 
 testHint :: Interpreter ()
 testHint = do
-    -- set [languageExtensions := [ScopedTypeVariables]]
     let modules = ["Prelude", "Data.List", "Test.QuickCheck"]
     setImports modules
 
     -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
     -- let src = "\\b -> let _b = (b :: Bool) in not b"
     let src = "id"
-    -- let expr = fromParseResult (parse src :: ParseResult (Exp SrcSpanInfo))
 
-    -- in_tp_str, out_tp_str, 
-    (hole_expr, triplets) <- fromFn src -- expr
-    -- say $ show (in_tp_str, out_tp_str)
+    (hole_expr, triplets) <- fromFn src
     say $ src
     say $ prettyPrint hole_expr
     -- say $ io_pairs
@@ -73,22 +65,19 @@ instantiateType :: (Type SrcSpanInfo) -> IO (Item (Type SrcSpanInfo))
 instantiateType tp = case tp of
                         TyCon _l qname -> return $ One $ [TyCon _l qname]
                         TyVar _l _name -> (Many . fmap (One . pure)) <$> (mapM id $ replicate maxInstances $ randomType nestLimit)
+                        -- checking if the input type *is* a type variable -- what about nested occurrences?
                         -- TyApp _l a b -> Many [instantiateType ?]
                         x -> fail $ "unexpected " ++ show x
                       where
                           maxInstances = 5  -- may get less after nub filters out duplicate type instances
                           nestLimit = 2
 
--- Exp SrcSpanInfo
--- String, String, 
 -- TODO: do sample generation not for each function level but for each function type?
 fromFn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
-fromFn fn_str = do  -- expr
-    -- let fn_str = prettyPrint expr
-    fn_tp_str <- typeOf fn_str  -- cannot do id?
+fromFn fn_str = do
+    fn_tp_str <- typeOf fn_str
     let hole_expr = skeleton fn_tp_str
     in_tp <- fnInTp fn_tp_str
-    -- checking if the input type *is* a type variable -- what about nested occurrences?
     nested_types <- lift $ instantiateType in_tp
     let in_types = nub $ flatten nested_types
     triplets :: [] (String, String, String) <- mapM (handleInTp fn_str fn_tp_str) in_types
