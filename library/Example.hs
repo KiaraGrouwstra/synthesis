@@ -14,7 +14,7 @@ import Test.QuickCheck -- ( Gen, arbitrary, sample, sample', variant, generate )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter -- (Interpreter, MonadInterpreter, InterpreterError(..), GhcError, interpret, as, infer, eval, typeOf, typeChecks, kindOf, runInterpreter)
 import Language.Haskell.Interpreter.Unsafe (unsafeInterpret)
-import Data.List (intercalate, nub)
+import Data.List (intercalate, nub, replicate)
 import System.Random (randomRIO)
 
 errorString :: InterpreterError -> String
@@ -59,8 +59,23 @@ testHint = do
     -- do trplt <- triplets
     --     say trplt
     --     return ()
-    say <$> triplets
+    mapM (say . show) triplets
     return ()
+
+data Item a = One [a] | Many [Item a]
+
+flatten :: Item a -> [a]
+flatten (One x) = x
+flatten (Many x) = concatMap flatten x
+
+-- TODO: this isn't right, I shouldn't replace each type variable instance, but find the type variables and their occurrences, then for each one (e.g. a) instantiate types and substitute all occurrences for these.
+instantiateType :: (Type SrcSpanInfo) -> IO (Item (Type SrcSpanInfo))
+instantiateType tp = pure $ One [tp]
+-- instantiateType tp = case tp of
+--                         TyCon _l qname -> pure $ One $ [TyCon _l qname]  -- prettyPrint qname
+--                         TyVar _l _name -> Many <$> mapM [replicate n random_type]
+--                         -- TyApp _l a b -> Many [instantiateType ?]
+--                       where n = 5
 
 -- Exp SrcSpanInfo
 -- String, String, 
@@ -73,26 +88,24 @@ from_fn fn_str = do  -- expr
     in_tp <- fn_in_tp fn_tp_str
     -- checking if the input type *is* a type variable -- what about nested occurrences?
     let random_types = 5
-    let in_types = nub $ flatten $ case in_tp of
-                                    TyCon _l qname -> [prettyPrint qname]
-                                    TyVar _l _name -> [random_type]
-                                    -- TyApp _l a b -> ?
-    let triplets = handle_in_tp fn_str fn_tp_str <$> in_types
+    nested_types <- lift $ instantiateType in_tp
+    let in_types = nub $ flatten nested_types
+    triplets :: [] (String, String, String) <- mapM (handle_in_tp fn_str fn_tp_str) in_types
     return (hole_expr, triplets)
 
 handle_in_tp :: String -> String -> (Type SrcSpanInfo) -> Interpreter (String, String, String)
 handle_in_tp fn_str fn_tp_str in_type = do
-    let in_tp_str = prettyPrint <$> in_type
+    let in_tp_str = prettyPrint in_type
     let cmd :: String = "do \n\
     \    let seed = 0 -- somehow this won't make it deterministic? \n\
     \    let n = 10 \n\
     \    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen " ++ in_tp_str ++ ") \n\
     \    let outs = (" ++ fn_str ++ ") <$> ins \n\
     \    return $ show $ zip ins outs \n\
-    \"
+    \    "
     io <- interpret cmd (as :: IO String)
     io_pairs <- lift io
-    out_tp_str <- returnType fn_tp_str in_tp_str
+    out_tp_str <- return_type fn_tp_str in_tp_str
     return (in_tp_str, out_tp_str, io_pairs)
 
 -- -- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
@@ -105,8 +118,8 @@ handle_in_tp fn_str fn_tp_str in_type = do
 --     return $ show $ zip ins outs
 
 -- str = show $ funResultTy (typeOf (reverse :: [Char] -> [Char])) $ typeOf "abc"
-returnType :: String -> String -> Interpreter String
-returnType fn_tp_str par_tp_str = typeOf $ "(undefined :: " ++ fn_tp_str ++ ") (undefined :: " ++ par_tp_str ++ ")"
+return_type :: String -> String -> Interpreter String
+return_type fn_tp_str par_tp_str = typeOf $ "(undefined :: " ++ fn_tp_str ++ ") (undefined :: " ++ par_tp_str ++ ")"
 
 fn_in_tp :: String -> Interpreter (Type SrcSpanInfo)
 fn_in_tp fn_tp_str = do
