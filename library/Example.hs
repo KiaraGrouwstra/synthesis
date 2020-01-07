@@ -7,7 +7,7 @@ import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), Type(TyFun, TyCon, TyApp, TyVar), Name(Ident), QName(UnQual) ) -- , SpecialCon(ExprHole)
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
--- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate )
+-- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate, resize )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, typeOf, runInterpreter, lift, liftIO, setImports) -- , MonadInterpreter, infer, eval, kindOf, typeChecks
 import Data.List (intercalate, nub, replicate)
@@ -65,47 +65,42 @@ instantiateType :: (Type SrcSpanInfo) -> IO (Item (Type SrcSpanInfo))
 instantiateType tp = case tp of
                         TyCon _l qname -> return $ One $ [TyCon _l qname]
                         TyVar _l _name -> (Many . fmap (One . pure)) <$> (mapM id $ replicate maxInstances $ randomType nestLimit)
-                        -- checking if the input type *is* a type variable -- what about nested occurrences?
                         -- TyApp _l a b -> Many [instantiateType ?]
                         x -> fail $ "unexpected " ++ show x
                       where
                           maxInstances = 5  -- may get less after nub filters out duplicate type instances
                           nestLimit = 2
 
--- TODO: do sample generation not for each function level but for each function type?
+-- TODO: do sample generation not for each function but for each function type?
+-- TODO: deduplicate functions by identical types + io, keeping the shortest
 fromFn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
 fromFn fn_str = do
     fn_tp_str <- typeOf fn_str
-    let hole_expr = skeleton fn_tp_str
     in_tp <- fnInTp fn_tp_str
     nested_types <- lift $ instantiateType in_tp
     let in_types = nub $ flatten nested_types
-    triplets :: [] (String, String, String) <- mapM (handleInTp fn_str fn_tp_str) in_types
+    triplets :: [] (String, String, String) <- mapM (handleInTp fn_tp_str fn_str) in_types
+    let hole_expr = skeleton fn_tp_str
     return (hole_expr, triplets)
 
-handleInTp :: String -> String -> (Type SrcSpanInfo) -> Interpreter (String, String, String)
-handleInTp fn_str fn_tp_str in_type = do
-    let in_tp_str = prettyPrint in_type
-    let cmd :: String = "do \n\
-    \    let seed = 0 -- somehow this won't make it deterministic? \n\
-    \    let n = 10 \n\
-    \    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen (" ++ in_tp_str ++ ")) \n\
-    \    let outs = (" ++ fn_str ++ ") <$> ins \n\
-    \    return $ show $ zip ins outs \n\
-    \    "
+interpretIO :: String -> Interpreter String
+interpretIO cmd = do
     io <- interpret cmd (as :: IO String)
-    io_pairs <- lift io
+    lift io
+
+handleInTp :: String -> String -> (Type SrcSpanInfo) -> Interpreter (String, String, String)
+handleInTp fn_tp_str fn_str in_type = do
+    let in_tp_str = prettyPrint in_type
+    ins <- interpretIO $ "let n = 10; seed = 0 in show <$> nub <$> sample' (resize n $ variant seed arbitrary :: Gen (" ++ in_tp_str ++ "))"
+    io_pairs <- interpret ("show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> " ++ ins) (as :: String)
     out_tp_str <- returnType fn_tp_str in_tp_str
     return (in_tp_str, out_tp_str, io_pairs)
 
 -- -- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
 -- genIO :: (Bool -> Int) -> IO String
 -- genIO fn = do
---     let seed = 0 -- somehow this won't make it deterministic?
---     let n = 10
---     ins <- nub <$> sample' (resize n $ variant seed arbitrary :: (Gen Bool))
---     let outs = (fn) <$> ins
---     return $ show $ zip ins outs
+--     ins <- let n = 10; seed = 0 in nub <$> sample' (resize n $ variant seed arbitrary :: Gen (Bool))
+--     return $ show $ zip ins $ (fn) <$> ins
 
 -- str = show $ funResultTy (typeOf (reverse :: [Char] -> [Char])) $ typeOf "abc"
 returnType :: String -> String -> Interpreter String
