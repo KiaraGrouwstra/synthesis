@@ -47,7 +47,7 @@ testHint = do
     -- let expr = fromParseResult (parse src :: ParseResult (Exp SrcSpanInfo))
 
     -- in_tp_str, out_tp_str, 
-    (hole_expr, triplets) <- from_fn src -- expr
+    (hole_expr, triplets) <- fromFn src -- expr
     -- say $ show (in_tp_str, out_tp_str)
     say $ src
     say $ prettyPrint hole_expr
@@ -70,31 +70,31 @@ flatten (Many x) = concatMap flatten x
 
 -- TODO: this isn't right, I shouldn't replace each type variable instance, but find the type variables and their occurrences, then for each one (e.g. a) instantiate types and substitute all occurrences for these.
 instantiateType :: (Type SrcSpanInfo) -> IO (Item (Type SrcSpanInfo))
-instantiateType tp = pure $ One [tp]
--- instantiateType tp = case tp of
---                         TyCon _l qname -> pure $ One $ [TyCon _l qname]  -- prettyPrint qname
---                         TyVar _l _name -> Many <$> mapM [replicate n random_type]
---                         -- TyApp _l a b -> Many [instantiateType ?]
---                       where n = 5
+-- instantiateType tp = return $ One [tp]
+instantiateType tp = case tp of
+                        TyCon _l qname -> return $ One $ [TyCon _l qname]
+                        TyVar _l _name -> (Many . fmap (One . pure)) <$> ((mapM id $ replicate n randomType) :: IO ([] (Type SrcSpanInfo)))
+                        -- TyApp _l a b -> Many [instantiateType ?]
+                      where n = 5
 
 -- Exp SrcSpanInfo
 -- String, String, 
 -- TODO: do sample generation not for each function level but for each function type?
-from_fn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
-from_fn fn_str = do  -- expr
+fromFn :: String -> Interpreter (Exp SrcSpanInfo, [] (String, String, String))
+fromFn fn_str = do  -- expr
     -- let fn_str = prettyPrint expr
     fn_tp_str <- typeOf fn_str  -- cannot do id?
     let hole_expr = skeleton fn_tp_str
-    in_tp <- fn_in_tp fn_tp_str
+    in_tp <- fnInTp fn_tp_str
     -- checking if the input type *is* a type variable -- what about nested occurrences?
-    let random_types = 5
+    let randomTypes = 5
     nested_types <- lift $ instantiateType in_tp
     let in_types = nub $ flatten nested_types
-    triplets :: [] (String, String, String) <- mapM (handle_in_tp fn_str fn_tp_str) in_types
+    triplets :: [] (String, String, String) <- mapM (handleInTp fn_str fn_tp_str) in_types
     return (hole_expr, triplets)
 
-handle_in_tp :: String -> String -> (Type SrcSpanInfo) -> Interpreter (String, String, String)
-handle_in_tp fn_str fn_tp_str in_type = do
+handleInTp :: String -> String -> (Type SrcSpanInfo) -> Interpreter (String, String, String)
+handleInTp fn_str fn_tp_str in_type = do
     let in_tp_str = prettyPrint in_type
     let cmd :: String = "do \n\
     \    let seed = 0 -- somehow this won't make it deterministic? \n\
@@ -105,24 +105,24 @@ handle_in_tp fn_str fn_tp_str in_type = do
     \    "
     io <- interpret cmd (as :: IO String)
     io_pairs <- lift io
-    out_tp_str <- return_type fn_tp_str in_tp_str
+    out_tp_str <- returnType fn_tp_str in_tp_str
     return (in_tp_str, out_tp_str, io_pairs)
 
--- -- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
--- gen_io :: Bool -> (Bool -> Int) -> IO String
--- gen_io tp fn = do
---     let seed = 0 -- somehow this won't make it deterministic?
---     let n = 10
---     ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen Bool)
---     let outs = fn <$> ins
---     return $ show $ zip ins outs
+-- Bool/Int types are bs substitutes for a/b to statically test if this compiles for above
+gen_io :: Bool -> (Bool -> Int) -> IO String
+gen_io tp fn = do
+    let seed = 0 -- somehow this won't make it deterministic?
+    let n = 10
+    ins <- nub <$> sample' (resize n $ variant seed arbitrary :: Gen Bool)
+    let outs = fn <$> ins
+    return $ show $ zip ins outs
 
 -- str = show $ funResultTy (typeOf (reverse :: [Char] -> [Char])) $ typeOf "abc"
-return_type :: String -> String -> Interpreter String
-return_type fn_tp_str par_tp_str = typeOf $ "(undefined :: " ++ fn_tp_str ++ ") (undefined :: " ++ par_tp_str ++ ")"
+returnType :: String -> String -> Interpreter String
+returnType fn_tp_str par_tp_str = typeOf $ "(undefined :: " ++ fn_tp_str ++ ") (undefined :: " ++ par_tp_str ++ ")"
 
-fn_in_tp :: String -> Interpreter (Type SrcSpanInfo)
-fn_in_tp fn_tp_str = do
+fnInTp :: String -> Interpreter (Type SrcSpanInfo)
+fnInTp fn_tp_str = do
     let tp_ast = fromParseResult (parse ("_ :: " ++ fn_tp_str) :: ParseResult (Exp SrcSpanInfo))
     let tp_fn = case tp_ast of
                     ExpTypeSig _mdl _exp tp -> tp
@@ -134,8 +134,8 @@ fn_in_tp fn_tp_str = do
 pick :: [a] -> IO a
 pick xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
 
-random_type :: IO (Type SrcSpanInfo)
-random_type = do
+randomType :: IO (Type SrcSpanInfo)
+randomType = do
     io <- pick [
                 simple "Bool",
                 simple "Int",
@@ -143,21 +143,21 @@ random_type = do
             ]
     io
     where
-        simple = pure . type_node
+        simple = return . typeNode
         mono str = do
-            tp <- random_type
-            return $ poly_type_node str tp
+            tp <- randomType
+            return $ polyTypeNode str tp
 
 l :: SrcSpanInfo
 l = SrcSpanInfo {srcInfoSpan = span, srcInfoPoints = []}  -- [span]
     where 
         span = SrcSpan "<unknown>.hs" 1 1 1 1
 
-type_node :: String -> (Type SrcSpanInfo)
-type_node str = TyCon l $ UnQual l $ Ident l str
+typeNode :: String -> (Type SrcSpanInfo)
+typeNode str = TyCon l $ UnQual l $ Ident l str
 
-poly_type_node :: String -> (Type SrcSpanInfo) -> (Type SrcSpanInfo)
-poly_type_node str tp = TyApp l (type_node str) tp
+polyTypeNode :: String -> (Type SrcSpanInfo) -> (Type SrcSpanInfo)
+polyTypeNode str tp = TyApp l (typeNode str) tp
 
 -- -- can't get TypeRep for polymorphic types
 -- skeleton :: TypeRep -> Exp SrcSpanInfo
@@ -165,8 +165,8 @@ poly_type_node str tp = TyApp l (type_node str) tp
 --     where
 --         io = typeRepArgs rep
 --         hole = Var l $ Special l $ ExprHole l
---         i = type_node . show $ head io
---         o = type_node . show $ last io
+--         i = typeNode . show $ head io
+--         o = typeNode . show $ last io
 --         tp_fn = TyFun l i o
 --         expr = ExpTypeSig l hole tp_fn
 
