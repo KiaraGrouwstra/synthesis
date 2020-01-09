@@ -3,10 +3,10 @@
 # this file: <https://github.com/sol/hpack>.
 name: synthesis
 version: '0.0.0'
-github: "githubuser/synthesis"
+github: "tycho01/synthesis"
 license: MIT
-author: "Author name here"
-maintainer: "Author name here"
+author: "Kiara Grouwstra"
+maintainer: "Kiara Grouwstra"
 # synopsis: A new Haskeleton package.
 # description: synthesis is a new Haskeleton package.
 # category: Other
@@ -20,9 +20,16 @@ extra-source-files:
 
 ghc-options: -Wall
 
+default-extensions:
+  - UnicodeSyntax
+  - QuasiQuotes
+  - ScopedTypeVariables
+
+dependencies:
+  - base
+
 library:
   dependencies:
-  - base
   - template-haskell
   - haskell-src-exts
   - ghc-lib-parser
@@ -34,6 +41,8 @@ library:
   - unordered-containers
   - text
   - hashable
+  # - utility-ht
+  - dump
   source-dirs: library
 
 executables:
@@ -41,7 +50,6 @@ executables:
     source-dirs: executable
     main: Main.hs
     dependencies:
-    - base
     - synthesis
     ghc-options:
     - -rtsopts
@@ -53,7 +61,6 @@ benchmarks:
     source-dirs: benchmark
     main: Main.hs
     dependencies:
-    - base
     - synthesis
     - criterion
     ghc-options:
