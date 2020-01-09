@@ -1,4 +1,4 @@
-module Utility (Item(..), say, errorString, interpretIO, fnStr, undef, returnType, randomType, fnInTp, typeNode, polyTypeNode, skeleton, flatten, pick) where
+module Utility (Tp, Expr, Item(..), say, errorString, interpretIO, fnStr, undef, returnType, randomType, fnInTp, typeNode, polyTypeNode, skeleton, flatten, pick) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), Type(TyFun, TyCon, TyApp), Name(Ident), QName(UnQual) ) -- , SpecialCon(ExprHole), TyVar
@@ -10,6 +10,10 @@ import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError
 import Data.List (intercalate) -- , replicate, nub
 import System.Random (randomRIO)
 -- import Control.Monad (forM_)
+import Data.Hashable (Hashable)
+import qualified Data.Text as T
+-- import Data.Text (Text(..), unpack)
+import qualified Data.Text.Array as TA
 
 -- monad stuff
 
@@ -30,6 +34,10 @@ interpretIO cmd = do
 
 -- type stuff
 
+-- these verbose types annoy me so let's alias them
+type Tp = Type SrcSpanInfo
+type Expr = Exp SrcSpanInfo
+
 fnStr :: String -> String -> String
 fnStr i o  = i ++ " -> " ++ o
 
@@ -40,7 +48,7 @@ undef tp = "(undefined :: " ++ tp ++ ")"
 returnType :: String -> String -> Interpreter String
 returnType fn_tp_str par_tp_str = typeOf $ undef fn_tp_str ++ undef par_tp_str
 
-randomType :: Int -> IO (Type SrcSpanInfo)
+randomType :: Int -> IO Tp
 randomType nestLimit = do
     io <- pick $ case nestLimit of
             0 -> simples
@@ -57,16 +65,16 @@ randomType nestLimit = do
             tp <- randomType (nestLimit - 1)
             return $ polyTypeNode str tp
 
-fnInTp :: String -> Interpreter (Type SrcSpanInfo)
+fnInTp :: String -> Interpreter Tp
 fnInTp fn_tp_str = do
-    let tp_ast = fromParseResult (parse ("_ :: " ++ fn_tp_str) :: ParseResult (Exp SrcSpanInfo))
+    let tp_ast = fromParseResult (parse ("_ :: " ++ fn_tp_str) :: ParseResult Expr)
     tp_fn <- case tp_ast of
                 ExpTypeSig _mdl _exp tp -> return tp
                 x -> fail $ "expected ExpTypeSig, not" ++ show x
     in_tp <- case tp_fn of
                 TyFun _mdl i _o -> return i
                 x -> fail $ "expected TyFun, not " ++ show x
-    say $ prettyPrint in_tp
+    -- say $ prettyPrint in_tp
     return in_tp
 
 -- ast stuff
@@ -76,14 +84,14 @@ l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
     where
         spn = SrcSpan "<unknown>.hs" 1 1 1 1
 
-typeNode :: String -> (Type SrcSpanInfo)
+typeNode :: String -> Tp
 typeNode str = TyCon l $ UnQual l $ Ident l str
 
-polyTypeNode :: String -> (Type SrcSpanInfo) -> (Type SrcSpanInfo)
+polyTypeNode :: String -> Tp -> Tp
 polyTypeNode str tp = TyApp l (typeNode str) tp
 
 -- -- can't get TypeRep for polymorphic types
--- skeleton :: TypeRep -> Exp SrcSpanInfo
+-- skeleton :: TypeRep -> Expr
 -- skeleton rep = expr
 --     where
 --         io = typeRepArgs rep
@@ -93,11 +101,11 @@ polyTypeNode str tp = TyApp l (typeNode str) tp
 --         tp_fn = TyFun l i o
 --         expr = ExpTypeSig l hole tp_fn
 
-skeleton :: String -> Exp SrcSpanInfo
+skeleton :: String -> Expr
 skeleton fn_tp_str = expr
     where
         src = "_ :: " ++ fn_tp_str
-        expr = fromParseResult (parse src :: ParseResult (Exp SrcSpanInfo))
+        expr = fromParseResult (parse src :: ParseResult Expr)
 
 -- misc
 
@@ -109,3 +117,15 @@ flatten (Many x) = concatMap flatten x
 
 pick :: [a] -> IO a
 pick xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
+
+-- -- ‘hashWithSalt’ is not a (visible) method of class ‘Hashable’
+-- -- https://github.com/haskell-infra/hackage-trustees/issues/139
+-- instance (Type l) => Hashable (Type l) where
+--     -- hash = id
+--     hashWithSalt = \n -> hash
+--     -- hashWithSalt salt tp = case (unpack $ prettyPrint tp) of
+--     --         -- https://github.com/tibbe/hashable/blob/cc4ede9bf7821f952eb700a131cf1852d3fd3bcd/Data/Hashable/Class.hs#L641
+--     --         T.Text arr off len -> hashByteArrayWithSalt (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) salt
+--     -- --  :: Int -> a -> Int
+--     -- -- hashWithSalt salt tp = prettyPrint tp
+--     -- -- hashWithSalt = defaultHashWithSalt

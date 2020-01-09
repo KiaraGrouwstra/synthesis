@@ -23,9 +23,6 @@ provide for you. You should:
     -   Don't forget to rename the reference to it in
         `executable/Main.hs`!
 
--   If you are on an older version of Stack (<1.0.4), delete `package.yaml` and
-    remove `/*.cabal` from your `.gitignore`.
-
 Once you've done that, start working on your project with the Stack commands
 you know and love.
 

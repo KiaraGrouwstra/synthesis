@@ -30,6 +30,10 @@ library:
   - hint
   - random
   - transformers
+  - containers
+  - unordered-containers
+  - text
+  - hashable
   source-dirs: library
 
 executables:
