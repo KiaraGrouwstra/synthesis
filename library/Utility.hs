@@ -1,25 +1,29 @@
-module Utility (Tp, Expr, Item(..), say, errorString, interpretIO, fnStr, undef, returnType, randomType, fnInTp, typeNode, polyTypeNode, skeleton, flatten, pick) where
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, DataKinds #-}
+
+-- | utility functions
+module Utility (Tp, Expr, Item(..), say, errorString, interpretIO, randomType, typeNode, polyTypeNode, skeleton, flatten, pick, groupByVal, toMapBy, NestedTuple, flattenTuple, fnTypeIO, genTypes, instantiateTypes) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
-import Language.Haskell.Exts.Syntax ( Exp(ExpTypeSig), Type(TyFun, TyCon, TyApp), Name(Ident), QName(UnQual) ) -- , SpecialCon(ExprHole), TyVar
+import Language.Haskell.Exts.Syntax ( Exp, Type(TyFun, TyCon, TyApp, TyVar), Name(Ident), QName(UnQual) )
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
--- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate, resize )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, typeOf, lift, liftIO) -- , MonadInterpreter, infer, eval, kindOf, typeChecks, runInterpreter, setImports
-import Data.List (intercalate) -- , replicate, nub
+import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, lift, liftIO)
+import Data.List (intercalate, replicate, nub)
 import System.Random (randomRIO)
--- import Control.Monad (forM_)
+import Control.Monad (replicateM)
 import Data.Hashable (Hashable)
-import qualified Data.Text as T
--- import Data.Text (Text(..), unpack)
-import qualified Data.Text.Array as TA
+import Data.HashMap.Lazy (HashMap, fromList, (!))
+import GHC.Exts (groupWith)
+import Data.Bifoldable (biList)
 
 -- monad stuff
 
+-- | print in the Interpreter monad
 say :: String -> Interpreter ()
 say = liftIO . putStrLn
 
+-- | run-time Language.Haskell.Interpreter compilation error
 errorString :: InterpreterError -> String
 errorString (WontCompile es) = intercalate "\n" (header : map unbox es)
   where
@@ -27,6 +31,7 @@ errorString (WontCompile es) = intercalate "\n" (header : map unbox es)
     unbox (GhcError e) = e
 errorString e = show e
 
+-- | interpret a stringified IO command
 interpretIO :: String -> Interpreter String
 interpretIO cmd = do
     io <- interpret cmd (as :: IO String)
@@ -37,17 +42,9 @@ interpretIO cmd = do
 -- these verbose types annoy me so let's alias them
 type Tp = Type SrcSpanInfo
 type Expr = Exp SrcSpanInfo
+-- type Fn = TyFun SrcSpanInfo (Type SrcSpanInfo a) (Type SrcSpanInfo b)
 
-fnStr :: String -> String -> String
-fnStr i o  = i ++ " -> " ++ o
-
-undef :: String -> String
-undef tp = "(undefined :: " ++ tp ++ ")"
-
--- str = show $ funResultTy (typeOf (reverse :: [Char] -> [Char])) $ typeOf "abc"
-returnType :: String -> String -> Interpreter String
-returnType fn_tp_str par_tp_str = typeOf $ undef fn_tp_str ++ undef par_tp_str
-
+-- | randomly generate a concrete type, used to fill type variables
 randomType :: Int -> IO Tp
 randomType nestLimit = do
     io <- pick $ case nestLimit of
@@ -65,30 +62,62 @@ randomType nestLimit = do
             tp <- randomType (nestLimit - 1)
             return $ polyTypeNode str tp
 
-fnInTp :: String -> Interpreter Tp
-fnInTp fn_tp_str = do
-    let tp_ast = fromParseResult (parse ("_ :: " ++ fn_tp_str) :: ParseResult Expr)
-    tp_fn <- case tp_ast of
-                ExpTypeSig _mdl _exp tp -> return tp
-                x -> fail $ "expected ExpTypeSig, not" ++ show x
-    in_tp <- case tp_fn of
-                TyFun _mdl i _o -> return i
-                x -> fail $ "expected TyFun, not " ++ show x
-    -- say $ prettyPrint in_tp
-    return in_tp
+-- | extract the input and output types from a function type
+fnTypeIO :: Tp -> (Tp, Tp)
+fnTypeIO tp = case tp of
+                TyFun _l a b -> (a, b)
+                -- x -> fail $ "unexpected " ++ show x
+
+-- TODO: take into account type variable constraints
+-- | generate any combinations of a polymorphic type filled using a list of concrete types
+instantiateTypes :: [Tp] -> Tp -> [Tp]
+instantiateTypes tps tp = fillTypeVars tp <$> instantiateTypeVars tps (findTypeVars tp)
+
+-- | find the type variables and their occurrences
+findTypeVars :: Tp -> [String]
+findTypeVars tp = nub $ findTypeVars_ tp
+
+findTypeVars_ :: Tp -> [String]
+findTypeVars_ tp = let f = findTypeVars_ in case tp of
+            TyVar _l _name -> [prettyPrint tp]
+            TyApp _l a b -> f a ++ f b
+            TyFun _l a b -> f a ++ f b
+            _ -> []
+
+-- | instantiate type variables
+instantiateTypeVars :: [Tp] -> [String] -> [HashMap String Tp]
+instantiateTypeVars tps ks = fromList . zip ks <$> (sequence (replicate (length ks) tps))
+
+-- | substitute all type variable occurrences
+fillTypeVars :: Tp -> HashMap String Tp -> Tp
+fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case tp of
+    TyVar _l _name -> substitutions ! prettyPrint tp
+    TyApp _l a b -> TyApp _l (f a) $ f b
+    TyFun _l a b -> TyFun _l (f a) $ f b
+    _ -> tp
+
+-- | generate a number of types to be used in type variable substitution
+genTypes :: IO (Item Tp)
+genTypes = Many . fmap (One . pure) <$> replicateM maxInstances (randomType nestLimit)
+    where
+        maxInstances = 5  -- may get less after nub filters out duplicate type instances
+        nestLimit = 0 -- high values make for big logs while debugging...
 
 -- ast stuff
 
+-- | dummy source span info, because I don't care
 l :: SrcSpanInfo
 l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
     where
         spn = SrcSpan "<unknown>.hs" 1 1 1 1
 
+-- | create a monomorphic type node
 typeNode :: String -> Tp
 typeNode str = TyCon l $ UnQual l $ Ident l str
 
+-- | create a polymorphic type node
 polyTypeNode :: String -> Tp -> Tp
-polyTypeNode str tp = TyApp l (typeNode str) tp
+polyTypeNode str = TyApp l (typeNode str)
 
 -- -- can't get TypeRep for polymorphic types
 -- skeleton :: TypeRep -> Expr
@@ -101,6 +130,8 @@ polyTypeNode str tp = TyApp l (typeNode str) tp
 --         tp_fn = TyFun l i o
 --         expr = ExpTypeSig l hole tp_fn
 
+-- | given a string representation of a function type, create a skeletal
+-- | AST node representing the function consisting of a hole
 skeleton :: String -> Expr
 skeleton fn_tp_str = expr
     where
@@ -109,14 +140,34 @@ skeleton fn_tp_str = expr
 
 -- misc
 
+-- | a homogeneous nested list
 data Item a = One [a] | Many [Item a]
 
+-- | flatten a nested list
 flatten :: Item a -> [a]
 flatten (One x) = x
 flatten (Many x) = concatMap flatten x
 
+-- | a homogeneous nested tuple
+data NestedTuple a = SingleTuple (a, a) | DeepTuple (a, NestedTuple a)
+
+-- | flatten a nested tuple
+flattenTuple :: NestedTuple a -> [a]
+flattenTuple tpl = case tpl of
+    SingleTuple tpl_ -> biList tpl_
+    DeepTuple (x, xs) -> x : flattenTuple xs
+
+-- | randomly pick an item from a list
 pick :: [a] -> IO a
-pick xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
+pick xs = (xs !!) <$> randomRIO (0, length xs - 1)
+
+-- | group a list of k/v pairs by values, essentially inverting the original HashMap
+groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
+groupByVal = fromList . fmap (\pairs -> (snd $ head pairs, fst <$> pairs)) . groupWith snd
+
+-- | create a HashMap by mapping over a list of keys
+toMapBy :: [String] -> (String -> a) -> HashMap String a
+toMapBy ks fn = fromList $ zip ks $ fn <$> ks
 
 -- -- ‘hashWithSalt’ is not a (visible) method of class ‘Hashable’
 -- -- https://github.com/haskell-infra/hackage-trustees/issues/139

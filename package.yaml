@@ -24,6 +24,7 @@ default-extensions:
   - UnicodeSyntax
   - QuasiQuotes
   - ScopedTypeVariables
+  - TemplateHaskell
 
 dependencies:
   - base
@@ -43,6 +44,7 @@ library:
   - hashable
   # - utility-ht
   - dump
+  - lens
   source-dirs: library
 
 executables:
