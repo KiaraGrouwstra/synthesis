@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, DataKinds #-}
 
 -- | utility functions
-module Utility (Tp, Expr, Item(..), say, errorString, interpretIO, randomType, typeNode, polyTypeNode, skeleton, flatten, pick, groupByVal, toMapBy, NestedTuple, flattenTuple, fnTypeIO, genTypes, instantiateTypes) where
+module Utility (Tp, Expr, Item(..), say, errorString, interpretIO, randomType, typeNode, polyTypeNode, skeleton, flatten, pick, groupByVal, toMapBy, NestedTuple, flattenTuple, fnTypeIO, genTypes, instantiateTypes, handleInTp, genInputs, fnOutputs, instantiateFnTypes, filterTypeSigIoFns) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Exp, Type(TyFun, TyCon, TyApp, TyVar), Name(Ident), QName(UnQual) )
@@ -9,9 +9,9 @@ import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, lift, liftIO)
-import Data.List (intercalate, replicate, nub)
+import Data.List (intercalate, replicate, nub, delete, minimumBy)
 import System.Random (randomRIO)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, forM, forM_)
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, (!))
 import GHC.Exts (groupWith)
@@ -103,6 +103,49 @@ genTypes = Many . fmap (One . pure) <$> replicateM maxInstances (randomType nest
         maxInstances = 5  -- may get less after nub filters out duplicate type instances
         nestLimit = 0 -- high values make for big logs while debugging...
 
+-- | get input-output pairs for a function given the inputs (for one concrete input type instantiation)
+handleInTp :: String -> String -> Interpreter String
+handleInTp fn_str ins = interpret ("show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> (" ++ ins ++ ")") (as :: String)
+
+-- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
+-- | generate examples given a concrete type (to and from string to keep a common type, as we need this for the run-time interpreter anyway)
+genInputs :: String -> Interpreter String
+genInputs in_type_str = interpretIO $ "let n = 10; seed = 0 in show <$> nub <$> sample' (resize n $ variant seed arbitrary :: Gen (" ++ in_type_str ++ "))"
+
+fnOutputs :: HashMap String String -> HashMap String String -> String -> [String] -> Interpreter (HashMap String String)
+fnOutputs fn_bodies instantiation_inputs k instantiations = let
+            fn_str = fn_bodies ! k
+            inputs = (!) instantiation_inputs <$> instantiations
+        in
+            fromList . zip instantiations <$> mapM (handleInTp fn_str) inputs
+
+instantiateFnTypes :: HashMap String String -> Interpreter (HashMap String [(Tp, Tp)])
+instantiateFnTypes fn_type_strs = do
+    let fn_types :: HashMap String Tp = (\type_str -> fromParseResult (parse type_str :: ParseResult Tp)) <$> fn_type_strs
+    -- fn_in_types :: HashMap String Tp <- mapM fnInTp fn_type_strs
+    -- let in_types :: [Tp] = nub $ elems fn_in_types
+    -- let str_in_types :: [String] = prettyPrint <$> in_types
+    -- let fn_str_in_types :: HashMap String String = prettyPrint <$> fn_in_types
+    fill_types :: [Tp] <- nub . flatten <$> lift genTypes
+    -- in_type_instantiations_ :: [Item Tp] <- lift $ mapM instantiateType in_types
+    let fn_type_instantiations :: HashMap String [Tp] = instantiateTypes fill_types <$> fn_types
+    -- let fn_str_type_instantiations :: HashMap String [String] = fmap prettyPrint <$> fn_type_instantiations
+    let fn_io_type_instantiations :: HashMap String [(Tp, Tp)] = fmap fnTypeIO <$> fn_type_instantiations
+    return fn_io_type_instantiations
+
+filterTypeSigIoFns :: HashMap String String -> HashMap String (HashMap String [String]) -> Interpreter (HashMap String (HashMap String String))
+filterTypeSigIoFns fn_bodies type_sig_io_fns = forM type_sig_io_fns $ mapM $ \fns -> do
+    case length fns of
+        1 -> return ()
+        _ -> say $ "comparing equivalent fns " ++ show fns
+    let minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
+    -- TODO: compare by AST nodes, not fn body string length!
+    let shortest = minByMap (length . (!) fn_bodies) fns
+    let rest = delete shortest fns
+    forM_ rest $ \fn ->
+        say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
+    return shortest
+
 -- ast stuff
 
 -- | dummy source span info, because I don't care
@@ -172,8 +215,8 @@ toMapBy ks fn = fromList $ zip ks $ fn <$> ks
 -- -- ‘hashWithSalt’ is not a (visible) method of class ‘Hashable’
 -- -- https://github.com/haskell-infra/hackage-trustees/issues/139
 -- instance (Type l) => Hashable (Type l) where
---     -- hash = id
---     hashWithSalt = \n -> hash
+--     -- hash = 1
+--     hashWithSalt n = hash
 --     -- hashWithSalt salt tp = case (unpack $ prettyPrint tp) of
 --     --         -- https://github.com/tibbe/hashable/blob/cc4ede9bf7821f952eb700a131cf1852d3fd3bcd/Data/Hashable/Class.hs#L641
 --     --         T.Text arr off len -> hashByteArrayWithSalt (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) salt
