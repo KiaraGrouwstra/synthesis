@@ -29,6 +29,9 @@ you know and love.
 ``` sh
 # Build the project.
 stack build
+stack --nix build  # needs NIX_PATH
+snack build  # error: attribute 'ghc-lib-parser' missing
+cd ghx-nix && cabal install --installdir=./bin --overwrite-policy=always  # cabal: unrecognized 'install' option
 
 # Run the test suite.
 stack test

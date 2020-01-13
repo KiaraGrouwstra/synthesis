@@ -12,7 +12,10 @@ import Language.Haskell.Interpreter (Interpreter, typeOf, runInterpreter, setImp
 -- , interpret, as, lift
 import Data.List (nub)
 import Control.Monad (forM_)
-import Utility (Tp, say, errorString, groupByVal, genInputs, fnOutputs, instantiateFnTypes, filterTypeSigIoFns)
+import Hint (say, errorString, genInputs)
+import Ast (fnOutputs, instantiateFnTypes, filterTypeSigIoFns)
+import Types (Tp)
+import Utility (groupByVal)
 import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromList, toList)
 -- import Debug.Dump (d)
 

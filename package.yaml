@@ -34,7 +34,7 @@ library:
   - template-haskell
   - haskell-src-exts
   - ghc-lib-parser
-  - QuickCheck
+  # - QuickCheck
   - hint
   - random
   - transformers
@@ -42,9 +42,9 @@ library:
   - unordered-containers
   - text
   - hashable
-  # - utility-ht
   - dump
   - lens
+  - generic-lens
   source-dirs: library
 
 executables:
