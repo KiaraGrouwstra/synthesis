@@ -1,16 +1,15 @@
-{-# LANGUAGE LambdaCase, ImpredicativeTypes #-}
+{-# LANGUAGE LambdaCase, ImpredicativeTypes, RankNTypes #-}
 
 -- | ast manipulation
 module Ast (typeNode, skeleton, fnOutputs, instantiateFnTypes, filterTypeSigIoFns) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
-import Language.Haskell.Exts.Syntax ( Type(..) )
+import Language.Haskell.Exts.Syntax ( Type(..), Exp )
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Interpreter (Interpreter, lift)
 import Data.List (nub, delete, minimumBy)
 import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, (!))
-import Language.Haskell.Exts.Syntax ( Exp )
 import Types
 import FindHoles
 import Utility
@@ -30,6 +29,9 @@ strategy = UseLambdas
 fillHole :: Int -> Expr -> IO [Expr]
 fillHole paramCount expr = do
     -- find a hole
+    --  :: [Lens' Expr Expr]
+    -- let holeLenses :: [(Expr -> Identity Expr) -> Expr -> Identity Expr] = findHolesExpr expr
+    -- let holeLenses :: [(Expr -> Const Expr) -> Expr -> Const Expr] = findHolesExpr expr
     let holeLenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
     --  :: Functor f => (Expr -> f Expr) -> Expr -> f Expr
@@ -44,8 +46,8 @@ fillHole paramCount expr = do
                                 varName = "p" ++ show paramCount
                                 src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ prettyPrint tpIn ++ ") in (_ :: " ++ prettyPrint tpOut ++ ")"
                                 expr_ = fromParseResult (parse src :: ParseResult Expr)
-                                -- setter = holeLens
-                                setter = sets holeLens
+                                setter = holeLens
+                                -- setter = sets holeLens
                             -- TODO: get the type of the hole
                             -- in set holeLens expr expr_
                             in set setter expr expr_

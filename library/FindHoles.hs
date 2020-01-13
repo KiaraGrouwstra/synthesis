@@ -1,4 +1,4 @@
-{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE ImpredicativeTypes, RankNTypes, FlexibleContexts #-}
 
 -- | find holes in an AST
 module FindHoles (findHolesExpr) where
@@ -14,41 +14,36 @@ import Control.Lens
 
 -- | look for holes in an expression. to simplify extracting type, we will only look for holes as part of an ExpTypeSig, e.g. `_ :: Bool`
 -- findHolesExpr :: Exp l1 -> [Lens' (Exp l2) (Exp l2)]
-findHolesExpr :: Functor f => Exp l1 -> [(Exp l2 -> f (Exp l2)) -> Exp l2 -> f (Exp l2)]
-findHolesExpr expr = let f = findHolesExpr in case expr of
-    -- Var _l qname -> findHolesQname qname
-    -- TupleSection _l boxed maybeExps -> maybeExps >>= (\case Nothing -> []; Just xpr -> f xpr)
-    -- Case _l xpr alts -> f xpr ++ (alts >>= findHolesAlt)
-    -- Let _l _binds xpr -> f xpr -- ++ findHolesBinds binds
+findHolesExpr :: Functor f => Exp l1 -> [(Exp l2 -> f (Exp l2)) -> Exp l2 -> f (Exp l2)] -- clashes with view
+-- findHolesExpr :: Exp l1 -> [(Exp l2 -> Identity (Exp l2)) -> Exp l2 -> Identity (Exp l2)] -- clashes with view
+-- findHolesExpr :: Exp l1 -> [(Exp l2 -> Const (Exp l2) (Exp l2)) -> Exp l2 -> Const (Exp l2) (Exp l2)] -- clashes with set
+findHolesExpr expr = let
+        f = findHolesExpr
+        -- by the time we use the lens, we already know exactly how we're navigating.
+        -- however, at compile-time this isn't known, so we have to pretend we're still checking here.
+        gtr x = case x of
+            (Let _l _binds xp) -> xp
+            (App _l xp _exp2) -> xp
+            (Lambda _l _pats xp) -> xp
+            (Paren _l xp) -> xp
+            (ExpTypeSig _l xp _tp) -> xp
+            _ -> x
+        str x xp = case x of
+            (Let l binds _exp) -> Let l binds xp
+            (App l _exp1 xp2) -> App l xp xp2
+            (Lambda l pats _exp) -> Lambda l pats xp
+            (Paren l _exp) -> Paren l xp
+            (ExpTypeSig l _exp tp) -> ExpTypeSig l xp tp
+            _ -> x
+        -- lns = (lens gtr str .)
+    in case expr of
     Let _l _binds xpr -> (lens gtr str .) <$> f xpr
+    App _l exp1 exp2 ->  ((lens gtr str .) <$> f exp1) ++ ((lens gtr2 str2 .) <$> f exp2)
         where
-            gtr x = case x of (Let _l _binds xp) -> xp; _ -> x
-            -- str (Let l binds _exp) = Let l binds
-            str x xp = case x of (Let l binds _exp) -> Let l binds xp; _ -> x
-    -- InfixApp _l exp1 qop exp2 -> f exp1 ++ f exp2
-    -- App _l exp1 exp2 -> f exp1 ++ f exp2
-    App _l exp1 exp2 ->  ((lens gtr1 str1 .) <$> f exp1) ++ ((lens gtr2 str2 .) <$> f exp2)
-        where
-            gtr1 x = case x of (App _l xp1 _exp2) -> xp1; _ -> x
-            -- str1 (App l _exp1 xp2) xp1 = App l xp1 xp2
-            str1 x xp1 = case x of (App l _exp1 xp2) -> App l xp1 xp2; _ -> x
             gtr2 x = case x of (App _l _exp1 xp2) -> xp2; _ -> x
             str2 x xp2 = case x of (App l xp1 _exp2) -> App l xp1 xp2; _ -> x
-    -- Lambda _l _pats xpr -> f xpr
     Lambda _l _pats xpr -> (lens gtr str .) <$> f xpr
-        where
-            gtr x = case x of (Lambda _l _pats xp) -> xp; _ -> x
-            -- str (Lambda l pats _exp) = Lambda l pats
-            str x xp = case x of (Lambda l pats _exp) -> Lambda l pats xp; _ -> x
-    -- If _l  exp1 exp2 exp3 -> f exp1 ++ f exp2 ++ f exp3
-    -- Tuple _l boxed exps -> exps >>= f
-    -- List _l exps -> exps >>= f
-    -- Paren _l xpr -> f xpr
     Paren _l xpr -> (lens gtr str .) <$> f xpr
-        where
-            gtr x = case x of (Paren _l xp) -> xp; _ -> x
-            -- str (Paren l _exp) = Paren l
-            str x xp = case x of (Paren l _exp) -> Paren l xp; _ -> x
     ExpTypeSig _l xpr _tp -> case xpr of
         Var _l qname -> case qname of
             Special _l specialCon -> case specialCon of
@@ -58,10 +53,6 @@ findHolesExpr expr = let f = findHolesExpr in case expr of
                 _ -> (lens gtr str .) <$> f xpr
             _ -> (lens gtr str .) <$> f xpr
         _ -> (lens gtr str .) <$> f xpr
-        where
-            gtr x = case x of (ExpTypeSig _l xp _tp) -> xp; _ -> x
-            -- str (ExpTypeSig l _exp tp) xp = ExpTypeSig l xp tp
-            str x xp = case x of (ExpTypeSig l _exp tp) -> ExpTypeSig l xp tp; _ -> x
     _ -> []
 
 -- findHolesBinds :: Binds l -> [Exp l]
