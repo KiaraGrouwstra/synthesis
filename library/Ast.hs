@@ -29,14 +29,12 @@ strategy = UseLambdas
 fillHole :: Int -> Expr -> IO [Expr]
 fillHole paramCount expr = do
     -- find a hole
-    --  :: [Lens' Expr Expr]
-    -- let holeLenses :: [(Expr -> Identity Expr) -> Expr -> Identity Expr] = findHolesExpr expr
-    -- let holeLenses :: [(Expr -> Const Expr) -> Expr -> Const Expr] = findHolesExpr expr
     let holeLenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
-    --  :: Functor f => (Expr -> f Expr) -> Expr -> f Expr
     let holeLens = head holeLenses
-    let hole :: Expr = view holeLens expr
+    let holeGetter :: (Expr -> Const Expr Expr) -> Expr -> Const Expr Expr = fst holeLens
+    let holeSetter :: (Expr -> Identity Expr) -> Expr -> Identity Expr = snd holeLens
+    let hole :: Expr = view holeGetter expr
     -- find a way to replace this hole in the ast
     let tp :: Tp = holeType hole
     let fits = case tp of
@@ -46,11 +44,8 @@ fillHole paramCount expr = do
                                 varName = "p" ++ show paramCount
                                 src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ prettyPrint tpIn ++ ") in (_ :: " ++ prettyPrint tpOut ++ ")"
                                 expr_ = fromParseResult (parse src :: ParseResult Expr)
-                                setter = holeLens
-                                -- setter = sets holeLens
                             -- TODO: get the type of the hole
-                            -- in set holeLens expr expr_
-                            in set setter expr expr_
+                            in set holeSetter expr expr_
                     -- TODO: for functions find potential fits either using return types or any level of return type of the function
                     -- UseCurrying -> []
                 -- TODO: find potential fits among variables/blocks

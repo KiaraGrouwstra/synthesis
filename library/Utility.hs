@@ -1,11 +1,17 @@
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple) where
+module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple, mapTuple) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)
 import Data.HashMap.Lazy (HashMap, fromList)
 import GHC.Exts (groupWith)
 import Data.Bifoldable (biList)
+import Control.Monad (join)
+import Control.Arrow ((***))
+
+-- | map over both elements of a tuple
+mapTuple :: (a -> b) -> (a, a) -> (b, b)
+mapTuple = join (***)
 
 -- | a homogeneous nested list
 data Item a = One [a] | Many [Item a]

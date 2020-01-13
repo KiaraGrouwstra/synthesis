@@ -11,12 +11,13 @@ import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), QName(..) )
 import Control.Lens
 -- import Control.Lens.Getter
 -- import Control.Lens.Setter
+import Utility ( mapTuple )
 
 -- | look for holes in an expression. to simplify extracting type, we will only look for holes as part of an ExpTypeSig, e.g. `_ :: Bool`
+-- | I couldn't figure out how to get this to typecheck as a whole lens, so instead I'm taking them as getter/setter pairs...
 -- findHolesExpr :: Exp l1 -> [Lens' (Exp l2) (Exp l2)]
-findHolesExpr :: Functor f => Exp l1 -> [(Exp l2 -> f (Exp l2)) -> Exp l2 -> f (Exp l2)] -- clashes with view
--- findHolesExpr :: Exp l1 -> [(Exp l2 -> Identity (Exp l2)) -> Exp l2 -> Identity (Exp l2)] -- clashes with view
--- findHolesExpr :: Exp l1 -> [(Exp l2 -> Const (Exp l2) (Exp l2)) -> Exp l2 -> Const (Exp l2) (Exp l2)] -- clashes with set
+findHolesExpr :: Exp l1 -> [((Exp l2 -> Const (Exp l2) (Exp l2)) -> Exp l2 -> Const (Exp l2) (Exp l2), (Exp l2 -> Identity (Exp l2)) -> Exp l2 -> Identity (Exp l2))]
+-- findHolesExpr :: Exp l1 -> [(Getter (Exp l2) (Exp l2), Setter' (Exp l2) (Exp l2))]
 findHolesExpr expr = let
         f = findHolesExpr
         -- by the time we use the lens, we already know exactly how we're navigating.
@@ -37,22 +38,22 @@ findHolesExpr expr = let
             _ -> x
         -- lns = (lens gtr str .)
     in case expr of
-    Let _l _binds xpr -> (lens gtr str .) <$> f xpr
-    App _l exp1 exp2 ->  ((lens gtr str .) <$> f exp1) ++ ((lens gtr2 str2 .) <$> f exp2)
-        where
-            gtr2 x = case x of (App _l _exp1 xp2) -> xp2; _ -> x
-            str2 x xp2 = case x of (App l xp1 _exp2) -> App l xp1 xp2; _ -> x
-    Lambda _l _pats xpr -> (lens gtr str .) <$> f xpr
-    Paren _l xpr -> (lens gtr str .) <$> f xpr
+    -- Let _l _binds xpr -> [(lens gtr str :: (Exp l2 -> Const (Exp l2) (Exp l2)) -> Exp l2 -> Const (Exp l2) (Exp l2), lens gtr str :: (Exp l2 -> Identity (Exp l2)) -> Exp l2 -> Identity (Exp l2))]
+    -- Let _l _binds xpr -> mapTuple (lens gtr str .) <$> f xpr
+    -- Let _l _binds xpr -> (\f (a, b) -> (f a, f b)) (lens gtr str .) <$> f xpr
+    -- App _l exp1 exp2 ->  (mapTuple (lens gtr str .) <$> f exp1) ++ ((lens gtr2 str2 .) <$> f exp2)
+    --     where
+    --         gtr2 x = case x of (App _l _exp1 xp2) -> xp2; _ -> x
+    --         str2 x xp2 = case x of (App l xp1 _exp2) -> App l xp1 xp2; _ -> x
+    -- Lambda _l _pats xpr -> mapTuple (lens gtr str .) <$> f xpr
+    -- Paren _l xpr -> mapTuple (lens gtr str .) <$> f xpr
     ExpTypeSig _l xpr _tp -> case xpr of
         Var _l qname -> case qname of
             Special _l specialCon -> case specialCon of
-                ExprHole _l -> [lns]
-                    where
-                        lns = lens id $ flip const
-                _ -> (lens gtr str .) <$> f xpr
-            _ -> (lens gtr str .) <$> f xpr
-        _ -> (lens gtr str .) <$> f xpr
+                ExprHole _l -> [(lens id $ flip const :: (Exp l2 -> Const (Exp l2) (Exp l2)) -> Exp l2 -> Const (Exp l2) (Exp l2), lens id $ flip const :: (Exp l2 -> Identity (Exp l2)) -> Exp l2 -> Identity (Exp l2))]
+    --             _ -> mapTuple (lens gtr str .) <$> f xpr
+    --         _ -> mapTuple (lens gtr str .) <$> f xpr
+    --     _ -> mapTuple (lens gtr str .) <$> f xpr
     _ -> []
 
 -- findHolesBinds :: Binds l -> [Exp l]
