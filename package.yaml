@@ -33,6 +33,7 @@ library:
   dependencies:
   - template-haskell
   - haskell-src-exts
+  - ghc-lib
   - ghc-lib-parser
   # - QuickCheck
   - hint

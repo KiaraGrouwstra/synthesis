@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, typeNode, polyTypeNode, fnTypeIO, genTypes, instantiateTypes, holeType) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, typeNode, polyTypeNode, fnTypeIO, genTypes, instantiateTypes, holeType, varNode, l) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..) )
@@ -64,6 +64,7 @@ holeType :: Expr -> Tp
 holeType = \case
     ExpTypeSig _l _exp tp -> tp
 
+-- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 -- TODO: take into account type variable constraints
 -- | generate any combinations of a polymorphic type filled using a list of concrete types
 instantiateTypes :: [Tp] -> Tp -> [Tp]
@@ -101,6 +102,10 @@ l :: SrcSpanInfo
 l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
     where
         spn = SrcSpan "<unknown>.hs" 1 1 1 1
+
+-- | create a monomorphic type node
+varNode :: String -> Expr
+varNode str = Var l $ UnQual l $ Ident l str
 
 -- | create a monomorphic type node
 typeNode :: String -> Tp
