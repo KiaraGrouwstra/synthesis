@@ -168,7 +168,7 @@ genHoledVariants k tp = genHoledVariants_ tp $ varNode k
 
 genHoledVariants_ :: Tp -> Expr -> [Expr]
 genHoledVariants_ tp expr = expr : case tp of
-    TyFun _l _a b -> genHoledVariants_ b $ App l expr hole_expr
+    TyFun _l _a b -> genHoledVariants_ b $ App l expr holeExpr
     _ -> []
 
 filterCandidatesByCompile :: ((Expr -> Identity Expr) -> Expr -> Identity Expr) -> Expr -> [Expr] -> Interpreter [Expr]
@@ -266,8 +266,8 @@ filterTypeSigIoFns fn_asts type_sig_io_fns = forM type_sig_io_fns $ mapM $ \fns 
 
 -- ast stuff
 
-hole_expr :: Expr
-hole_expr = Var l $ Special l $ ExprHole l
+holeExpr :: Expr
+holeExpr = Var l $ Special l $ ExprHole l
 
 -- -- can't get TypeRep for polymorphic types
 -- skeleton :: TypeRep -> Expr
@@ -277,7 +277,7 @@ hole_expr = Var l $ Special l $ ExprHole l
 --         i = typeNode . show $ head io
 --         o = typeNode . show $ last io
 --         tp_fn = TyFun l i o
---         expr = ExpTypeSig l hole_expr tp_fn
+--         expr = ExpTypeSig l holeExpr tp_fn
 
 -- | given a string representation of a function type, create a skeletal
 -- | AST node representing the function consisting of a hole
