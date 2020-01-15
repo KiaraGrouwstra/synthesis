@@ -12,7 +12,7 @@ import Language.Haskell.Interpreter (Interpreter, typeOf, setImports, lift)
 -- , interpret, as, lift
 import Data.List (nub)
 import Control.Monad (forM_)
-import Hint (runInterpreter_, say, genInputs)
+import Hint (runInterpreterMain, say, genInputs)
 import Ast (fnOutputs, filterTypeSigIoFns, fillHole, skeleton)
 import Types (Tp, Expr, fnTypeIO, instantiateTypes, genTypes)
 import Utility (groupByVal, flatten, toMapBy)
@@ -22,11 +22,7 @@ import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromLi
 
 -- | main function, run program in our interpreter monad
 main :: IO ()
-main = runInterpreter_ program
-
--- | modules to be loaded in the interpreter
-modules :: [String]
-modules = ["Prelude", "Data.List", "Test.QuickCheck"]
+main = runInterpreterMain program
 
 -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
 -- | functions used for testing
@@ -42,7 +38,6 @@ fnBodies = insert "not_" "\\b -> not b" $
 -- | run our program in the interpreter
 program :: Interpreter ()
 program = do
-    setImports modules
     let fn_asts :: HashMap String Expr = (\str -> fromParseResult (parse str :: ParseResult Expr)) <$> fnBodies
     fn_type_strs :: HashMap String String <- mapM typeOf fnBodies
 

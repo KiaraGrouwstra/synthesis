@@ -2,18 +2,17 @@
 import Test.Tasty (TestTree, defaultMain, testGroup)
 -- Hspec: <https://hspec.github.io>
 import Test.Tasty.Hspec
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit ((@?=))
 import Test.HUnit.Base (Test(..))
 import Test.HUnit.Text (runTestTT)
 
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
 import Control.Lens
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..) )
+import Language.Haskell.Exts.Syntax ( Exp(..), Type(..) )
 import Language.Haskell.Exts.Pretty ( prettyPrint )
-import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), runInterpreter, interpret, as, lift, liftIO, runStmt)
+import Language.Haskell.Interpreter (interpret, as)
 import Data.List (nub)
-import Data.Maybe (fromMaybe)
 import Data.Either (fromRight)
 import Data.Functor (void)
 
@@ -26,30 +25,31 @@ import Config
 
 main :: IO ()
 main = do
-    -- HUnit is illegible but helps ensure the Interpreter is run only once...
+    -- unlike Tasy, HUnit's default printer is illegible,
+    -- but helps ensure the Interpreter is run only once...
     void $ runTestTT $ TestList [hint, ast]
 
     -- Tasty HSpec
-    utilSpec <- testSpec "Utility" util
-    typesSpec <- testSpec "Types" types
-    findSpec <- testSpec "FindHoles" find
-    let tree = testGroup "synthesis" [utilSpec, typesSpec, findSpec]
+    util_ <- testSpec "Utility" util
+    types_ <- testSpec "Types" types
+    find_ <- testSpec "FindHoles" find
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, find_]
     defaultMain tree
 
 util :: Spec
 util = parallel $ do
 
     it "mapTuple" $
-        mapTuple show (1, 2) `shouldBe` ("1", "2")
+        mapTuple show (1 :: Int, 2) `shouldBe` ("1", "2")
 
     it "flatten" $
-        flatten (Many [One [1], One [2]]) `shouldBe` [1, 2]
+        flatten (Many [One [1], One [2]]) `shouldBe` [1 :: Int, 2]
 
     it "flattenTuple" $
-        flattenTuple (DeepTuple (1, SingleTuple (2, 3))) `shouldBe` [1, 2, 3]
+        flattenTuple (DeepTuple (1, SingleTuple (2, 3))) `shouldBe` [1 :: Int, 2, 3]
 
     it "pick" $ do
-        x <- pick [1, 2, 3]
+        x <- pick [1 :: Int, 2, 3]
         x < 5 `shouldBe` True
 
     it "groupByVal" $
@@ -62,30 +62,30 @@ hint :: Test
 hint = TestList
 
     [ TestLabel "runInterpreter_" $ TestCase $ do
-        x <- runInterpreter_ $ runStmt "\"foo\""
-        x @?= ()
+        x <- runInterpreter_ $ interpret "\"foo\"" (as :: String)
+        fromRight "" x @?= "foo"
 
     , TestLabel "say" $ TestCase $ do
-        x <- runInterpreter $ say "hi"
+        x <- runInterpreter_ $ say "hi"
         fromRight () x @?= ()
 
     , TestLabel "errorString" $ TestCase $ do
-        r <- runInterpreter $ interpret "foo" (as :: String)
+        r <- runInterpreter_ $ interpret "foo" (as :: String)
         let s = case r of
                 Left err -> errorString err
                 _ -> ""
         not (null s) @?= True
 
     , TestLabel "interpretIO" $ TestCase $ do
-        x <- runInterpreter (interpretIO "return \"foo\"")
+        x <- runInterpreter_ (interpretIO "return \"foo\"")
         fromRight "" x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- runInterpreter (fnIoPairs "not" "[True, False]")
-        fromRight "" x @?= "[(True, False), (False, True)]"
+        x <- runInterpreter_ (fnIoPairs "not" "[True, False]")
+        fromRight "" x @?= "[(True,False),(False,True)]"
 
-    , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- runInterpreter (genInputs 10 "Bool")
+    , TestLabel "genInputs" $ TestCase $ do
+        x <- runInterpreter_ (genInputs 10 "Bool")
         fromRight "" x `shouldContain` "True"
     ]
 
@@ -125,11 +125,11 @@ types = parallel $ do
 
     it "genTypes" $ do
         tps <- nub . flatten <$> genTypes 0 10
-        tps `shouldContain` [bl, int]
+        tps `shouldContain` [bl]
 
     it "instantiateTypes" $ do
-        let set s = TyApp l (tyCon "Set") (tyCon s)
-        instantiateTypes [bl, int] (TyApp l (tyCon "Set") (tyVar "b")) `shouldContain` [set "Bool", set "Int"]
+        let set_ s = TyApp l (tyCon "Set") (tyCon s)
+        instantiateTypes [bl, int] (TyApp l (tyCon "Set") (tyVar "b")) `shouldContain` [set_ "Bool", set_ "Int"]
 
     it "instantiateTypeVars" $
         instantiateTypeVars [bl, int] ["a"] `shouldBe` [singleton "a" bl, singleton "a" int]
@@ -143,6 +143,7 @@ find = do
     it "findHolesExpr" $ do
         let expr = fromParseResult (parse "(_ :: Int -> Bool)" :: ParseResult Expr)
         let hole_lenses = findHolesExpr expr
+        -- print $ show hole_lenses
         let hole_lens = head hole_lenses
         let hole_getter :: (Expr -> Const Expr Expr) -> Expr -> Const Expr Expr = fst hole_lens
         let hole_setter :: (Expr -> Identity Expr) -> Expr -> Identity Expr = snd hole_lens
@@ -154,7 +155,7 @@ find = do
 ast :: Test
 ast = let 
         bl = tyCon "Bool"
-        int = tyCon "Int"
+        -- int = tyCon "Int"
     in TestList
 
     [ TestLabel "skeleton" $ TestCase $
@@ -165,21 +166,25 @@ ast = let
 
     , TestLabel "filterTypeSigIoFns" $ TestCase $ do
         let fn_asts = insert "not" (varNode "not") $ singleton "not_" $ varNode "not"
-        map <- runInterpreter $ filterTypeSigIoFns fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
-        fromRight empty map `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
+        hm <- runInterpreter_ $ filterTypeSigIoFns fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
+        fromRight empty hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
 
     , TestLabel "fnOutputs" $ TestCase $ do
-        io <- runInterpreter $ fnOutputs (singleton "not" "not") (singleton "Bool -> Bool" "[True, False]") "not" ["Bool -> Bool"]
+        io <- runInterpreter_ $ fnOutputs (singleton "not" "not") (singleton "Bool -> Bool" "[True, False]") "not" ["Bool -> Bool"]
         let hm = case io of
-                    Right map -> map
+                    Right m -> m
                     Left _ -> empty
-        hm `shouldBe` singleton "Bool -> Bool" "[(True, False), (False, True)]"
+        hm `shouldBe` singleton "Bool -> Bool" "[(True,False),(False,True)]"
 
     , TestLabel "fillHole" $ TestCase $ do
         let tp = TyFun l bl bl
-        filled <- runInterpreter $ fillHole 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
+        filled <- runInterpreter_ $ fillHole 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
         let lst = case filled of
-                    Right l -> l
+                    Right ls -> ls
                     Left _ -> []
+        let str :: String = case filled of
+                            Right s -> show s
+                            Left z -> show z
+        print str
         lst `shouldContain` [varNode "not"]
     ]

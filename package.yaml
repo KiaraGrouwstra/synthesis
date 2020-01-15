@@ -30,21 +30,21 @@ dependencies:
   - base
   - haskell-src-exts
   - hint
+  - QuickCheck
+  - lens
+  - unordered-containers
 
 library:
   dependencies:
   - template-haskell
   - ghc-lib
   - ghc-lib-parser
-  # - QuickCheck
   - random
   - transformers
   - containers
-  - unordered-containers
   - text
   - hashable
   - dump
-  - lens
   - generic-lens
   source-dirs: library
 
@@ -81,8 +81,6 @@ tests:
     - tasty-hspec
     - HUnit
     - tasty-hunit
-    - lens
-    - unordered-containers
     ghc-options:
     - -rtsopts
     - -threaded

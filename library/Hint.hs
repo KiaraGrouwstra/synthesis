@@ -1,17 +1,27 @@
 -- | utility functions related to the Haskell Interpreter `hint`
-module Hint (runInterpreter_, say, errorString, interpretIO, fnIoPairs, genInputs) where
+module Hint (runInterpreterMain, runInterpreter_, say, errorString, interpretIO, fnIoPairs, genInputs) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), runInterpreter, interpret, as, lift, liftIO)
+import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), setImports, runInterpreter, interpret, as, lift, liftIO)
 import Data.List (intercalate)
 
--- | run an interpreter monad, printing any errors
-runInterpreter_ :: Interpreter () -> IO ()
-runInterpreter_ fn = do
-    r <- runInterpreter fn
+-- | modules to be loaded in the interpreter
+modules :: [String]
+modules = ["Prelude", "Data.List", "Test.QuickCheck"]
+
+-- | run an interpreter monad, printing errors, ignoring values
+runInterpreterMain :: Interpreter () -> IO ()
+runInterpreterMain fn = do
+    r <- runInterpreter_ fn
     case r of
         Left err -> putStrLn $ errorString err
-        Right () -> return ()
+        Right _x -> return ()
+
+-- TODO: check needed imports case-by-case for potential performance gains
+-- | run an interpreter monad with imports
+runInterpreter_ :: Interpreter a -> IO (Either InterpreterError a)
+runInterpreter_ fn =
+    runInterpreter $ setImports modules >>= const fn
 
 -- | print in the Interpreter monad
 say :: String -> Interpreter ()
