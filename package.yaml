@@ -28,15 +28,15 @@ default-extensions:
 
 dependencies:
   - base
+  - haskell-src-exts
+  - hint
 
 library:
   dependencies:
   - template-haskell
-  - haskell-src-exts
   - ghc-lib
   - ghc-lib-parser
   # - QuickCheck
-  - hint
   - random
   - transformers
   - containers
@@ -76,10 +76,13 @@ tests:
     source-dirs: test-suite
     main: Main.hs
     dependencies:
-    - base
     - synthesis
     - tasty
     - tasty-hspec
+    - HUnit
+    - tasty-hunit
+    - lens
+    - unordered-containers
     ghc-options:
     - -rtsopts
     - -threaded

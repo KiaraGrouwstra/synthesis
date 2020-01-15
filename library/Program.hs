@@ -1,51 +1,51 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, DataKinds #-}
 
 -- | main logic
-module Example (main) where
+module Program (main) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 -- import Language.Haskell.Exts.Syntax ( Type(TyFun) )
 -- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate, resize )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, typeOf, runInterpreter, setImports, lift)
+import Language.Haskell.Interpreter (Interpreter, typeOf, setImports, lift)
 -- , interpret, as, lift
 import Data.List (nub)
 import Control.Monad (forM_)
-import Hint (say, errorString, genInputs)
-import Ast (fnOutputs, filterTypeSigIoFns, fillHole, skeleton, nestLimit, maxInstances)
--- , instantiateFnTypes
+import Hint (runInterpreter_, say, genInputs)
+import Ast (fnOutputs, filterTypeSigIoFns, fillHole, skeleton)
 import Types (Tp, Expr, fnTypeIO, instantiateTypes, genTypes)
 import Utility (groupByVal, flatten, toMapBy)
+import Config (nestLimit, maxInstances, numInputs)
 import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromList, toList)
-import Debug.Dump (d)
+-- import Debug.Dump (d)
 
--- | An example function.
+-- | main function, run program in our interpreter monad
 main :: IO ()
-main = do
-    r <- runInterpreter testHint
-    case r of
-        Left err -> putStrLn $ errorString err
-        Right () -> return ()
+main = runInterpreter_ program
 
+-- | modules to be loaded in the interpreter
 modules :: [String]
 modules = ["Prelude", "Data.List", "Test.QuickCheck"]
 
 -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
+-- | functions used for testing
 fnBodies :: HashMap String String
-fnBodies = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
+fnBodies = insert "not_" "\\b -> not b" $
+-- fnBodies = insert "not_" "\\b -> not b :: Bool -> Bool" $
+-- fnBodies = insert "not_" "\\(b :: Bool) -> not b" $
+-- fnBodies = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
                 insert "not" "not" $
                 insert "id" "id"
                 empty
 
--- TODO: polyary functions
-testHint :: Interpreter ()
-testHint = do
+-- | run our program in the interpreter
+program :: Interpreter ()
+program = do
     setImports modules
     let fn_asts :: HashMap String Expr = (\str -> fromParseResult (parse str :: ParseResult Expr)) <$> fnBodies
     fn_type_strs :: HashMap String String <- mapM typeOf fnBodies
 
-    -- fn_type_instantiations :: HashMap String [Tp] <- instantiateFnTypes fn_type_strs
     let fn_types :: HashMap String Tp = (\type_str -> fromParseResult (parse type_str :: ParseResult Tp)) <$> fn_type_strs
     fill_types :: [Tp] <- nub . flatten <$> lift (genTypes nestLimit maxInstances)
     let fn_type_instantiations :: HashMap String [Tp] = instantiateTypes fill_types <$> fn_types
@@ -60,7 +60,7 @@ testHint = do
     -- let str_in_type_instantiations :: HashMap String [String] = fmap prettyPrint <$> in_type_instantiations
     -- do sample generation not for each function but for each function input type
     -- casting keys to string cuz Type isn't hashable 😐
-    instantiation_inputs :: HashMap String String <- fromList . zip str_instantiations <$> mapM genInputs str_instantiations
+    instantiation_inputs :: HashMap String String <- fromList . zip str_instantiations <$> mapM (genInputs numInputs) str_instantiations
     -- TODO: even detect functions identical in function but different in scope of inputs -- the type hashmap layer now prevents such comparison
     fn_in_type_instance_outputs :: HashMap String (HashMap String String) <- sequence $ mapWithKey (fnOutputs fnBodies instantiation_inputs) fn_in_str_type_instantiations
     -- group functions with identical type signatures
@@ -86,7 +86,7 @@ testHint = do
 
     say ""
     say "finding fits!"
-    let fn_hole_exprs :: HashMap String Expr = skeleton <$> fn_type_strs
+    let fn_hole_exprs :: HashMap String Expr = skeleton <$> fn_types
     let (k, hole_expr) = head $ toList fn_hole_exprs
     -- say $ show [d| k |]
     say $ "task fn: " ++ k

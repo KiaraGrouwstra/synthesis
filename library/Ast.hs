@@ -1,8 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Ast (Strategy(..), strategy, typeNode, skeleton, fnOutputs, filterTypeSigIoFns, fillHole, nestLimit, maxInstances) where
--- , instantiateFnTypes
+module Ast (skeleton, fnOutputs, filterTypeSigIoFns, fillHole, holeExpr, numAstNodes) where
 
 import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
@@ -25,18 +24,7 @@ import FindHoles
 -- import Utility
 import Hint
 import Control.Lens
-
-maxInstances :: Int
-maxInstances = 5  -- may get less after nub filters out duplicate type instances
-
-nestLimit :: Int
-nestLimit = 0 -- high values make for big logs while debugging...
-
-data Strategy = UseLambdas | UseCurrying
-
-strategy :: Strategy
--- strategy = UseLambdas
-strategy = UseCurrying
+import Config (Strategy(..), strategy)
 
 -- fillHoleGhc :: HashMap String Tp -> Expr -> IO [Expr]
 -- fillHole block_types expr = do
@@ -116,6 +104,7 @@ strategy = UseCurrying
 --     print sdoc
 --     return []
 
+-- | filter building blocks to those matching a hole in the expression, and get the results Exprs
 fillHole :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
 fillHole paramCount block_types expr = do
     -- say $ show [d| block_types |]
@@ -162,15 +151,17 @@ fillHole paramCount block_types expr = do
     -- - beta reduction: pre-eval any subtree without unbound variables... won't apply?
     -- return fits
 
--- as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
+-- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
 genHoledVariants :: String -> Tp -> [Expr]
 genHoledVariants k tp = genHoledVariants_ tp $ varNode k
 
+-- | internal helper of `genHoledVariants` used for recursion
 genHoledVariants_ :: Tp -> Expr -> [Expr]
 genHoledVariants_ tp expr = expr : case tp of
     TyFun _l _a b -> genHoledVariants_ b $ App l expr holeExpr
     _ -> []
 
+-- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
 filterCandidatesByCompile :: ((Expr -> Identity Expr) -> Expr -> Identity Expr) -> Expr -> [Expr] -> Interpreter [Expr]
 filterCandidatesByCompile setter expr expr_blocks = fmap catMaybes $ sequence $ fitExpr setter expr <$> expr_blocks
 
@@ -201,6 +192,7 @@ fitExpr setter expr candidate = do
 -- filterCandidatesByType :: Tp -> HashMap String Tp -> [Expr]
 -- filterCandidates tp block_types = catMaybes $ elems $ fitType tp <$> block_types
 
+-- | check if two types fit, and if so, return an expression for this candidate
 -- fitType :: Tp -> Tp -> Maybe Expr
 -- fitType tp block_type = maybe_fit
 --     where
@@ -236,53 +228,35 @@ fitExpr setter expr candidate = do
 -- genFn = do
 --     return ()
 
+-- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
 fnOutputs :: HashMap String String -> HashMap String String -> String -> [String] -> Interpreter (HashMap String String)
 fnOutputs fn_bodies instantiation_inputs k instantiations = let
             fn_str = fn_bodies ! k
             inputs = (!) instantiation_inputs <$> instantiations
         in
-            fromList . zip instantiations <$> mapM (handleInTp fn_str) inputs
+            fromList . zip instantiations <$> mapM (fnIoPairs fn_str) inputs
 
--- instantiateFnTypes :: HashMap String String -> Interpreter (HashMap String [Tp])
--- instantiateFnTypes fn_type_strs = do
---     let fn_types :: HashMap String Tp = (\type_str -> fromParseResult (parse type_str :: ParseResult Tp)) <$> fn_type_strs
---     fill_types :: [Tp] <- nub . flatten <$> lift (genTypes nestLimit maxInstances)
---     let fn_type_instantiations :: HashMap String [Tp] = instantiateTypes fill_types <$> fn_types
---     return fn_type_instantiations
+-- | number of AST nodes in an Expr
+numAstNodes :: Expr -> Int
+numAstNodes = foldr (\ _node acc -> acc + 1) 0
 
+-- | find equivalent functions (by type and then input/output) and keep the shortest ones
 filterTypeSigIoFns :: HashMap String Expr -> HashMap String (HashMap String [String]) -> Interpreter (HashMap String (HashMap String String))
 filterTypeSigIoFns fn_asts type_sig_io_fns = forM type_sig_io_fns $ mapM $ \fns -> do
     case length fns of
         1 -> return ()
         _ -> say $ "comparing equivalent fns " ++ show fns
     let minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
-    -- compare by number of AST nodes
-    let numAstNodes :: Expr -> Int = foldr (\ _node acc -> acc + 1) (0 :: Int)
     let shortest = minByMap (numAstNodes . (!) fn_asts) fns
     let rest = delete shortest fns
     forM_ rest $ \fn ->
         say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
     return shortest
 
--- ast stuff
-
+-- | hole `_` as an AST Expr
 holeExpr :: Expr
 holeExpr = Var l $ Special l $ ExprHole l
 
--- -- can't get TypeRep for polymorphic types
--- skeleton :: TypeRep -> Expr
--- skeleton rep = expr
---     where
---         io = typeRepArgs rep
---         i = typeNode . show $ head io
---         o = typeNode . show $ last io
---         tp_fn = TyFun l i o
---         expr = ExpTypeSig l holeExpr tp_fn
-
--- | given a string representation of a function type, create a skeletal
--- | AST node representing the function consisting of a hole
-skeleton :: String -> Expr
-skeleton fn_tp_str = expr
-    where
-        src = "_ :: " ++ fn_tp_str
-        expr = fromParseResult (parse src :: ParseResult Expr)
+-- | make a typed hole for a type
+skeleton :: Tp -> Expr
+skeleton = ExpTypeSig l holeExpr

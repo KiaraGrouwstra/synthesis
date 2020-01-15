@@ -1,9 +1,17 @@
 -- | utility functions related to the Haskell Interpreter `hint`
-module Hint (say, errorString, interpretIO, handleInTp, genInputs) where
+module Hint (runInterpreter_, say, errorString, interpretIO, fnIoPairs, genInputs) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), interpret, as, lift, liftIO)
+import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), runInterpreter, interpret, as, lift, liftIO)
 import Data.List (intercalate)
+
+-- | run an interpreter monad, printing any errors
+runInterpreter_ :: Interpreter () -> IO ()
+runInterpreter_ fn = do
+    r <- runInterpreter fn
+    case r of
+        Left err -> putStrLn $ errorString err
+        Right () -> return ()
 
 -- | print in the Interpreter monad
 say :: String -> Interpreter ()
@@ -24,10 +32,10 @@ interpretIO cmd = do
     lift io
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation)
-handleInTp :: String -> String -> Interpreter String
-handleInTp fn_str ins = interpret ("show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> (" ++ ins ++ ")") (as :: String)
+fnIoPairs :: String -> String -> Interpreter String
+fnIoPairs fn_str ins = interpret ("show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> (" ++ ins ++ ")") (as :: String)
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- | generate examples given a concrete type (to and from string to keep a common type, as we need this for the run-time interpreter anyway)
-genInputs :: String -> Interpreter String
-genInputs in_type_str = interpretIO $ "let n = 10; seed = 0 in show <$> nub <$> sample' (resize n $ variant seed arbitrary :: Gen (" ++ in_type_str ++ "))"
+genInputs :: Int -> String -> Interpreter String
+genInputs n in_type_str = interpretIO $ "let seed = 0 in show <$> nub <$> sample' (resize " ++ show n ++ " $ variant seed arbitrary :: Gen (" ++ in_type_str ++ "))"

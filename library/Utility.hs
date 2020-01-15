@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- | utility functions
 module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple, mapTuple) where
 
@@ -26,8 +28,8 @@ data NestedTuple a = SingleTuple (a, a) | DeepTuple (a, NestedTuple a)
 
 -- | flatten a nested tuple
 flattenTuple :: NestedTuple a -> [a]
-flattenTuple tpl = case tpl of
-    SingleTuple tpl_ -> biList tpl_
+flattenTuple = \case
+    SingleTuple tpl -> biList tpl
     DeepTuple (x, xs) -> x : flattenTuple xs
 
 -- | randomly pick an item from a list
@@ -39,7 +41,7 @@ groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
 groupByVal = fromList . fmap (\pairs -> (snd $ head pairs, fst <$> pairs)) . groupWith snd
 
 -- | create a HashMap by mapping over a list of keys
-toMapBy :: [String] -> (String -> a) -> HashMap String a
+toMapBy :: (Hashable k, Eq k) => [k] -> (k -> v) -> HashMap k v
 toMapBy ks fn = fromList $ zip ks $ fn <$> ks
 
 -- -- ‘hashWithSalt’ is not a (visible) method of class ‘Hashable’
