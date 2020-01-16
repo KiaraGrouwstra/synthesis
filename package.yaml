@@ -31,7 +31,6 @@ dependencies:
   - haskell-src-exts
   - hint
   - QuickCheck
-  - lens
   - unordered-containers
 
 library:
@@ -45,7 +44,6 @@ library:
   - text
   - hashable
   - dump
-  - generic-lens
   source-dirs: library
 
 executables:

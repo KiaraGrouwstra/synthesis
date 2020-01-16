@@ -3,7 +3,7 @@
 -- | ast manipulation
 module Ast (skeleton, fnOutputs, filterTypeSigIoFns, fillHole, holeExpr, numAstNodes) where
 
-import Language.Haskell.Exts.Pretty ( prettyPrint )
+import Language.Haskell.Exts.Pretty ( Pretty, prettyPrint )
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
 -- , Exp
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
@@ -21,9 +21,7 @@ import Language.Haskell.Interpreter (Interpreter, typeChecks, typeChecksWithDeta
 -- import Debug.Dump (d)
 import Types
 import FindHoles
--- import Utility
 import Hint
-import Control.Lens
 import Config (Strategy(..), strategy)
 
 -- fillHoleGhc :: HashMap String Tp -> Expr -> IO [Expr]
@@ -114,9 +112,9 @@ fillHole paramCount block_types expr = do
     let hole_lenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
     let hole_lens = head hole_lenses
-    let hole_getter :: (Expr -> Const Expr Expr) -> Expr -> Const Expr Expr = fst hole_lens
-    let hole_setter :: (Expr -> Identity Expr) -> Expr -> Identity Expr = snd hole_lens
-    let hole :: Expr = view hole_getter expr
+    let hole_getter :: Expr -> Expr = fst hole_lens
+    let hole_setter :: Expr -> Expr -> Expr = snd hole_lens
+    let hole :: Expr = hole_getter expr
     say ("hole: " ++ prettyPrint hole)
     let tp :: Tp = holeType hole
     say ("tp: " ++ prettyPrint tp)
@@ -139,7 +137,7 @@ fillHole paramCount block_types expr = do
                                 src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ prettyPrint tpIn ++ ") in (_ :: " ++ prettyPrint tpOut ++ ")"
                                 expr_ = fromParseResult (parse src :: ParseResult Expr)
                             -- TODO: get the type of the hole
-                            in fillHole (paramCount + 1) block_types $ set hole_setter expr expr_
+                            in fillHole (paramCount + 1) block_types $ hole_setter expr expr_
                 --     UseCurrying -> return $ filterCandidatesByType tp expr_blocks
                 -- _ -> return $ filterCandidatesByType tp expr_blocks
                     UseCurrying -> filterCandidatesByCompile hole_setter expr expr_blocks
@@ -162,17 +160,17 @@ genHoledVariants_ tp expr = expr : case tp of
     _ -> []
 
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
-filterCandidatesByCompile :: ((Expr -> Identity Expr) -> Expr -> Identity Expr) -> Expr -> [Expr] -> Interpreter [Expr]
+filterCandidatesByCompile :: (Expr -> Expr -> Expr) -> Expr -> [Expr] -> Interpreter [Expr]
 filterCandidatesByCompile setter expr expr_blocks = fmap catMaybes $ sequence $ fitExpr setter expr <$> expr_blocks
 
 -- TODO: ensure blocks are in some let construction!
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
-fitExpr :: ((Expr -> Identity Expr) -> Expr -> Identity Expr) -> Expr -> Expr -> Interpreter (Maybe Expr)
+fitExpr :: (Expr -> Expr -> Expr) -> Expr -> Expr -> Interpreter (Maybe Expr)
 fitExpr setter expr candidate = do
     -- say $ "expr: " ++ prettyPrint expr
     say $ "candidate: " ++ prettyPrint candidate
-    let xpr = set setter expr candidate
+    let xpr = setter expr candidate
     let cand_str = prettyPrint xpr
     say $ "substituted: " ++ cand_str
     -- checks <- typeChecks $ prettyPrint xpr

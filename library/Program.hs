@@ -8,7 +8,7 @@ import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 -- import Language.Haskell.Exts.Syntax ( Type(TyFun) )
 -- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate, resize )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, typeOf, setImports, lift)
+import Language.Haskell.Interpreter (Interpreter, typeOf, lift)
 -- , interpret, as, lift
 import Data.List (nub)
 import Control.Monad (forM_)

@@ -7,7 +7,6 @@ import Test.HUnit.Base (Test(..))
 import Test.HUnit.Text (runTestTT)
 
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
-import Control.Lens
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.Syntax ( Exp(..), Type(..) )
 import Language.Haskell.Exts.Pretty ( prettyPrint )
@@ -138,18 +137,18 @@ types = parallel $ do
         fillTypeVars (TyFun l int (tyVar "a")) (singleton "a" bl) `shouldBe` TyFun l int bl
 
 find :: Spec
-find = do
+find = -- do
 
     it "findHolesExpr" $ do
         let expr = fromParseResult (parse "(_ :: Int -> Bool)" :: ParseResult Expr)
         let hole_lenses = findHolesExpr expr
         -- print $ show hole_lenses
         let hole_lens = head hole_lenses
-        let hole_getter :: (Expr -> Const Expr Expr) -> Expr -> Const Expr Expr = fst hole_lens
-        let hole_setter :: (Expr -> Identity Expr) -> Expr -> Identity Expr = snd hole_lens
-        let hole :: Expr = view hole_getter expr
+        let hole_getter = fst hole_lens
+        let hole_setter = snd hole_lens
+        let hole :: Expr = hole_getter expr
         prettyPrint hole `shouldBe` "_ :: Int -> Bool"
-        let xpr = set hole_setter expr holeExpr
+        let xpr = hole_setter expr holeExpr
         prettyPrint xpr `shouldBe` "(_)"
 
 ast :: Test
