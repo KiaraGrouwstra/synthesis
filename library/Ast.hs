@@ -3,16 +3,15 @@
 -- | ast manipulation
 module Ast (skeleton, fnOutputs, filterTypeSigIoFns, fillHole, holeExpr, numAstNodes) where
 
-import Language.Haskell.Exts.Pretty ( Pretty, prettyPrint )
+import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
--- , Exp
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Interpreter (Interpreter, lift)
 import Data.List (nub, delete, minimumBy)
 import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
-import Language.Haskell.Interpreter (Interpreter, typeChecks, typeChecksWithDetails)
+import Language.Haskell.Interpreter (typeChecks)
 -- import TcHoleErrors (findValidHoleFits)
 -- import VarEnv (TidyEnv(..))
 -- import Var (TyCoVar(..), TyCoVarSet(..))
@@ -105,9 +104,6 @@ import Config (Strategy(..), strategy)
 -- | filter building blocks to those matching a hole in the expression, and get the results Exprs
 fillHole :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
 fillHole paramCount block_types expr = do
-    -- say $ show [d| block_types |]
-    -- say "block_types"
-    -- say $ show block_types
     -- find a hole
     let hole_lenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
@@ -115,20 +111,15 @@ fillHole paramCount block_types expr = do
     let hole_getter :: Expr -> Expr = fst hole_lens
     let hole_setter :: Expr -> Expr -> Expr = snd hole_lens
     let hole :: Expr = hole_getter expr
-    say ("hole: " ++ prettyPrint hole)
     let tp :: Tp = holeType hole
-    say ("tp: " ++ prettyPrint tp)
     -- let in_scope_vars :: ? = []?  -- TODO
     let together :: HashMap String Tp = block_types  -- + in_scope_vars
     let generated :: HashMap String [Expr] = mapWithKey genHoledVariants together
-    say ("generated: " ++ show (fmap prettyPrint <$> generated))
     let expr_blocks :: [Expr] = case strategy of
             -- when using currying we will allow any level of application
             UseCurrying -> concat $ elems generated
             -- when using lambdas instead of currying we will only allow complete application of any (nested) function
             UseLambdas -> elems $ last <$> generated
-    say ("expr_blocks" ++ show (fmap prettyPrint expr_blocks))
-    -- fits <- 
     case tp of
                 TyFun _l tpIn tpOut -> case strategy of
                     -- fill function-typed holes with a lambda
@@ -142,12 +133,9 @@ fillHole paramCount block_types expr = do
                 -- _ -> return $ filterCandidatesByType tp expr_blocks
                     UseCurrying -> filterCandidatesByCompile hole_setter expr expr_blocks
                 _ -> filterCandidatesByCompile hole_setter expr expr_blocks
-    -- enumerate hole fits
     -- standardizing reductions (hlint?)
     -- - eta reduction: pointfree -- only relevant with lambdas
     -- https://github.com/ndmitchell/hlint/blob/56b9b45545665113d277493431b1430e41a3e288/src/Hint/Lambda.hs#L101
-    -- - beta reduction: pre-eval any subtree without unbound variables... won't apply?
-    -- return fits
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
 genHoledVariants :: String -> Tp -> [Expr]
@@ -168,21 +156,9 @@ filterCandidatesByCompile setter expr expr_blocks = fmap catMaybes $ sequence $ 
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
 fitExpr :: (Expr -> Expr -> Expr) -> Expr -> Expr -> Interpreter (Maybe Expr)
 fitExpr setter expr candidate = do
-    -- say $ "expr: " ++ prettyPrint expr
-    say $ "candidate: " ++ prettyPrint candidate
     let xpr = setter expr candidate
-    let cand_str = prettyPrint xpr
-    say $ "substituted: " ++ cand_str
-    -- checks <- typeChecks $ prettyPrint xpr
-    -- return $ if checks then Just xpr else Nothing
-    checks <- typeChecksWithDetails cand_str
-    case checks of
-        Left ghcErrors -> do
-            -- say $ show ghcErrors
-            return Nothing
-        Right str -> do
-            say str
-            return $ Just xpr
+    checks <- typeChecks $ prettyPrint xpr
+    return $ if checks then Just xpr else Nothing
 
 -- -- https://github.com/ghc/ghc/blob/master/compiler/typecheck/TcHoleErrors.hs
 -- -- findValidHoleFits: getLocalBindings/tcFilterHoleFits: tcCheckHoleFit

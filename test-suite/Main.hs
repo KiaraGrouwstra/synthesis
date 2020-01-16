@@ -181,9 +181,5 @@ ast = let
         let lst = case filled of
                     Right ls -> ls
                     Left _ -> []
-        let str :: String = case filled of
-                            Right s -> show s
-                            Left z -> show z
-        print str
         lst `shouldContain` [varNode "not"]
     ]
