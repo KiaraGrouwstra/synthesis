@@ -233,26 +233,10 @@ genFnType :: IO Tp -- TyFun
 genFnType = randomFnType True True nestLimit [] tyVarCount
     where tyVarCount :: Int = 0 -- TODO: is this okay?
 
--- -- | generate a function based on a type signature.
--- -- | if we wanted to allow generating more general versions of the desired function,
--- -- | then this approach seems silly.
--- genFnFromType :: IO Expr
--- genFnFromType = do
---     fnType <- genFnType
---     return ()
-
 -- | generate a parameter type, to then generate functions taking this input
 genFnInType :: IO Tp -- TyFun
 genFnInType = randomType True True nestLimit [] tyVarCount
     where tyVarCount :: Int = 0 -- TODO: is this okay?
-
--- -- | just directly generate any function, and see what types end up coming out.
--- -- | if we wanted to allow generating more general versions of the desired function,
--- -- | then this approach adds no value. not allowing this tho seems silly.
--- genFnFromInType :: IO Expr
--- genFnFromInType = do
---     inType <- genFnInType
---     return ()
 
 -- | just directly generate any functions in batch, and see what types end up coming out.
 -- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
