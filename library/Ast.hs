@@ -141,6 +141,7 @@ fillHole paramCount block_types expr = do
     -- say $ "tp: " ++ show (pp tp)
     let inserted = hole_setter expr <$> expr_blocks
     let (partial, complete) = partition hasHoles inserted
+    -- TODO: given a type, filter partial programs by type-check
     -- say $ "partial: " ++ show (pp <$> partial)
     -- say $ "complete: " ++ show (pp <$> complete)
     candidates <- filterCandidatesByCompile complete
