@@ -1,16 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, instantiateTypes, holeType, varNode, tyVar, qName, l, findTypeVars, instantiateTypeVars, fillTypeVars) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, instantiateTypes, holeType, varNode, tyVar, qName, l, findTypeVars, instantiateTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun) where
 
-import Language.Haskell.Exts.Pretty ( prettyPrint )
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..) )
+import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..) )
 -- import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Data.List (replicate, nub)
 import Control.Monad (join, replicateM)
 import Data.HashMap.Lazy (HashMap, fromList, (!))
-import Utility (Item(..), pick)
+import Utility (Item(..), pick, pp)
 
 -- these verbose types annoy me so let's alias them
 type Tp = Type SrcSpanInfo
@@ -60,6 +59,7 @@ randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount = do
 fnTypeIO :: Tp -> (Tp, Tp)
 fnTypeIO = \case
     TyFun _l a b -> (a, b)
+    -- tp -> (TyTuple l Boxed [], tp)
     -- x -> fail $ "unexpected " ++ show x
 
 -- | this function takes an explicitly typed hole, returning its type
@@ -80,7 +80,7 @@ findTypeVars tp = nub $ findTypeVars_ tp
 
 findTypeVars_ :: Tp -> [String]
 findTypeVars_ tp = let f = findTypeVars_ in case tp of
-            TyVar _l _name -> [prettyPrint tp]
+            TyVar _l _name -> [pp tp]
             TyApp _l a b -> f a ++ f b
             TyFun _l a b -> f a ++ f b
             _ -> []
@@ -92,7 +92,7 @@ instantiateTypeVars tps ks = fromList . zip ks <$> sequence (replicate (length k
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
 fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case tp of
-    TyVar _l _name -> substitutions ! prettyPrint tp
+    TyVar _l _name -> substitutions ! pp tp
     TyApp _l a b -> TyApp _l (f a) $ f b
     TyFun _l a b -> TyFun _l (f a) $ f b
     _ -> tp
@@ -127,3 +127,19 @@ tyVar = TyVar l . Ident l
 -- | create a polymorphic type node
 tyApp :: String -> Tp -> Tp
 tyApp = TyApp l . tyCon
+
+-- | annotate an expression node with a type signature
+expTypeSig :: Expr -> Tp -> Expr
+expTypeSig = ExpTypeSig l
+
+-- | type for a function
+tyFun :: Tp -> Tp -> Tp
+tyFun = TyFun l
+
+-- | star type node: *
+star :: Tp
+star = TyStar l
+
+-- | wildcard type node: _
+wildcard :: Tp
+wildcard = TyWildCard l Nothing

@@ -1,17 +1,16 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Ast (skeleton, fnOutputs, filterTypeSigIoFns, fillHole, holeExpr, numAstNodes) where
+module Ast (skeleton, hasHoles, fnOutputs, filterTypeSigIoFns, fillHoles, fillHole, holeExpr, numAstNodes, genFn, genFns) where
 
-import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
-import Language.Haskell.Interpreter (Interpreter, lift)
-import Data.List (nub, delete, minimumBy)
+import Language.Haskell.Interpreter (Interpreter, GhcError(..), lift, typeChecks, typeChecksWithDetails, typeOf)
+import Data.List (nub, delete, minimumBy, isInfixOf, partition )
 import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
-import Language.Haskell.Interpreter (typeChecks)
+import Data.Either (isRight)
 -- import TcHoleErrors (findValidHoleFits)
 -- import VarEnv (TidyEnv(..))
 -- import Var (TyCoVar(..), TyCoVarSet(..))
@@ -21,7 +20,8 @@ import Language.Haskell.Interpreter (typeChecks)
 import Types
 import FindHoles
 import Hint
-import Config (Strategy(..), strategy)
+import Utility (pick, while, pp)
+import Config (Strategy(..), strategy, nestLimit, maxWildcardDepth)
 
 -- fillHoleGhc :: HashMap String Tp -> Expr -> IO [Expr]
 -- fillHole block_types expr = do
@@ -101,8 +101,24 @@ import Config (Strategy(..), strategy)
 --     print sdoc
 --     return []
 
+-- | generate potential programs filling any holes in a given expression using some building blocks 
+fillHoles :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
+fillHoles maxHoles = fillHoles_ maxHoles 0
+
+-- | recursive helper for fillHoles
+fillHoles_ :: Int -> Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
+fillHoles_ maxHoles paramCount block_types expr = do
+    (partial, candidates) <- fillHole paramCount block_types expr
+    -- say $ "candidates: " ++ show (pp <$> candidates)
+    -- say $ "partial: " ++ show (pp <$> partial)
+    -- TODO: get paramCount out so we can update it in a useful manner here
+    rest <- case maxHoles of
+                0 -> return []
+                _ -> mapM (fillHoles_ (maxHoles - 1) paramCount block_types) partial
+    return $ candidates ++ concat rest
+
 -- | filter building blocks to those matching a hole in the expression, and get the results Exprs
-fillHole :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
+fillHole :: Int -> HashMap String Tp -> Expr -> Interpreter ([Expr], [Expr])
 fillHole paramCount block_types expr = do
     -- find a hole
     let hole_lenses = findHolesExpr expr
@@ -114,51 +130,83 @@ fillHole paramCount block_types expr = do
     let tp :: Tp = holeType hole
     -- let in_scope_vars :: ? = []?  -- TODO
     let together :: HashMap String Tp = block_types  -- + in_scope_vars
-    let generated :: HashMap String [Expr] = mapWithKey genHoledVariants together
+    let generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) together
+    -- say $ "generated: " ++ show (fmap pp <$> generated)
     let expr_blocks :: [Expr] = case strategy of
             -- when using currying we will allow any level of application
             UseCurrying -> concat $ elems generated
             -- when using lambdas instead of currying we will only allow complete application of any (nested) function
             UseLambdas -> elems $ last <$> generated
-    case tp of
-                TyFun _l tpIn tpOut -> case strategy of
-                    -- fill function-typed holes with a lambda
-                    UseLambdas -> let
-                                varName = "p" ++ show paramCount
-                                src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ prettyPrint tpIn ++ ") in (_ :: " ++ prettyPrint tpOut ++ ")"
-                                expr_ = fromParseResult (parse src :: ParseResult Expr)
-                            -- TODO: get the type of the hole
-                            in fillHole (paramCount + 1) block_types $ hole_setter expr expr_
-                --     UseCurrying -> return $ filterCandidatesByType tp expr_blocks
-                -- _ -> return $ filterCandidatesByType tp expr_blocks
-                    UseCurrying -> filterCandidatesByCompile hole_setter expr expr_blocks
-                _ -> filterCandidatesByCompile hole_setter expr expr_blocks
+    -- say $ "expr_blocks: " ++ show (pp <$> expr_blocks)
+    -- say $ "tp: " ++ show (pp tp)
+    let inserted = hole_setter expr <$> expr_blocks
+    let (partial, complete) = partition hasHoles inserted
+    -- say $ "partial: " ++ show (pp <$> partial)
+    -- say $ "complete: " ++ show (pp <$> complete)
+    candidates <- filterCandidatesByCompile complete
+    -- candidates <- case tp of
+    --             -- TODO: when implementing UseLambdas also capture wildcard type here
+    --             TyFun _l tpIn tpOut -> case strategy of
+    --                 -- -- fill function-typed holes with a lambda
+    --                 -- UseLambdas -> let
+    --                 --             varName = "p" ++ show paramCount
+    --                 --             src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ pp tpIn ++ ") in (_ :: " ++ pp tpOut ++ ")"
+    --                 --             expr_ = fromParseResult (parse src :: ParseResult Expr)
+    --                 --         -- TODO: get the type of the hole
+    --                 --         in fillHole (paramCount + 1) block_types $ hole_setter expr expr_
+    --             --     UseCurrying -> return $ filterCandidatesByType tp complete
+    --             -- _ -> return $ filterCandidatesByType tp complete
+    --                 UseCurrying -> filterCandidatesByCompile complete
+    --             _ -> filterCandidatesByCompile complete
     -- standardizing reductions (hlint?)
     -- - eta reduction: pointfree -- only relevant with lambdas
     -- https://github.com/ndmitchell/hlint/blob/56b9b45545665113d277493431b1430e41a3e288/src/Hint/Lambda.hs#L101
+    return (partial, candidates)
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
-genHoledVariants :: String -> Tp -> [Expr]
-genHoledVariants k tp = genHoledVariants_ tp $ varNode k
+genHoledVariants :: Int -> String -> Tp -> [Expr]
+genHoledVariants maxDepth k tp = genHoledVariants_ maxDepth tp $ varNode k
 
 -- | internal helper of `genHoledVariants` used for recursion
-genHoledVariants_ :: Tp -> Expr -> [Expr]
-genHoledVariants_ tp expr = expr : case tp of
-    TyFun _l _a b -> genHoledVariants_ b $ App l expr holeExpr
+genHoledVariants_ :: Int -> Tp -> Expr -> [Expr]
+genHoledVariants_ maxDepth tp expr =
+    let holed tp = App l expr $ expTypeSig holeExpr tp
+    in expr : case tp of
+    TyFun _l a b -> genHoledVariants_ maxDepth b $ holed a
+    TyWildCard _l _maybeName -> case maxDepth of
+                0 -> []
+                _ -> genHoledVariants_ (maxDepth - 1) tp $ holed wildcard
     _ -> []
 
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
-filterCandidatesByCompile :: (Expr -> Expr -> Expr) -> Expr -> [Expr] -> Interpreter [Expr]
-filterCandidatesByCompile setter expr expr_blocks = fmap catMaybes $ sequence $ fitExpr setter expr <$> expr_blocks
+filterCandidatesByCompile :: [Expr] -> Interpreter [Expr]
+filterCandidatesByCompile exprs = fmap catMaybes $ sequence $ fitExpr <$> exprs
 
 -- TODO: ensure blocks are in some let construction!
+-- TODO: why am I putting expressions with holes in here?
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
-fitExpr :: (Expr -> Expr -> Expr) -> Expr -> Expr -> Interpreter (Maybe Expr)
-fitExpr setter expr candidate = do
-    let xpr = setter expr candidate
-    checks <- typeChecks $ prettyPrint xpr
-    return $ if checks then Just xpr else Nothing
+fitExpr :: Expr -> Interpreter (Maybe Expr)
+fitExpr expr = do
+    checks <- typeChecks $ pp expr
+    ok <- if not checks then return False else do
+        -- use typeOf to filter out non-function programs
+        tp_str <- typeOf $ pp expr
+        let tp = fromParseResult (parse tp_str :: ParseResult Tp)
+        return $ case tp of
+            TyFun _l _a _b -> True
+            _ -> False
+    return $ if ok then Just expr else Nothing
+    -- checks <- typeChecksWithDetails $ pp expr
+    -- say $ case checks of
+    --     Right _s -> True
+    --     Left errors -> show (unbox <$> errors)
+    --         where unbox (GhcError e) = e
+    -- let ok = case checks of
+    --         Right _s -> True
+    --         Left errors -> null $ filter nonHoleError errors
+    --             where nonHoleError (GhcError e) = not $ isInfixOf "Found hole: " e
+    -- return $ if ok then Just xpr else Nothing
 
 -- -- https://github.com/ghc/ghc/blob/master/compiler/typecheck/TcHoleErrors.hs
 -- -- findValidHoleFits: getLocalBindings/tcFilterHoleFits: tcCheckHoleFit
@@ -173,34 +221,65 @@ fitExpr setter expr candidate = do
 --         maybe_fit = Nothing
 
 -- -- honestly I guess there are a few ways to generate potential benchmark/training functions...
--- -- tl;dr tho they all need some version of fillHole up...
 
--- -- | generate a function type, to then generate functions matching this type
--- genFnType :: IO Tp -- TyFun
--- genFnType = randomFnType True True nestLimit [] tyVarCount
---     where tyVarCount :: Int = 0 -- TODO: is this okay?
+-- Interpreter.typeOf top expression
+-- for each App node:
+--      -- get the type signature by Interpreter.typeOf on the function
+--      -- using the expected type for the expression, compare with the function signature to potentially fill in (part of) its type variables
+--      for the function's parameter slot, assign the substituted input type for the ExprTypeSig
 
--- -- | just directly generate any function, and see what types end up coming out
+-- | generate a function type, to then generate functions matching this type
+genFnType :: IO Tp -- TyFun
+genFnType = randomFnType True True nestLimit [] tyVarCount
+    where tyVarCount :: Int = 0 -- TODO: is this okay?
+
+-- -- | generate a function based on a type signature.
+-- -- | if we wanted to allow generating more general versions of the desired function,
+-- -- | then this approach seems silly.
 -- genFnFromType :: IO Expr
 -- genFnFromType = do
 --     fnType <- genFnType
 --     return ()
 
--- -- | generate a parameter type, to then generate functions taking this input
--- genFnInType :: IO Tp -- TyFun
--- genFnInType = randomType True True nestLimit [] tyVarCount
---     where tyVarCount :: Int = 0 -- TODO: is this okay?
+-- | generate a parameter type, to then generate functions taking this input
+genFnInType :: IO Tp -- TyFun
+genFnInType = randomType True True nestLimit [] tyVarCount
+    where tyVarCount :: Int = 0 -- TODO: is this okay?
 
--- -- | just directly generate any function, and see what types end up coming out
+-- -- | just directly generate any function, and see what types end up coming out.
+-- -- | if we wanted to allow generating more general versions of the desired function,
+-- -- | then this approach adds no value. not allowing this tho seems silly.
 -- genFnFromInType :: IO Expr
 -- genFnFromInType = do
 --     inType <- genFnInType
 --     return ()
 
--- -- | just directly generate any function, and see what types end up coming out
--- genFn :: IO Expr
--- genFn = do
---     return ()
+-- | just directly generate any functions in batch, and see what types end up coming out.
+-- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
+genFns :: Int -> HashMap String Tp -> Interpreter [Expr]
+genFns maxHoles block_types = do
+    -- root: _ -> _
+    let expr = skeleton $ TyApp l wildcard wildcard
+    fillHoles maxHoles block_types expr
+
+-- | just directly sample a generated function, and see what types end up coming out.
+-- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
+genFn :: Int -> HashMap String Tp -> Interpreter Expr
+genFn maxHoles fn_types = do
+    -- root: _ -> _
+    let expr = skeleton $ TyApp l wildcard wildcard
+    -- -- TODO: save duplicate effort of finding holes
+    -- while hasHoles (genFn_ fn_types) expr
+    genFn_ maxHoles fn_types expr
+
+genFn_ :: Int -> HashMap String Tp -> Expr -> Interpreter Expr
+genFn_ maxHoles fn_types expr = do
+    candidates <- fillHoles maxHoles fn_types expr
+    lift $ pick candidates
+
+-- | check if an expression contains holes
+hasHoles :: Expr -> Bool
+hasHoles = not . null . findHolesExpr
 
 -- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
 fnOutputs :: HashMap String String -> HashMap String String -> String -> [String] -> Interpreter (HashMap String String)
@@ -217,14 +296,16 @@ numAstNodes = foldr (\ _node acc -> acc + 1) 0
 -- | find equivalent functions (by type and then input/output) and keep the shortest ones
 filterTypeSigIoFns :: HashMap String Expr -> HashMap String (HashMap String [String]) -> Interpreter (HashMap String (HashMap String String))
 filterTypeSigIoFns fn_asts type_sig_io_fns = forM type_sig_io_fns $ mapM $ \fns -> do
-    case length fns of
-        1 -> return ()
-        _ -> say $ "comparing equivalent fns " ++ show fns
+    -- case length fns of
+    --     1 -> return ()
+    --     _ -> say $ "deduping equivalent fns: " ++ show fns
     let minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
+    -- TODO: keep not just the function with the fewest number of AST nodes, but the more generic one (most type variable names/occurrences) if possible
     let shortest = minByMap (numAstNodes . (!) fn_asts) fns
     let rest = delete shortest fns
     forM_ rest $ \fn ->
-        say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
+        -- say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
+        say $ fn ++ " -> " ++ shortest
     return shortest
 
 -- | hole `_` as an AST Expr

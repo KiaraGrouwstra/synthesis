@@ -1,4 +1,4 @@
-module Config (Strategy(..), strategy, nestLimit, maxInstances, numInputs) where
+module Config (Strategy(..), strategy, nestLimit, maxInstances, numInputs, maxWildcardDepth, genMaxHoles) where
 
 -- | max number of instantiations to generate for any type containing type variables
 maxInstances :: Int
@@ -17,3 +17,11 @@ data Strategy = UseLambdas | UseCurrying
 strategy :: Strategy
 -- strategy = UseLambdas
 strategy = UseCurrying
+
+-- | the maximum level of functions to imagine in a wildcard for function generation
+maxWildcardDepth :: Int
+maxWildcardDepth = 2
+
+-- | the maximum number of holes to allow in a generated expression
+genMaxHoles :: Int
+genMaxHoles = 1

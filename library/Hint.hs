@@ -2,7 +2,7 @@
 module Hint (runInterpreterMain, runInterpreter_, say, errorString, interpretIO, fnIoPairs, genInputs) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
-import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), setImports, runInterpreter, interpret, as, lift, liftIO)
+import Language.Haskell.Interpreter (Interpreter, InterpreterError(..), GhcError(..), setImports, runInterpreter, interpret, typeChecks, as, lift, liftIO)
 import Data.List (intercalate)
 
 -- | modules to be loaded in the interpreter
@@ -43,7 +43,12 @@ interpretIO cmd = do
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation)
 fnIoPairs :: String -> String -> Interpreter String
-fnIoPairs fn_str ins = interpret ("show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> (" ++ ins ++ ")") (as :: String)
+fnIoPairs fn_str ins = do
+    let cmd = "show $ zip (" ++ ins ++ ") $ (" ++ fn_str ++ ") <$> (" ++ ins ++ ")"
+    checks <- typeChecks cmd
+    if checks then
+        interpret cmd (as :: String)
+        else return "[]"
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- | generate examples given a concrete type (to and from string to keep a common type, as we need this for the run-time interpreter anyway)

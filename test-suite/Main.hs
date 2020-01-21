@@ -9,10 +9,9 @@ import Test.HUnit.Text (runTestTT)
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Exts.Syntax ( Exp(..), Type(..) )
-import Language.Haskell.Exts.Pretty ( prettyPrint )
 import Language.Haskell.Interpreter (interpret, as)
 import Data.List (nub)
-import Data.Either (fromRight)
+import Data.Either (fromRight, isRight)
 import Data.Functor (void)
 
 import Utility
@@ -57,6 +56,13 @@ util = parallel $ do
     it "toMapBy" $
         toMapBy [1 :: Int, 2] show `shouldBe` insert 1 "1" (singleton 2 "2")
 
+    it "pickKeys" $ do
+        let b = singleton "b" "B"
+        pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
+
+    -- it "while" $
+    --     while ((< 5) . length) (\ls -> ((([head ls] :: String) ++ (ls :: String))) :: String) "ah" `shouldBe` "aaaah"
+
 hint :: Test
 hint = TestList
 
@@ -95,24 +101,27 @@ types = parallel $ do
     let int = tyCon "Int"
 
     it "varNode" $
-        prettyPrint (varNode "foo") @?= "foo"
+        pp (varNode "foo") @?= "foo"
 
     it "tyVar" $
-        prettyPrint (tyVar "a") `shouldBe` "a"
+        pp (tyVar "a") `shouldBe` "a"
 
     it "tyCon" $
-        prettyPrint (tyCon "Int") `shouldBe` "Int"
+        pp (tyCon "Int") `shouldBe` "Int"
 
     it "tyApp" $
-        prettyPrint (tyApp "[]" $ tyCon "Int") `shouldBe` "[] Int"
+        pp (tyApp "[]" $ tyCon "Int") `shouldBe` "[] Int"
+
+    it "expTypeSig" $
+        pp (expTypeSig holeExpr $ tyCon "Int") `shouldBe` "_ :: Int"
 
     it "fnTypeIO" $ do
         let a = tyVar "a"
         let b = tyVar "b"
-        fnTypeIO (TyFun l a b) `shouldBe` (a, b)
+        fnTypeIO (tyFun a b) `shouldBe` (a, b)
 
     it "findTypeVars" $
-        findTypeVars (TyFun l (tyVar "a") (TyApp l (tyCon "Set") (tyVar "b"))) `shouldBe` ["a", "b"]
+        findTypeVars (tyFun (tyVar "a") (TyApp l (tyCon "Set") (tyVar "b"))) `shouldBe` ["a", "b"]
 
     it "randomType" $ do
         tp <- randomType False False nestLimit [] 0
@@ -120,7 +129,7 @@ types = parallel $ do
 
     it "randomFnType" $ do
         tp <- randomFnType False False nestLimit [] 0
-        [TyFun l bl bl, TyFun l bl int, TyFun l int bl, TyFun l int int] `shouldContain` [tp]
+        [tyFun bl bl, tyFun bl int, tyFun int bl, tyFun int int] `shouldContain` [tp]
 
     it "genTypes" $ do
         tps <- nub . flatten <$> genTypes 0 10
@@ -134,7 +143,7 @@ types = parallel $ do
         instantiateTypeVars [bl, int] ["a"] `shouldBe` [singleton "a" bl, singleton "a" int]
 
     it "fillTypeVars" $
-        fillTypeVars (TyFun l int (tyVar "a")) (singleton "a" bl) `shouldBe` TyFun l int bl
+        fillTypeVars (tyFun int (tyVar "a")) (singleton "a" bl) `shouldBe` tyFun int bl
 
 find :: Spec
 find = -- do
@@ -147,9 +156,9 @@ find = -- do
         let hole_getter = fst hole_lens
         let hole_setter = snd hole_lens
         let hole :: Expr = hole_getter expr
-        prettyPrint hole `shouldBe` "_ :: Int -> Bool"
+        pp hole `shouldBe` "_ :: Int -> Bool"
         let xpr = hole_setter expr holeExpr
-        prettyPrint xpr `shouldBe` "(_)"
+        pp xpr `shouldBe` "(_)"
 
 ast :: Test
 ast = let 
@@ -158,7 +167,7 @@ ast = let
     in TestList
 
     [ TestLabel "skeleton" $ TestCase $
-        prettyPrint (skeleton bl) `shouldBe` "_ :: Bool"
+        pp (skeleton bl) `shouldBe` "_ :: Bool"
 
     , TestLabel "numAstNodes" $ TestCase $
         numAstNodes holeExpr `shouldBe` 3
@@ -175,11 +184,37 @@ ast = let
                     Left _ -> empty
         hm `shouldBe` singleton "Bool -> Bool" "[(True,False),(False,True)]"
 
+    , TestLabel "hasHoles" $ TestCase $ do
+        hasHoles holeExpr `shouldBe` False
+        hasHoles (expTypeSig holeExpr (tyCon "Int")) `shouldBe` True
+
     , TestLabel "fillHole" $ TestCase $ do
-        let tp = TyFun l bl bl
+        let tp = tyFun bl bl
         filled <- runInterpreter_ $ fillHole 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
+        let lst = case filled of
+                    Right (partial, candidates) -> candidates
+                    Left _ -> []
+        lst `shouldContain` [varNode "not"]
+
+    , TestLabel "fillHoles" $ TestCase $ do
+        let tp = tyFun bl bl
+        filled <- runInterpreter_ $ fillHoles 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
         let lst = case filled of
                     Right ls -> ls
                     Left _ -> []
         lst `shouldContain` [varNode "not"]
+
+    , TestLabel "genFn" $ TestCase $ do
+        let tp = tyFun bl bl
+        filled <- runInterpreter_ $ genFn 0 (singleton "not" tp)
+        isRight filled `shouldBe` True
+
+    , TestLabel "genFns" $ TestCase $ do
+        let tp = tyFun bl bl
+        filled <- runInterpreter_ $ genFns 0 (singleton "not" tp)
+        let lst = case filled of
+                    Right ls -> ls
+                    Left _ -> []
+        lst `shouldContain` [varNode "not"]
+
     ]
