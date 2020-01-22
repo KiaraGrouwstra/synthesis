@@ -4,18 +4,16 @@
 module Program (main) where
 
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
--- import Language.Haskell.Exts.Syntax ( Type(TyFun) )
--- import Test.QuickCheck ( Gen, arbitrary, sample, sample', variant, generate, resize )
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, typeOf, lift)
--- , interpret, as, lift
 import Data.List (nub)
 import Control.Monad (forM_, forM)
 import Hint (runInterpreterMain, say, genInputs, fnIoPairs)
-import Ast (fnOutputs, filterTypeSigIoFns, fillHole, fillHoles, skeleton, genFn, genFns, letRes)
+import Ast (fnOutputs, filterTypeSigIoFns, genFns, letRes)
 import Types (Tp, Expr, fnTypeIO, instantiateTypes, genTypes, tyCon)
-import Utility (groupByVal, flatten, toMapBy, pp, pickKeys)
+import Utility (groupByVal, flatten, pp, pickKeys)
 import Config (nestLimit, maxInstances, numInputs, genMaxHoles)
+import FindHoles (gtrExpr)
 import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromList, toList, union)
 -- import Debug.Dump (d)
 
@@ -26,14 +24,14 @@ main = runInterpreterMain program
 -- warning: we *must* alias existing functions, or their definitions will be regarded as recursive!
 -- | functions used for testing
 fnBodies :: HashMap String String
-fnBodies = insert "not_" "\\b -> not b" $
+fnBodies = insert "not__" "\\b -> not b" $
 -- fnBodies = insert "not_" "\\b -> not b :: Bool -> Bool" $
 -- fnBodies = insert "not_" "\\(b :: Bool) -> not b" $
 -- fnBodies = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
 -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
-                insert "not" "not" $
+                insert "not_" "not" $
                 -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
-                insert "id" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
+                insert "id_" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
                 empty
 
 constants :: HashMap String Tp
@@ -54,15 +52,13 @@ program = do
     programs :: [Expr] <- genFns genMaxHoles blocks block_asts
     let task_fns = programs
     forM_ task_fns $ \task_fn -> -- do
-        -- say $ "task: " ++ show (pp task_fn)
-        say $ pp task_fn
+        say $ pp $ gtrExpr task_fn
 
     let fn_strs = pp <$> task_fns
     let fn_asts :: HashMap String Expr = fromList $ zip fn_strs task_fns
     let task_bodies :: HashMap String String = fromList $ zip fn_strs fn_strs
     fn_type_strs :: HashMap String String <- mapM typeOf task_bodies
     let fn_types :: HashMap String Tp = (\type_str -> fromParseResult (parse type_str :: ParseResult Tp)) <$> fn_type_strs
-    let fn_types_ = fn_types
 
     fill_types :: [Tp] <- nub . flatten <$> lift (genTypes nestLimit maxInstances)
     let fn_type_instantiations :: HashMap String [Tp] = instantiateTypes fill_types <$> fn_types
@@ -88,17 +84,13 @@ program = do
     say "\ndeduplicating task functions:"
     type_sig_io_fns_filtered :: HashMap String (HashMap String String) <- filterTypeSigIoFns fn_asts type_sig_io_fns
     let kept_fns :: [String] = concat $ elems <$> elems type_sig_io_fns_filtered
-    let fn_types_ = pickKeys kept_fns fn_types
 
     say "\nenumerating function i/o examples:"
     -- say "\nfinding fits!"
-    -- let fn_hole_exprs :: HashMap String Expr = skeleton <$> fn_types_
     forM_ kept_fns $ \k -> do
-        -- let fn_str :: String = fn_strs ! k  -- = k
+        let ast :: Expr = fn_asts ! k
         let fn_type_str :: String = fn_type_strs ! k
-        say $ "\n" ++ k ++ " :: " ++ fn_type_str
-        let fn_type :: Tp = fn_types ! k
-        -- let fn_hole_expr :: Expr = skeleton fn_type
+        say $ "\n" ++ pp (gtrExpr ast) ++ " :: " ++ fn_type_str
         let instantiations :: [String] = fn_in_str_type_instantiations ! k
         let inst_io_pairs :: HashMap String String = pickKeys instantiations $ fn_in_type_instance_outputs ! k
         -- forM_ instantiations $ \tp -> do
@@ -107,5 +99,5 @@ program = do
         say $ show inst_io_pairs
         let inst_inputs :: HashMap String String = pickKeys instantiations instantiation_inputs
         candidate_ios :: [HashMap String String] <- forM programs $ forM inst_inputs . fnIoPairs . pp
-        let candidates :: [Expr] = fmap (letRes . fst) $ filter (\(expr, inst_ios) -> inst_io_pairs == inst_ios) $ zip programs candidate_ios
+        let candidates :: [Expr] = fmap (letRes . fst) $ filter (\(_expr, inst_ios) -> inst_io_pairs == inst_ios) $ zip programs candidate_ios
         say $ show (pp <$> candidates)

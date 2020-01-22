@@ -145,7 +145,7 @@ filterTypeSigIoFns fn_asts type_sig_io_fns = forM type_sig_io_fns $ mapM $ \fns 
     let rest = delete shortest fns
     forM_ rest $ \fn ->
         -- say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
-        say $ fn ++ " -> " ++ shortest
+        say $ pp (gtrExpr (fn_asts ! fn)) ++ " -> " ++ pp (gtrExpr (fn_asts ! shortest))
     return shortest
 
 -- | hole `_` as an AST Expr
