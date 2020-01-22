@@ -10,11 +10,6 @@ import Data.List (nub, delete, minimumBy, isInfixOf, partition )
 import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
--- import TcHoleErrors (findValidHoleFits)
--- import VarEnv (TidyEnv(..))
--- import Var (TyCoVar(..), TyCoVarSet(..))
--- import TcRnTypes (Implication(..), Ct(..))
--- import UniqSet (nonDetEltsUniqSet)
 -- import Debug.Dump (d)
 import Types
 import FindHoles
