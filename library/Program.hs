@@ -12,7 +12,7 @@ import Language.Haskell.Interpreter (Interpreter, typeOf, lift)
 import Data.List (nub)
 import Control.Monad (forM_, forM)
 import Hint (runInterpreterMain, say, genInputs, fnIoPairs)
-import Ast (fnOutputs, filterTypeSigIoFns, fillHole, fillHoles, skeleton, genFn, genFns)
+import Ast (fnOutputs, filterTypeSigIoFns, fillHole, fillHoles, skeleton, genFn, genFns, letRes)
 import Types (Tp, Expr, fnTypeIO, instantiateTypes, genTypes, tyCon)
 import Utility (groupByVal, flatten, toMapBy, pp, pickKeys)
 import Config (nestLimit, maxInstances, numInputs, genMaxHoles)
@@ -23,13 +23,14 @@ import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromLi
 main :: IO ()
 main = runInterpreterMain program
 
--- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
+-- warning: we *must* alias existing functions, or their definitions will be regarded as recursive!
 -- | functions used for testing
 fnBodies :: HashMap String String
 fnBodies = insert "not_" "\\b -> not b" $
 -- fnBodies = insert "not_" "\\b -> not b :: Bool -> Bool" $
 -- fnBodies = insert "not_" "\\(b :: Bool) -> not b" $
 -- fnBodies = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
+-- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
                 insert "not" "not" $
                 -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
                 insert "id" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
@@ -50,7 +51,7 @@ program = do
     say "\ngenerating task functions:"
     -- task_fn <- genFn blocks
     -- say $ "task: " ++ show (pp task_fn)
-    programs :: [Expr] <- genFns genMaxHoles blocks
+    programs :: [Expr] <- genFns genMaxHoles blocks block_asts
     let task_fns = programs
     forM_ task_fns $ \task_fn -> -- do
         -- say $ "task: " ++ show (pp task_fn)
@@ -106,5 +107,5 @@ program = do
         say $ show inst_io_pairs
         let inst_inputs :: HashMap String String = pickKeys instantiations instantiation_inputs
         candidate_ios :: [HashMap String String] <- forM programs $ forM inst_inputs . fnIoPairs . pp
-        let candidates :: [Expr] = fmap fst $ filter (\(expr, inst_ios) -> inst_io_pairs == inst_ios) $ zip programs candidate_ios
+        let candidates :: [Expr] = fmap (letRes . fst) $ filter (\(expr, inst_ios) -> inst_io_pairs == inst_ios) $ zip programs candidate_ios
         say $ show (pp <$> candidates)

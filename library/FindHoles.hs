@@ -1,9 +1,31 @@
 {-# LANGUAGE ImpredicativeTypes, RankNTypes, FlexibleContexts #-}
 
 -- | find holes in an AST
-module FindHoles (findHolesExpr) where
+module FindHoles (gtrExpr, strExpr, findHolesExpr) where
 
 import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), QName(..) )
+import Utility (composeSetters)
+import Types (Expr)
+
+-- | get the first sub-expression
+gtrExpr :: Exp l -> Exp l
+gtrExpr x = case x of
+    (Let _l _binds xp) -> xp
+    (App _l xp _exp2) -> xp
+    (Lambda _l _pats xp) -> xp
+    (Paren _l xp) -> xp
+    (ExpTypeSig _l xp _tp) -> xp
+    _ -> x
+
+-- | set the first sub-expression
+strExpr :: Exp l -> Exp l -> Exp l
+strExpr x xp = case x of
+    (Let l binds _exp) -> Let l binds xp
+    (App l _exp1 xp2) -> App l xp xp2
+    (Lambda l pats _exp) -> Lambda l pats xp
+    (Paren l _exp) -> Paren l xp
+    (ExpTypeSig l _exp tp) -> ExpTypeSig l xp tp
+    _ -> x
 
 -- | look for holes in an expression. to simplify extracting type, we will only look for holes as part of an ExpTypeSig, e.g. `_ :: Bool`
 -- | I couldn't figure out how to get this to typecheck as a whole lens, so instead I'm taking them as getter/setter pairs...
@@ -12,28 +34,14 @@ findHolesExpr expr = let
         f = findHolesExpr
         -- by the time we use the lens, we already know exactly how we're navigating.
         -- however, at compile-time this isn't known, so we have to pretend we're still checking here.
-        gtr x = case x of
-            (Let _l _binds xp) -> xp
-            (App _l xp _exp2) -> xp
-            (Lambda _l _pats xp) -> xp
-            (Paren _l xp) -> xp
-            (ExpTypeSig _l xp _tp) -> xp
-            _ -> x
-        str x xp = case x of
-            (Let l binds _exp) -> Let l binds xp
-            (App l _exp1 xp2) -> App l xp xp2
-            (Lambda l pats _exp) -> Lambda l pats xp
-            (Paren l _exp) -> Paren l xp
-            (ExpTypeSig l _exp tp) -> ExpTypeSig l xp tp
-            _ -> x
-        mapLenses (a, b) = (a . gtr, \v part -> str v $ b (gtr v) part)
+        mapLenses (a, b) = (a . gtrExpr, composeSetters strExpr gtrExpr b)
     in case expr of
     Let _l _binds xpr -> mapLenses <$> f xpr
     App _l exp1 exp2 ->  (mapLenses <$> f exp1) ++ (mapLenses2 <$> f exp2)
         where
             gtr2 x = case x of (App _l _exp1 xp2) -> xp2; _ -> x
             str2 x xp2 = case x of (App l xp1 _exp2) -> App l xp1 xp2; _ -> x
-            mapLenses2 (a, b) = (a . gtr2, \v part -> str2 v $ b (gtr2 v) part)
+            mapLenses2 (a, b) = (a . gtr2, composeSetters str2 gtr2 b)
     Lambda _l _pats xpr -> mapLenses <$> f xpr
     Paren _l xpr -> mapLenses <$> f xpr
     ExpTypeSig _l xpr _tp -> case xpr of

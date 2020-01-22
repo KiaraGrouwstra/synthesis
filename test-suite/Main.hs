@@ -8,7 +8,7 @@ import Test.HUnit.Text (runTestTT)
 
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
-import Language.Haskell.Exts.Syntax ( Exp(..), Type(..) )
+import Language.Haskell.Exts.Syntax ( Type(..) )
 import Language.Haskell.Interpreter (interpret, as)
 import Data.List (nub)
 import Data.Either (fromRight, isRight)
@@ -100,8 +100,8 @@ types = parallel $ do
     let bl = tyCon "Bool"
     let int = tyCon "Int"
 
-    it "varNode" $
-        pp (varNode "foo") @?= "foo"
+    it "var" $
+        pp (var "foo") @?= "foo"
 
     it "tyVar" $
         pp (tyVar "a") `shouldBe` "a"
@@ -110,7 +110,7 @@ types = parallel $ do
         pp (tyCon "Int") `shouldBe` "Int"
 
     it "tyApp" $
-        pp (tyApp "[]" $ tyCon "Int") `shouldBe` "[] Int"
+        pp (tyApp (tyCon "[]") $ tyCon "Int") `shouldBe` "[] Int"
 
     it "expTypeSig" $
         pp (expTypeSig holeExpr $ tyCon "Int") `shouldBe` "_ :: Int"
@@ -173,7 +173,7 @@ ast = let
         numAstNodes holeExpr `shouldBe` 3
 
     , TestLabel "filterTypeSigIoFns" $ TestCase $ do
-        let fn_asts = insert "not" (varNode "not") $ singleton "not_" $ varNode "not"
+        let fn_asts = insert "not" (var "not") $ singleton "not_" $ var "not"
         hm <- runInterpreter_ $ filterTypeSigIoFns fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
         fromRight empty hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
 
@@ -186,35 +186,44 @@ ast = let
 
     , TestLabel "hasHoles" $ TestCase $ do
         hasHoles holeExpr `shouldBe` False
-        hasHoles (expTypeSig holeExpr (tyCon "Int")) `shouldBe` True
+        hasHoles (expTypeSig holeExpr $ tyCon "Int") `shouldBe` True
 
     , TestLabel "fillHole" $ TestCase $ do
         let tp = tyFun bl bl
-        filled <- runInterpreter_ $ fillHole 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
+        let block_asts = singleton "not_" $ var "not"
+        let expr = letIn block_asts $ expTypeSig holeExpr tp
+        filled <- runInterpreter_ $ fillHole 0 (singleton "not_" tp) expr
+        -- print $ case filled of
+        --         Right _ -> ""
+        --         Left e -> errorString e
         let lst = case filled of
-                    Right (partial, candidates) -> candidates
+                    Right (_partial, candidates) -> candidates
                     Left _ -> []
-        lst `shouldContain` [varNode "not"]
+        (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "fillHoles" $ TestCase $ do
         let tp = tyFun bl bl
-        filled <- runInterpreter_ $ fillHoles 0 (singleton "not" tp) (ExpTypeSig l holeExpr tp)
+        let block_asts = singleton "not_" $ var "not"
+        let expr = letIn block_asts $ expTypeSig holeExpr tp
+        filled <- runInterpreter_ $ fillHoles 0 (singleton "not_" tp) expr
         let lst = case filled of
                     Right ls -> ls
                     Left _ -> []
-        lst `shouldContain` [varNode "not"]
+        (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "genFn" $ TestCase $ do
         let tp = tyFun bl bl
-        filled <- runInterpreter_ $ genFn 0 (singleton "not" tp)
+        let block_asts = singleton "not_" $ var "not"
+        filled <- runInterpreter_ $ genFn 0 (singleton "not_" tp) block_asts
         isRight filled `shouldBe` True
 
     , TestLabel "genFns" $ TestCase $ do
         let tp = tyFun bl bl
-        filled <- runInterpreter_ $ genFns 0 (singleton "not" tp)
+        let block_asts = singleton "not_" $ var "not"
+        filled <- runInterpreter_ $ genFns 0 (singleton "not_" tp) block_asts
         let lst = case filled of
                     Right ls -> ls
                     Left _ -> []
-        lst `shouldContain` [varNode "not"]
+        (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     ]

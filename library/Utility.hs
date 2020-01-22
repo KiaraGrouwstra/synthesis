@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple, mapTuple, while, pp, pickKeys) where
+module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple, mapTuple, while, pp, pickKeys, composeSetters) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)
@@ -71,3 +71,7 @@ pp = prettyPrint
 -- | pick some keys from a hashmap
 pickKeys :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
 pickKeys ks hashmap = toMapBy ks (hashmap !)
+
+-- | compose two setter functions, as I didn't figure out lenses and their monad instantiations
+composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
+composeSetters newStr newGtr oldStr v part = newStr v $ oldStr (newGtr v) part
