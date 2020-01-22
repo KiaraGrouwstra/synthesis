@@ -10,7 +10,6 @@ import Data.List (nub, delete, minimumBy, isInfixOf, partition )
 import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
--- import Debug.Dump (d)
 import Types
 import FindHoles
 import Hint
@@ -25,8 +24,6 @@ fillHoles maxHoles = fillHoles_ maxHoles 0
 fillHoles_ :: Int -> Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
 fillHoles_ maxHoles paramCount block_types expr = do
     (partial, candidates) <- fillHole paramCount block_types expr
-    -- say $ "candidates: " ++ show (pp <$> candidates)
-    -- say $ "partial: " ++ show (pp <$> partial)
     -- TODO: get paramCount out so we can update it in a useful manner here
     rest <- case maxHoles of
                 0 -> return []
@@ -40,10 +37,7 @@ fillHole paramCount block_types expr = do
     let hole_lenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
     let hole_lens = head hole_lenses
-    -- let hole_getter :: Expr -> Expr = fst hole_lens
     let hole_setter :: Expr -> Expr -> Expr = snd hole_lens
-    -- let hole :: Expr = hole_getter expr
-    -- let tp :: Tp = holeType hole
     -- let in_scope_vars :: ? = []?  -- TODO
     let together :: HashMap String Tp = block_types  -- + in_scope_vars
     let generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) together
@@ -108,8 +102,6 @@ fitExpr expr = do
             TyFun _l _a _b -> True
             _ -> False
     return $ if ok then Just expr else Nothing
-
--- -- honestly I guess there are a few ways to generate potential benchmark/training functions...
 
 -- Interpreter.typeOf top expression
 -- for each App node:
