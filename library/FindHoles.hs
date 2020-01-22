@@ -12,7 +12,6 @@ gtrExpr :: Exp l -> Exp l
 gtrExpr x = case x of
     (Let _l _binds xp) -> xp
     (App _l xp _exp2) -> xp
-    (Lambda _l _pats xp) -> xp
     (Paren _l xp) -> xp
     (ExpTypeSig _l xp _tp) -> xp
     _ -> x
@@ -22,7 +21,6 @@ strExpr :: Exp l -> Exp l -> Exp l
 strExpr x xp = case x of
     (Let l binds _exp) -> Let l binds xp
     (App l _exp1 xp2) -> App l xp xp2
-    (Lambda l pats _exp) -> Lambda l pats xp
     (Paren l _exp) -> Paren l xp
     (ExpTypeSig l _exp tp) -> ExpTypeSig l xp tp
     _ -> x
@@ -42,7 +40,6 @@ findHolesExpr expr = let
             gtr2 x = case x of (App _l _exp1 xp2) -> xp2; _ -> x
             str2 x xp2 = case x of (App l xp1 _exp2) -> App l xp1 xp2; _ -> x
             mapLenses2 (a, b) = (a . gtr2, composeSetters str2 gtr2 b)
-    Lambda _l _pats xpr -> mapLenses <$> f xpr
     Paren _l xpr -> mapLenses <$> f xpr
     ExpTypeSig _l xpr _tp -> case xpr of
         Var _l qname -> case qname of

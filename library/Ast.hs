@@ -14,59 +14,33 @@ import Types
 import FindHoles
 import Hint
 import Utility (pick, pp)
-import Config (Strategy(..), strategy, nestLimit, maxWildcardDepth)
+import Config (nestLimit, maxWildcardDepth)
 
 -- | generate potential programs filling any holes in a given expression using some building blocks 
 fillHoles :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
-fillHoles maxHoles = fillHoles_ maxHoles 0
-
--- | recursive helper for fillHoles
-fillHoles_ :: Int -> Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
-fillHoles_ maxHoles paramCount block_types expr = do
-    (partial, candidates) <- fillHole paramCount block_types expr
-    -- TODO: get paramCount out so we can update it in a useful manner here
+fillHoles maxHoles block_types expr = do
+    (partial, candidates) <- fillHole block_types expr
     rest <- case maxHoles of
                 0 -> return []
-                _ -> mapM (fillHoles_ (maxHoles - 1) paramCount block_types) partial
+                _ -> mapM (fillHoles (maxHoles - 1) block_types) partial
     return $ candidates ++ concat rest
 
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
-fillHole :: Int -> HashMap String Tp -> Expr -> Interpreter ([Expr], [Expr])
-fillHole paramCount block_types expr = do
+fillHole :: HashMap String Tp -> Expr -> Interpreter ([Expr], [Expr])
+fillHole block_types expr = do
     -- find a hole
     let hole_lenses = findHolesExpr expr
     -- TODO: let a learner pick a hole
     let hole_lens = head hole_lenses
     let hole_setter :: Expr -> Expr -> Expr = snd hole_lens
-    -- let in_scope_vars :: ? = []?  -- TODO
-    let together :: HashMap String Tp = block_types  -- + in_scope_vars
+    let together :: HashMap String Tp = block_types
     let generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) together
-    let expr_blocks :: [Expr] = case strategy of
-            -- when using currying we will allow any level of application
-            UseCurrying -> concat $ elems generated
-            -- when using lambdas instead of currying we will only allow complete application of any (nested) function
-            UseLambdas -> elems $ last <$> generated
+    -- under currying we will allow any level of application
+    let expr_blocks :: [Expr] = concat $ elems generated
     let inserted = hole_setter expr <$> expr_blocks
     let (partial, complete) = partition hasHoles inserted
     -- TODO: given a type, filter partial programs by type-check
     candidates <- filterCandidatesByCompile complete
-    -- candidates <- case tp of
-    --             -- TODO: when implementing UseLambdas also capture wildcard type here
-    --             TyFun _l tpIn tpOut -> case strategy of
-    --                 -- -- fill function-typed holes with a lambda
-    --                 -- UseLambdas -> let
-    --                 --             varName = "p" ++ show paramCount
-    --                 --             src = "\\" ++ varName ++ " -> let _unused = (" ++ varName ++ " :: " ++ pp tpIn ++ ") in (_ :: " ++ pp tpOut ++ ")"
-    --                 --             expr_ = fromParseResult (parse src :: ParseResult Expr)
-    --                 --         -- TODO: get the type of the hole
-    --                 --         in fillHole (paramCount + 1) block_types $ hole_setter expr expr_
-    --             --     UseCurrying -> return $ filterCandidatesByType tp complete
-    --             -- _ -> return $ filterCandidatesByType tp complete
-    --                 UseCurrying -> filterCandidatesByCompile complete
-    --             _ -> filterCandidatesByCompile complete
-    -- standardizing reductions (hlint?)
-    -- - eta reduction: pointfree -- only relevant with lambdas
-    -- https://github.com/ndmitchell/hlint/blob/56b9b45545665113d277493431b1430e41a3e288/src/Hint/Lambda.hs#L101
     return (partial, candidates)
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types

@@ -192,7 +192,7 @@ ast = let
         let tp = tyFun bl bl
         let block_asts = singleton "not_" $ var "not"
         let expr = letIn block_asts $ expTypeSig holeExpr tp
-        filled <- runInterpreter_ $ fillHole 0 (singleton "not_" tp) expr
+        filled <- runInterpreter_ $ fillHole (singleton "not_" tp) expr
         -- print $ case filled of
         --         Right _ -> ""
         --         Left e -> errorString e
