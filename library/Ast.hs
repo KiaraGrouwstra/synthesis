@@ -22,84 +22,6 @@ import Hint
 import Utility (pick, pp)
 import Config (Strategy(..), strategy, nestLimit, maxWildcardDepth)
 
--- fillHoleGhc :: HashMap String Tp -> Expr -> IO [Expr]
--- fillHole block_types expr = do
---     -- tyCoVarsOfType :: Type -> TyCoVarSet
---     -- tyCoVarsOfTypes :: [Type] -> TyCoVarSet
---     -- tyCoVarsOfCt :: Ct -> TcTyCoVarSet
---     -- tyCoVarsOfWC :: WantedConstraints -> TyCoVarSet
---     -- let tycovarset :: TyCoVarSet = 
-
---     -- Type or Coercion Variables
---     -- let tycovars :: [TyCoVar] = nonDetEltsUniqSet tycovarset
---     let tycovars :: [TyCoVar] = []
-
---     -- The tidy_env for zonking (i.e. instantiate type variables): used for getLocalBindings, zonking subs / hole type
---     tidyEnv :: TidyEnv <- lift $ tcInitOpenTidyEnv tycovars
-
---     -- implication: Implication <- newImplication
---         -- ic_tclvl :: TcLevel	     -- no sensible default
---         -- ic_skols :: [TcTyVar]
---         -- ic_info :: SkolemInfo	 -- no sensible default
---         -- ic_telescope :: Maybe SDoc
---         -- ic_given :: [EvVar]
---         -- ic_no_eqs :: Bool
---         -- ic_env :: Env TcGblEnv TcLclEnv
---         -- ic_wanted :: WantedConstraints
---         -- ic_binds :: EvBindsVar	 -- no sensible default
---         -- ic_need_inner :: VarSet
---         -- ic_need_outer :: VarSet
---         -- ic_status :: ImplicStatus
---     let implications :: [Implication] = []
-
---     -- data CtEvidence
---         -- CtGiven	 
---         --     ctev_pred :: TcPredType	 
---         --     ctev_evar :: EvVar	 
---         --     ctev_loc :: CtLoc	 
---         -- CtWanted	 
---         --     ctev_pred :: TcPredType	 
---         --     ctev_dest :: TcEvDest	 
---         --     ctev_nosh :: ShadowInfo	 
---         --     ctev_loc :: CtLoc	 
---         -- CtDerived	 
---         --     ctev_pred :: TcPredType	 
---         --     ctev_loc :: CtLoc	 
---     -- mkNonCanonical :: CtEvidence -> Ct
---     -- mkIrredCt :: CtEvidence -> Ct
---     -- mkInsolubleCt :: CtEvidence -> Ct
---     -- data Ct
---     --     CDictCan	 
---     --         cc_ev :: CtEvidence	 
---     --         cc_class :: Class	 
---     --         cc_tyargs :: [Xi]	 
---     --         cc_pend_sc :: Bool	 
---     --     CIrredCan	 
---     --         cc_ev :: CtEvidence	 
---     --         cc_insol :: Bool	 
---     --     CTyEqCan	 
---     --         cc_ev :: CtEvidence	 
---     --         cc_tyvar :: TcTyVar	 
---     --         cc_rhs :: TcType	 
---     --         cc_eq_rel :: EqRel	 
---     --     CFunEqCan	 
---     --         cc_ev :: CtEvidence	 
---     --         cc_fun :: TyCon	 
---     --         cc_tyargs :: [Xi]	 
---     --         cc_fsk :: TcTyVar	 
---     --     CNonCanonical	 
---     --         cc_ev :: CtEvidence	 
---     --     CHoleCan	 
---     --         cc_ev :: CtEvidence	 
---     --         cc_hole :: Hole	 
---     --     CQuantCan QCInst
---     let constraints :: [Ct] = []
---     -- let constraint :: Ct = 
-
---     (tidyenv_, sdoc) <- lift $ findValidHoleFitsSource tidyEnv implications constraints constraint
---     print sdoc
---     return []
-
 -- | generate potential programs filling any holes in a given expression using some building blocks 
 fillHoles :: Int -> HashMap String Tp -> Expr -> Interpreter [Expr]
 fillHoles maxHoles = fillHoles_ maxHoles 0
@@ -191,18 +113,6 @@ fitExpr expr = do
             TyFun _l _a _b -> True
             _ -> False
     return $ if ok then Just expr else Nothing
-
--- -- https://github.com/ghc/ghc/blob/master/compiler/typecheck/TcHoleErrors.hs
--- -- findValidHoleFits: getLocalBindings/tcFilterHoleFits: tcCheckHoleFit
--- -- | find potential fits among variables/blocks either directly or any level of return type of function blocks
--- filterCandidatesByType :: Tp -> HashMap String Tp -> [Expr]
--- filterCandidates tp block_types = catMaybes $ elems $ fitType tp <$> block_types
-
--- | check if two types fit, and if so, return an expression for this candidate
--- fitType :: Tp -> Tp -> Maybe Expr
--- fitType tp block_type = maybe_fit
---     where
---         maybe_fit = Nothing
 
 -- -- honestly I guess there are a few ways to generate potential benchmark/training functions...
 
