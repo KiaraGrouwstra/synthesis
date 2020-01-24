@@ -15,24 +15,12 @@ import Utility (groupByVal, flatten, pp, pickKeys)
 import Config (nestLimit, maxInstances, numInputs, genMaxHoles)
 import FindHoles (gtrExpr)
 import Data.HashMap.Lazy (HashMap, empty, insert, elems, (!), mapWithKey, fromList, toList, union)
+import Blocks (fnBodies)
 -- import Debug.Dump (d)
 
 -- | main function, run program in our interpreter monad
 main :: IO ()
 main = runInterpreterMain program
-
--- warning: we *must* alias existing functions, or their definitions will be regarded as recursive!
--- | functions used for testing
-fnBodies :: HashMap String String
-fnBodies = insert "not__" "\\b -> not b" $
--- fnBodies = insert "not_" "\\b -> not b :: Bool -> Bool" $
--- fnBodies = insert "not_" "\\(b :: Bool) -> not b" $
--- fnBodies = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
--- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
-                insert "not_" "not" $
-                -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
-                insert "id_" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
-                empty
 
 constants :: HashMap String Tp
 constants = insert "True" (tyCon "Bool")

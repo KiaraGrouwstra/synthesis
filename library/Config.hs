@@ -1,5 +1,7 @@
 module Config (nestLimit, maxInstances, numInputs, maxWildcardDepth, genMaxHoles) where
 
+-- type generation
+
 -- | max number of instantiations to generate for any type containing type variables
 maxInstances :: Int
 maxInstances = 5  -- may get less after nub filters out duplicate type instances
@@ -8,9 +10,13 @@ maxInstances = 5  -- may get less after nub filters out duplicate type instances
 nestLimit :: Int
 nestLimit = 0 -- high values make for big logs while debugging...
 
+-- sample generation
+
 -- | max number of inputs to generate
 numInputs :: Int
 numInputs = 10
+
+-- function generation
 
 -- | the maximum level of functions to imagine in a wildcard for function generation
 maxWildcardDepth :: Int
