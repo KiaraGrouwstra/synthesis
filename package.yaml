@@ -28,21 +28,25 @@ default-extensions:
 
 dependencies:
   - base
+  # - base-noprelude
+  # - relude
   - haskell-src-exts
   - hint
   - QuickCheck
+  - containers
   - unordered-containers
+  - ghc-lib-parser
 
 library:
   dependencies:
   - template-haskell
   - ghc-lib
-  - ghc-lib-parser
   - random
   - transformers
-  - containers
   - text
   - hashable
+  - split
+  - hslogger
   - dump
   source-dirs: library
 

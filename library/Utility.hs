@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, toMapBy, flattenTuple, mapTuple, while, pp, pickKeys, composeSetters) where
+module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pickKeys, composeSetters, randomSplit) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)
@@ -15,6 +15,18 @@ import Control.Arrow ((***))
 -- | map over both elements of a tuple
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple = join (***)
+
+-- | map over of a 3-element tuple
+mapTuple3 :: (a -> b) -> (a, a, a) -> (b, b, b)
+mapTuple3 f (a1, a2, a3) = (f a1, f a2, f a3)
+
+-- | convert a list of 3(+) items to a tuple of 3
+tuplify3 :: [a] -> (a,a,a)
+tuplify3 [x,y,z] = (x,y,z)
+
+-- | unpack a tuple into a list
+untuple3 :: (a, a, a) -> [a]
+untuple3 (x,y,z) = [x,y,z]
 
 -- | a homogeneous nested list
 data Item a = One [a] | Many [Item a]
@@ -42,8 +54,12 @@ groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
 groupByVal = fromList . fmap (\pairs -> (snd $ head pairs, fst <$> pairs)) . groupWith snd
 
 -- | create a HashMap by mapping over a list of keys
-toMapBy :: (Hashable k, Eq k) => [k] -> (k -> v) -> HashMap k v
-toMapBy ks fn = fromList $ zip ks $ fn <$> ks
+fromKeys :: (Hashable k, Eq k) => (k -> v) -> [k] -> HashMap k v
+fromKeys fn ks = fromList $ zip ks $ fn <$> ks
+
+-- | create a HashMap by mapping over a list of values
+fromVals :: (Hashable k, Eq k) => (v -> k) -> [v] -> HashMap k v
+fromVals fn vs = fromList $ zip (fn <$> vs) vs
 
 -- -- ‘hashWithSalt’ is not a (visible) method of class ‘Hashable’
 -- -- https://github.com/haskell-infra/hackage-trustees/issues/139
@@ -70,8 +86,16 @@ pp = prettyPrint
 
 -- | pick some keys from a hashmap
 pickKeys :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
-pickKeys ks hashmap = toMapBy ks (hashmap !)
+pickKeys ks hashmap = fromKeys (hashmap !) ks
 
 -- | compose two setter functions, as I didn't figure out lenses and their monad instantiations
 composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
 composeSetters newStr newGtr oldStr v part = newStr v $ oldStr (newGtr v) part
+
+-- | randomly split a dataset into subsets based on the indicated split ratio
+randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
+randomSplit split xs = let
+        n :: Int = length xs
+        ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
+    in
+        tuplify3 $ splitPlaces (untuple3 ns) xs

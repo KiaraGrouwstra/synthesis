@@ -1,14 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, instantiateTypes, holeType, var, tyVar, qName, l, findTypeVars, instantiateTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..) )
--- import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
+import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..) )
+import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parse, parseWithMode, fromParseResult, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
+import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
 import Data.List (replicate, nub)
-import Control.Monad (join, replicateM)
-import Data.HashMap.Lazy (HashMap, fromList, toList, (!))
+import Data.Maybe (fromMaybe)
+import Control.Monad (join, replicateM, sequence, filterM)
+import Data.HashMap.Lazy (HashMap, empty, fromList, fromListWith, toList, (!), unionWith, keys, elems)
 import Utility (Item(..), pick, pp)
 
 -- these verbose types annoy me so let's alias them
@@ -19,7 +21,7 @@ type Hole = SpecialCon SrcSpanInfo -- ExprHole
 
 -- | randomly generate a type
 -- TODO: allow generating new type vars
-randomType :: Bool -> Bool -> Int -> [String] -> Int -> IO Tp
+randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 randomType allowAbstract allowFns nestLimit typeVars tyVarCount = join $ pick options
     where
         f = randomType allowAbstract allowFns (nestLimit - 1)
@@ -32,7 +34,7 @@ randomType allowAbstract allowFns nestLimit typeVars tyVarCount = join $ pick op
                   ]
         -- TODO: I now assume all type vars are of kind *, but I should check
         -- this in findTypeVars and return like (HashMap String Int) there!
-        tpVars = return . tyVar <$> typeVars
+        tpVars = return . tyVar <$> keys typeVars
         monos = [ mono "[]"
                 ]
         simple = return . tyCon
@@ -45,19 +47,25 @@ randomType allowAbstract allowFns nestLimit typeVars tyVarCount = join $ pick op
 
 -- | randomly generate a function type
 -- TODO: ensure each type var is used at least twice
-randomFnType :: Bool -> Bool -> Int -> [String] -> Int -> IO Tp
+randomFnType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount = do
     let f = randomType allowAbstract allowFns (nestLimit - 1)
     tpIn <- f typeVars tyVarCount
     let typeVarsIn = findTypeVars tpIn
-    let typeVars_ = nub $ typeVars ++ typeVarsIn
+    let typeVars_ = mergeTyVars typeVars typeVarsIn
     tpOut <- f typeVars_ tyVarCount
     return $ TyFun l tpIn tpOut
+
+-- merge two maps of type variables and their corresponding type constraints
+mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
+mergeTyVars = unionWith $ \a b -> nub $ a ++ b
 
 -- | extract the input and output types from a function type
 -- TODO: Maybe
 fnTypeIO :: Tp -> (Tp, Tp)
 fnTypeIO = \case
+    TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+        TyFun _l a b -> (a, b)
     TyFun _l a b -> (a, b)
     -- tp -> (TyTuple l Boxed [], tp)
     -- x -> fail $ "unexpected " ++ show x
@@ -68,39 +76,35 @@ holeType :: Expr -> Tp
 holeType = \case
     ExpTypeSig _l _exp tp -> tp
 
--- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
--- TODO: take into account type variable constraints
--- | generate any combinations of a polymorphic type filled using a list of concrete types
-instantiateTypes :: [Tp] -> Tp -> [Tp]
-instantiateTypes tps tp = fillTypeVars tp <$> instantiateTypeVars tps (findTypeVars tp)
-
 -- | find the type variables and their occurrences
-findTypeVars :: Tp -> [String]
-findTypeVars tp = nub $ findTypeVars_ tp
+findTypeVars :: Tp -> HashMap String [Tp]
+findTypeVars = fromListWith (++) . findTypeVars_
 
-findTypeVars_ :: Tp -> [String]
+findTypeVars_ :: Tp -> [(String, [Tp])]
 findTypeVars_ tp = let f = findTypeVars_ in case tp of
-            TyVar _l _name -> [pp tp]
+            TyVar _l _name -> [(pp tp, [])]
             TyApp _l a b -> f a ++ f b
+            TyForall _l maybeTyVarBinds _maybeContext typ -> bindings ++ case typ of
+                TyFun _l a b -> f a ++ f b
+                where
+                    bindings = toList $ fromListWith (++) $ (\(KindedVar _l name kind) -> (pp name, [kind])) <$> fromMaybe [] maybeTyVarBinds
             TyFun _l a b -> f a ++ f b
             _ -> []
-
--- | instantiate type variables
-instantiateTypeVars :: [Tp] -> [String] -> [HashMap String Tp]
-instantiateTypeVars tps ks = fromList . zip ks <$> sequence (replicate (length ks) tps)
 
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
 fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case tp of
     TyVar _l _name -> substitutions ! pp tp
     TyApp _l a b -> tyApp (f a) $ f b
+    TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+        TyFun _l a b -> tyFun (f a) $ f b
     TyFun _l a b -> tyFun (f a) $ f b
     _ -> tp
 
 -- | generate a number of concrete types to be used in type variable substitution
 -- TODO: move the flatten/nub in
 genTypes :: Int -> Int -> IO (Item Tp)
-genTypes nestLimit maxInstances = Many . fmap (One . pure) <$> replicateM maxInstances (randomType False False nestLimit [] 0)
+genTypes nestLimit maxInstances = Many . fmap (One . pure) <$> replicateM maxInstances (randomType False False nestLimit empty 0)
 
 -- | dummy source span info, because I don't care
 l :: SrcSpanInfo
@@ -108,11 +112,15 @@ l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
     where
         spn = SrcSpan "<unknown>.hs" 1 1 1 1
 
+-- | create a typed expression without value, intended for checking types
+undef :: Tp -> Expr
+undef = expTypeSig (var "undefined")
+
 -- | create a qname node
 qName :: String -> QName SrcSpanInfo
 qName = UnQual l . Ident l
 
--- | create a monomorphic type node
+-- | create a variable node
 var :: String -> Expr
 var = Var l . qName
 
@@ -135,6 +143,9 @@ expTypeSig = ExpTypeSig l
 -- | type for a function
 tyFun :: Tp -> Tp -> Tp
 tyFun = TyFun l
+
+tyForall :: Maybe [TyVarBind SrcSpanInfo] -> Maybe (Context SrcSpanInfo) -> Tp -> Tp
+tyForall = TyForall l
 
 -- | star type node: *
 star :: Tp
@@ -170,3 +181,44 @@ ident = Ident l
 
 app :: Expr -> Expr -> Expr
 app = App l
+
+cxTuple :: [Asst SrcSpanInfo] -> Context SrcSpanInfo
+cxTuple = CxTuple l
+
+classA :: QName SrcSpanInfo -> [Tp] -> Asst SrcSpanInfo
+classA = ClassA l
+
+-- lit :: Literal SrcSpanInfo -> Expr
+-- lit = Lit l
+
+-- assertParseResult :: Either String a -> a
+--         tp <- case exprType expr of
+--             Right t -> t
+--             Left e -> error $ "failed to type-parse expr " ++ pp expr ++ ": " + e
+
+-- unpack a ParseResult into an Either
+unParseResult :: ParseResult a -> Either String a
+unParseResult = \case
+    ParseOk a -> Right a
+    ParseFailed _srcLoc str -> Left str
+
+parseMode :: ParseMode
+parseMode = defaultParseMode {
+    extensions = [
+        EnableExtension FlexibleContexts
+    ]
+}
+
+-- | parse an expression from a string
+parseExpr :: String -> Expr
+-- parseExpr = unParseResult . parse
+parseExpr s = case unParseResult (parseWithMode parseMode s :: ParseResult Expr) of
+            Right t -> t
+            Left e -> error $ "failed to parse expr " ++ s ++ ": " ++ e
+
+-- | parse a type from a string
+parseType :: String -> Tp
+-- parseType = unParseResult . parse
+parseType s = case unParseResult (parseWithMode parseMode s :: ParseResult Tp) of
+            Right t -> t
+            Left e -> error $ "failed to parse type " ++ s ++ ": " ++ e

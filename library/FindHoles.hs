@@ -3,7 +3,7 @@
 -- | find holes in an AST
 module FindHoles (gtrExpr, strExpr, findHolesExpr) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), QName(..) )
+import Language.Haskell.Exts.Syntax (Exp(..), SpecialCon(..), QName(..), Name(..))
 import Utility (composeSetters)
 import Types (Expr)
 
@@ -43,8 +43,13 @@ findHolesExpr expr = let
     Paren _l xpr -> mapLenses <$> f xpr
     ExpTypeSig _l xpr _tp -> case xpr of
         Var _l qname -> case qname of
-            Special _l specialCon -> case specialCon of
-                ExprHole _l -> [(id, flip const)]
+            -- Special _l specialCon -> case specialCon of
+            --     ExprHole _l -> [(id, flip const)]
+            --     _ -> mapLenses <$> f xpr
+            UnQual _l name -> case name of
+                Ident _l str -> case str of
+                    "undefined" -> [(id, flip const)]
+                    _ -> mapLenses <$> f xpr
                 _ -> mapLenses <$> f xpr
             _ -> mapLenses <$> f xpr
         _ -> mapLenses <$> f xpr

@@ -28,7 +28,7 @@ you know and love.
 
 ``` sh
 # Build the project.
-stack build --file-watch --fast
+stack build --file-watch --fast --exec synthesis
 stack --nix build  # needs NIX_PATH
 snack build  # error: attribute 'ghc-lib-parser' missing
 cd ghx-nix && cabal install --installdir=./bin --overwrite-policy=always  # cabal: unrecognized 'install' option
@@ -44,6 +44,9 @@ stack haddock
 
 # Run
 stack exec -- synthesis
+
+# All together
+stack test --file-watch --fast --exec synthesis
 ```
 
 Thanks again, and happy hacking!
