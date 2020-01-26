@@ -47,7 +47,6 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
 fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
-    -- TODO: for holed expressions the type-check fails
     partial_ <- filterByCompile False partial
     complete_ <- filterByCompile True complete
     return (partial_, complete_)

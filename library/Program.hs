@@ -11,7 +11,7 @@ import Control.Monad (forM_, forM)
 import Hint (runInterpreterMain, say, genInputs, fnIoPairs, exprType)
 import Ast (letRes, genBlockVariants, filterTypeSigIoFns)
 import Generation (fnOutputs, genFns, instantiateTypes)
-import Types (Tp, Expr, fnTypeIO, genTypes, tyCon, expTypeSig)
+import Types (Tp, Expr, fnTypeIO, genTypes, tyCon, expTypeSig, parseExpr)
 import Utility (groupByVal, flatten, pp, pickKeys, fromKeys, fromVals, mapTuple, randomSplit)
 import Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
 import FindHoles (gtrExpr)
@@ -29,7 +29,7 @@ program :: Interpreter ()
 program = do
     say "\ngenerating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType fnAsts
-    let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types ++ toList constants
+    let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types ++ toList (fromKeys parseExpr $ keys constants)
     programs :: [Expr] <- genFns genMaxHoles expr_blocks blockAsts
     say $ "programs: " ++ show (pp <$> programs)
     let task_fns = programs
