@@ -5,7 +5,6 @@ import Data.HashMap.Lazy (HashMap, empty, singleton, insert, union)
 import Control.Monad (join)
 import Control.Arrow ((***))
 import Utility (mapTuple3, tuplify3, untuple3)
-import Data.List.Split (splitPlaces)
 
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants

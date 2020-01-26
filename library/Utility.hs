@@ -11,6 +11,7 @@ import GHC.Exts (groupWith)
 import Data.Bifoldable (biList)
 import Control.Monad (join)
 import Control.Arrow ((***))
+import Data.List.Split (splitPlaces)
 
 -- | map over both elements of a tuple
 mapTuple :: (a -> b) -> (a, a) -> (b, b)

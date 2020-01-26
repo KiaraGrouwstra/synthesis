@@ -119,7 +119,7 @@ hint = let
 
     , TestLabel "exprType" $ TestCase $ do
         x <- runInterpreter_ (exprType $ parseExpr "True")
-        fromRight undefined x `shouldBe` bl
+        pp (fromRight undefined x) `shouldBe` "Bool"
 
     ]
 
@@ -173,10 +173,10 @@ types = parallel $ do
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int, bl]) `shouldBe` singleton "a" [bl, str, int]
     
     it "parseExpr" $
-        parseExpr "a" `shouldBe` var "a"
+        pp (parseExpr "a") `shouldBe` "a"
 
     it "parseType" $
-        parseType "a" `shouldBe` tyVar "a"
+        pp (parseType "a") `shouldBe` "a"
 
 find :: Spec
 find = -- do
