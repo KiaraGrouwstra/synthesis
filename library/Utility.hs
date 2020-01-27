@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pickKeys, composeSetters, randomSplit) where
+module Utility (Item(..), NestedTuple(..), flatten, pick, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pickKeys, composeSetters, randomSplit, flipOrder) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)
@@ -100,3 +100,9 @@ randomSplit split xs = let
         ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
     in
         tuplify3 $ splitPlaces (untuple3 ns) xs
+
+-- | flip an Ordering
+flipOrder :: Ordering -> Ordering
+flipOrder GT = LT
+flipOrder LT = GT
+flipOrder EQ = EQ

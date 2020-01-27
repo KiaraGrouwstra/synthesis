@@ -1,9 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, paren, infixApp, dollar, dot) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..) )
+import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..) )
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parse, parseWithMode, fromParseResult, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
@@ -124,6 +124,14 @@ qName = UnQual l . Ident l
 var :: String -> Expr
 var = Var l . qName
 
+-- | $
+dollar :: QOp SrcSpanInfo
+dollar = symbol "$"
+
+-- | .
+dot :: QOp SrcSpanInfo
+dot = symbol "."
+
 -- | create a monomorphic type node
 tyCon :: String -> Tp
 tyCon = TyCon l . qName
@@ -155,6 +163,10 @@ star = TyStar l
 wildcard :: Tp
 wildcard = TyWildCard l Nothing
 
+-- | unit type: ()
+unit :: Tp
+unit = TyCon l $ Special l $ UnitCon l
+
 -- letIn :: Binds SrcSpanInfo -> Expr -> Expr
 -- letIn = Let l
 letIn :: HashMap String Expr -> Expr -> Expr
@@ -176,17 +188,33 @@ rhs = UnGuardedRhs l
 pvar :: String -> Pat SrcSpanInfo
 pvar = PVar l . ident
 
+-- | symbol for use in infix expressions
+symbol :: String -> QOp SrcSpanInfo
+symbol = QVarOp l . UnQual l . Symbol l
+
+-- | parenthesized expression
+paren :: Expr -> Expr
+paren = Paren l
+
+-- | used in name nodes
 ident :: String -> Name SrcSpanInfo
 ident = Ident l
 
+-- | function application
 app :: Expr -> Expr -> Expr
 app = App l
 
+-- | tuple of type constraints
 cxTuple :: [Asst SrcSpanInfo] -> Context SrcSpanInfo
 cxTuple = CxTuple l
 
+-- | type constraint assertion
 classA :: QName SrcSpanInfo -> [Tp] -> Asst SrcSpanInfo
 classA = ClassA l
+
+-- | infix function application
+infixApp :: Expr -> QOp SrcSpanInfo -> Expr -> Expr
+infixApp = InfixApp l
 
 -- lit :: Literal SrcSpanInfo -> Expr
 -- lit = Lit l
@@ -202,10 +230,12 @@ unParseResult = \case
     ParseOk a -> Right a
     ParseFailed _srcLoc str -> Left str
 
+-- | any compiler extensions to use while parsing
 parseMode :: ParseMode
 parseMode = defaultParseMode {
     extensions = [
-        EnableExtension FlexibleContexts
+        EnableExtension ScopedTypeVariables
+        -- EnableExtension FlexibleContexts
     ]
 }
 
