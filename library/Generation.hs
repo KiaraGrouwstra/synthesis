@@ -4,7 +4,7 @@
 module Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints) where
 
 import Language.Haskell.Exts.Syntax (Type(..))
-import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails)
+import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
 import Data.List (nub, delete, minimumBy, isInfixOf, partition)
 import Control.Monad (filterM)
 import Data.HashMap.Lazy (HashMap, keys, fromList, toList, (!))
@@ -14,11 +14,15 @@ import qualified Data.Set
 import Types
 import FindHoles (gtrExpr, findHolesExpr)
 import Hint (say, showError, fnIoPairs, exprType)
-import Utility (pick, pp, pickKeys, mapTuple)
-import Ast (hasHoles, anyFn)
+import Utility (pick, pp, pickKeys, flipOrder)
+import Ast (hasHoles, anyFn, numAstNodes)
 import Data.Bifunctor (second)
 import Util (fstOf3, thdOf3)
 import MonadUtils (allM)
+import Language.Haskell.Exts.Parser ( ParseResult, parse )
+import Data.Ord (Ordering(..))
+import Control.Monad (forM, forM_)
+import Control.Monad.Loops (maximumByM)
 
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
@@ -47,8 +51,8 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
 fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
-    partial_ <- filterByCompile False partial
-    complete_ <- filterByCompile True complete
+    partial_ <- filterByCompile partial
+    complete_ <- filterByCompile complete
     return (partial_, complete_)
     where
         -- find a hole
@@ -66,18 +70,19 @@ fillHole block_asts used_blocks expr_blocks expr = do
         (partial, complete) :: ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)]) = partition (hasHoles . fstOf3) triplets
 
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
-filterByCompile :: Bool -> [(Expr, Set String, Expr)] -> Interpreter [(Expr, Set String, Expr)]
-filterByCompile isComplete = filterM (fitExpr isComplete . thdOf3)
+filterByCompile :: [(Expr, Set String, Expr)] -> Interpreter [(Expr, Set String, Expr)]
+filterByCompile = filterM (fitExpr . thdOf3)
 -- unhole . 
 
 -- -- | replace any holes in an expression with undefined, for type-checking purposes
 -- unhole :: Expr -> Expr
 -- unhole expr = ?
 
+-- TODO: switch to `matchesType`?
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
-fitExpr :: Bool -> Expr -> Interpreter Bool
-fitExpr checkType expr = do
+fitExpr :: Expr -> Interpreter Bool
+fitExpr expr = do
 
     checks <- typeChecksWithDetails $ pp expr
     -- say $ "check: " ++ pp expr
@@ -85,20 +90,21 @@ fitExpr checkType expr = do
     --     Right s -> s
     --     Left errors -> show $ showError <$> errors
     -- if isLeft checks then return False else
-    if isLeft checks then return False else
-
-     if not checkType then return True else do
+    if isLeft checks then return False else do
         -- for currying, not for lambdas: use type to filter out non-function programs
         -- say $ "checking if fn type: " ++ pp expr
-        tp <- exprType expr
-        -- say $ "tp: " ++ pp tp
-        -- say $ "tp: " ++ show tp
-        let ok = case tp of
-                TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+        -- tp <- exprType expr
+        res :: ParseResult Tp <- fmap parse <$> typeOf $ pp expr
+        let ok = case unParseResult res of
+                Right tp -> case tp of
+                    -- say $ "tp: " ++ pp tp
+                    TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+                        TyFun _l _a _b -> True
+                        _ -> False
                     TyFun _l _a _b -> True
                     _ -> False
-                TyFun _l _a _b -> True
-                _ -> False
+                Left _e -> False
+                -- error $ "failed to parse type " ++ s ++ ": " ++ e
         -- say $ "ok: " ++ show ok
         return ok
 
