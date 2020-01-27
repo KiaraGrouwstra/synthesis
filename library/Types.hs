@@ -1,9 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, paren, infixApp, dollar, dot) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..) )
+import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..) )
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parse, parseWithMode, fromParseResult, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
@@ -11,6 +11,7 @@ import Data.List (replicate, nub)
 import Data.Maybe (fromMaybe)
 import Control.Monad (join, replicateM, sequence, filterM)
 import Data.HashMap.Lazy (HashMap, empty, fromList, fromListWith, toList, (!), unionWith, keys, elems)
+import Data.Bifunctor (first)
 import Utility (Item(..), pick, pp)
 
 -- these verbose types annoy me so let's alias them
@@ -62,13 +63,15 @@ mergeTyVars = unionWith $ \a b -> nub $ a ++ b
 
 -- | extract the input and output types from a function type
 -- TODO: Maybe
-fnTypeIO :: Tp -> (Tp, Tp)
+fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
-    TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-        TyFun _l a b -> (a, b)
-    TyFun _l a b -> (a, b)
+    -- -- I shouldn't need TyForall, I'm only applying this on instantiated function types, while I'm not sure I can handle the constraints here in any sensible way...
+    -- TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+    --     TyFun _l a b -> fst (a :) $ fnTypeIO b
+    TyFun _l a b -> first (a :) $ fnTypeIO b
     -- tp -> (TyTuple l Boxed [], tp)
     -- x -> fail $ "unexpected " ++ show x
+    typ -> ([], typ)
 
 -- | this function takes an explicitly typed hole, returning its type
 -- TODO: Maybe
@@ -184,9 +187,11 @@ patBind name expr = PatBind l (pvar name) (rhs expr) Nothing
 rhs :: Expr -> Rhs SrcSpanInfo
 rhs = UnGuardedRhs l
 
--- pvar :: Name SrcSpanInfo -> Pat SrcSpanInfo
 pvar :: String -> Pat SrcSpanInfo
 pvar = PVar l . ident
+
+ptuple :: [Pat SrcSpanInfo] -> Pat SrcSpanInfo
+ptuple = PTuple l Boxed
 
 -- | symbol for use in infix expressions
 symbol :: String -> QOp SrcSpanInfo
@@ -215,6 +220,34 @@ classA = ClassA l
 -- | infix function application
 infixApp :: Expr -> QOp SrcSpanInfo -> Expr -> Expr
 infixApp = InfixApp l
+
+-- | a list of expressions
+list :: [Expr] -> Expr
+list = List l
+
+-- | a tuple of expressions
+tuple :: [Expr] -> Expr
+tuple = Tuple l Boxed
+
+-- | a literal expression
+lit :: Literal SrcSpanInfo -> Expr
+lit = Lit l
+
+-- | Int expression
+int :: Integer -> Expr
+int i = lit $ Int l i $ show i
+
+-- | String expression
+string :: String -> Expr
+string s = lit $ String l s s
+
+-- | data constructor
+con :: String -> Expr
+con = Con l . qName
+
+-- | lambda function
+lambda :: [Pat SrcSpanInfo] -> Expr -> Expr
+lambda = Lambda l
 
 -- lit :: Literal SrcSpanInfo -> Expr
 -- lit = Lit l

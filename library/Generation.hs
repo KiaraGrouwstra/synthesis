@@ -12,7 +12,7 @@ import Data.Either (isLeft)
 import Data.Set (Set, empty, insert)
 import qualified Data.Set
 import Types
-import FindHoles (gtrExpr, findHolesExpr)
+import FindHoles (findHolesExpr)
 import Hint (say, showError, fnIoPairs, exprType)
 import Utility (pick, pp, pickKeys, flipOrder)
 import Ast (hasHoles, anyFn, numAstNodes)
@@ -108,12 +108,19 @@ fitExpr expr = do
         return ok
 
 -- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
-fnOutputs :: HashMap String String -> String -> [String] -> Interpreter (HashMap String String)
+fnOutputs :: HashMap String [Expr]
+          -> String
+          -> [[String]]                             -- ^ for each type instantiation, for each param, the input type as string
+          -> Interpreter (HashMap [String] String)
 fnOutputs instantiation_inputs fn_str str_in_instantiations =
-    let
-            inputs :: [String] = (!) instantiation_inputs <$> str_in_instantiations
-        in
-            fromList . zip str_in_instantiations <$> mapM (fnIoPairs fn_str) inputs
+        fromList . zip str_in_instantiations <$> mapM (fnIoPairs n fn_str) in_strs
+        where
+            -- a list of samples for parameters for types
+            inputs :: [[[Expr]]] = fmap (instantiation_inputs !) <$> str_in_instantiations
+            -- tuples of samples by param
+            param_combs :: [[[Expr]]] = sequence <$> inputs
+            n = length . head . head $ param_combs
+            in_strs :: [String] = pp . list . fmap tuple <$> param_combs
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 -- | generate any combinations of a polymorphic type filled using a list of concrete types

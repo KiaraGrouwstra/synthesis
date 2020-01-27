@@ -8,6 +8,7 @@ import Types -- (Expr, Tp, parseExpr, parseType)
 import Data.List (intercalate)
 import Data.Either (isLeft, isRight, fromRight)
 import Utility (pp)
+import Ast (genUncurry)
 import System.Log.Logger (getRootLogger, logL, Priority(..), warningM)
 import Control.Monad (join)
 
@@ -71,11 +72,12 @@ interpretIO cmd = do
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings.
-fnIoPairs :: String -> String -> Interpreter String
-fnIoPairs fn_str ins = do
-    -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
+fnIoPairs :: Int -> String -> String -> Interpreter String
+fnIoPairs n fn_str ins = do
+    -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
     let insExpr = parseExpr ins
     let fn = parseExpr fn_str
+    let unCurry = genUncurry n
     let cmd = pp $ Do l [ Generator l
                 (PatTypeSig l
                     (pvar "ios")
@@ -86,20 +88,25 @@ fnIoPairs fn_str ins = do
                 (infixApp
                     (app (var "zip") insExpr)
                     (symbol "<$>")
-                    (paren $ infixApp (var "sequence") dollar $ infixApp (infixApp (var "try") dot (infixApp (var "evaluate") dot $ paren fn)) (symbol "<$>") insExpr)
+                    (paren $ infixApp (var "sequence") dollar $ infixApp (infixApp (var "try") dot (infixApp (var "evaluate") dot $ app (paren unCurry) $ paren fn)) (symbol "<$>") insExpr)
                 )
             , Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
+    -- say cmd
     checksWithDetails <- typeChecksWithDetails $ show cmd
     case checksWithDetails of
         Right s -> interpretIO cmd
         Left errors -> return $ show $ showError <$> errors
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
--- | generate examples given a concrete type (to and from string to keep a common type, as we need this for the run-time interpreter anyway)
+-- TODO: refactor input to Expr? [Expr]?
+-- | generate examples given a concrete type
 -- | the reason this function needs to be run through the interpreter is Gen wants to know its type at compile-time.
-genInputs :: Int -> String -> Interpreter String
-genInputs n in_type_str = interpretIO $ "let seed = 0 in show <$> nub <$> sample' (resize " ++ show n ++ " $ variant seed arbitrary :: Gen (" ++ in_type_str ++ "))"
+genInputs :: Int -> String -> Interpreter [Expr]
+genInputs n in_type_str = unList . parseExpr <$> interpretIO cmd
+    where
+        cmd = "let seed = 0 in show <$> nub <$> sample' (resize " ++ show n ++ " $ variant seed arbitrary :: Gen (" ++ in_type_str ++ "))"
+        unList (List _l exps) = exps
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp

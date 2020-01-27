@@ -21,6 +21,7 @@ import Util (fstOf3)
 import Utility
 import Hint
 import Types
+import qualified Types
 import FindHoles
 import Ast
 import Generation
@@ -110,12 +111,14 @@ hint = let
         fromRight "" x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- runInterpreter_ (fnIoPairs "not" "[True, False]")
+        x <- runInterpreter_ (fnIoPairs 1 "not" "[True, False]")
         fromRight "" x @?= "[(True,Right False),(False,Right True)]"
+        x <- runInterpreter_ (fnIoPairs 2 "(+)" "[(1,2),(3,4)]")
+        fromRight "" x @?= "[((1,2),Right 3),((3,4),Right 7)]"
 
     , TestLabel "genInputs" $ TestCase $ do
         x <- runInterpreter_ (genInputs 10 "Bool")
-        fromRight "" x `shouldContain` "True"
+        pp <$> fromRight undefined x `shouldContain` ["True"]
 
     , TestLabel "exprType" $ TestCase $ do
         x <- runInterpreter_ (exprType $ parseExpr "True")
@@ -149,7 +152,7 @@ types = parallel $ do
     it "fnTypeIO" $ do
         let a = tyVar "a"
         let b = tyVar "b"
-        fnTypeIO (tyFun a b) `shouldBe` (a, b)
+        fnTypeIO (tyFun a b) `shouldBe` ([a], b)
 
     it "findTypeVars" $
         findTypeVars (tyFun (tyVar "a") (TyApp l (tyCon "Set") (tyVar "b"))) `shouldBe` insert "a" [] (singleton "b" [])
@@ -217,6 +220,9 @@ ast = do
         let hm = filterTypeSigIoFns fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
         hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
 
+    it "genUncurry" $
+        pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
+
 gen :: Test
 gen = let 
         bl = tyCon "Bool"
@@ -229,11 +235,18 @@ gen = let
     in TestList
 
     [ TestLabel "fnOutputs" $ TestCase $ do
-        io <- runInterpreter_ $ fnOutputs (singleton "Bool" "[True, False]") "not" ["Bool"]
+        -- not
+        io <- runInterpreter_ $ fnOutputs (singleton "Bool" [con "True", con "False"]) "not" [["Bool"]]
         let hm = case io of
                     Right m -> m
                     Left _ -> empty
-        hm `shouldBe` singleton "Bool" "[(True,Right False),(False,Right True)]"
+        hm `shouldBe` singleton ["Bool"] "[(True,Right False),(False,Right True)]"
+        -- (+)
+        io <- runInterpreter_ $ fnOutputs (singleton "Int" $ Types.int <$> [1,2,3]) "(+)" [["Int","Int"]]
+        let hm = case io of
+                    Right m -> m
+                    Left _ -> empty
+        hm `shouldBe` singleton ["Int","Int"] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
 
     , TestLabel "fillHole" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"

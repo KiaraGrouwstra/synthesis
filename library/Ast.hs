@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, filterTypeSigIoFns) where
+module Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, filterTypeSigIoFns, genUncurry) where
 
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
@@ -10,10 +10,10 @@ import Data.List (nub, delete, minimumBy, isInfixOf, partition)
 import Data.HashMap.Lazy (HashMap, fromList, toList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
 import Types
-import FindHoles (gtrExpr, strExpr, findHolesExpr)
-import Hint (runInterpreterMain, runInterpreter_, say, errorString, interpretIO, genInputs, exprType)
+import FindHoles (strExpr, findHolesExpr)
 import Utility (pick, pp)
 import Configs (nestLimit, maxWildcardDepth)
+import Util (nTimes)
 
 genBlockVariants :: HashMap String Tp -> [(String, Expr)]
 genBlockVariants block_types = let
@@ -90,3 +90,11 @@ filterTypeSigIoFns fn_asts type_sig_io_fns = fmap filterFns <$> type_sig_io_fns
     where
         minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
         filterFns = minByMap (numAstNodes . (!) fn_asts)
+
+-- | generate an expression for an n-ary uncurry function, e.g. for n=2: `\ fn (a, b) -> fn a b`
+genUncurry :: Int -> Expr
+genUncurry 1 = var "id"
+genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) $ var <$> letters
+        where
+            fn = "fn"
+            letters :: [String] = pure <$> ['a' .. nTimes (n-1) succ 'a']

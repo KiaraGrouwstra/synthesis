@@ -1,11 +1,15 @@
 {-# LANGUAGE ImpredicativeTypes, RankNTypes, FlexibleContexts #-}
 
 -- | find holes in an AST
-module FindHoles (gtrExpr, strExpr, findHolesExpr) where
+module FindHoles (gtrExpr, strExpr, findHolesExpr, getLet) where
 
 import Language.Haskell.Exts.Syntax (Exp(..), SpecialCon(..), QName(..), Name(..))
 import Utility (composeSetters)
 import Types (Expr)
+
+-- | get the expression inside a let-expression
+getLet :: Exp l -> Exp l
+getLet (Let _l _binds xp) = xp
 
 -- | get the first sub-expression
 gtrExpr :: Exp l -> Exp l

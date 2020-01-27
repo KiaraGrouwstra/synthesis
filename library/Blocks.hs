@@ -2,8 +2,6 @@ module Blocks (blockAsts, fnAsts, constants) where
 
 import Types (Tp, Expr, tyCon, parseExpr)
 import Data.HashMap.Lazy (HashMap, empty, singleton, insert, union)
-import Control.Monad (join)
-import Control.Arrow ((***))
 import Utility (mapTuple3, tuplify3, untuple3)
 
 blockAsts :: HashMap String Expr
@@ -38,7 +36,7 @@ fnAstsTamandu = fmap parseExpr $
         -- -- foldLoop :: (Int -> t -> t) -> t -> Int -> t
         -- --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
         --    insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test!
-        --    insert "add" "(+)" $
+           insert "add" "(+)" $
         --    insert "mul" "(*)" $
         --    insert "div_" "div" $ -- Int: for fractions use (/)
         --    insert "max_" "max" $
