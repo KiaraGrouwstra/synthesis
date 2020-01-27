@@ -7,12 +7,11 @@ import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(.
 import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
 import Language.Haskell.Interpreter (Interpreter, lift, typeChecks)
 import Data.List (nub, delete, minimumBy, isInfixOf, partition)
-import Control.Monad (forM, forM_)
 import Data.HashMap.Lazy (HashMap, fromList, toList, (!), elems, mapWithKey)
 import Data.Maybe (catMaybes)
 import Types
 import FindHoles (gtrExpr, strExpr, findHolesExpr)
-import Hint (runInterpreterMain, runInterpreter_, say, errorString, interpretIO, fnIoPairs, genInputs, exprType)
+import Hint (runInterpreterMain, runInterpreter_, say, errorString, interpretIO, genInputs, exprType)
 import Utility (pick, pp)
 import Configs (nestLimit, maxWildcardDepth)
 
@@ -77,7 +76,7 @@ numAstNodes = foldr (\ _node acc -> acc + 1) 0
 
 -- | hole `_` as an AST Expr
 holeExpr :: Expr
--- holeExpr = Var l $ Special l $ ExprHole l
+-- holeExpr = var $ Special l $ ExprHole l
 -- | replace any holes in an expression with undefined, for type-checking purposes
 holeExpr = var "undefined"
 
@@ -90,15 +89,4 @@ filterTypeSigIoFns :: HashMap String Expr -> HashMap String (HashMap String [Str
 filterTypeSigIoFns fn_asts type_sig_io_fns = fmap filterFns <$> type_sig_io_fns
     where
         minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
-        filterFns fns = let
-                -- case length fns of
-                --     1 -> return ()
-                --     _ -> say $ "deduping equivalent fns: " ++ show fns
-                -- TODO: keep not just the function with the fewest number of AST nodes, but the more generic one (most type variable names/occurrences) if possible
-                shortest = minByMap (numAstNodes . (!) fn_asts) fns
-                -- rest = delete shortest fns
-                -- forM_ rest $ \fn ->
-                --     -- say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
-                --     say $ pp (gtrExpr (fn_asts ! fn)) ++ " -> " ++ pp (gtrExpr (fn_asts ! shortest))
-            in
-                shortest
+        filterFns = minByMap (numAstNodes . (!) fn_asts)
