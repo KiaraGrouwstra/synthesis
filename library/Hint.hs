@@ -3,7 +3,8 @@ module Hint (runInterpreterMain, runInterpreter_, say, errorString, showError, i
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, ModuleImport(..), InterpreterError(..), GhcError(..), Extension(..), OptionVal(..), ModuleQualification(..), ImportList(..), setImports, setImportsQ, setImportsF, runInterpreter, interpret, typeChecks, typeChecksWithDetails, as, lift, liftIO, typeOf, languageExtensions, set)
-import Types (Expr, Tp, parseExpr, parseType)
+import Language.Haskell.Exts.Syntax ( Pat(..), Type(..), Stmt(..), Boxed(..), Exp(..) )
+import Types -- (Expr, Tp, parseExpr, parseType)
 import Data.List (intercalate)
 import Data.Either (isLeft, isRight, fromRight)
 import Utility (pp)
@@ -67,12 +68,28 @@ interpretIO cmd = do
     io <- interpret cmd (as :: IO String)
     lift io
 
--- | get input-output pairs for a function given the inputs (for one concrete input type instantiation)
+-- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
+-- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings.
 fnIoPairs :: String -> String -> Interpreter String
 fnIoPairs fn_str ins = do
-    let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
-    -- say $ "cmd: " ++ show cmd
+    -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
+    let insExpr = parseExpr ins
+    let fn = parseExpr fn_str
+    let cmd = pp $ Do l [ Generator l
+                (PatTypeSig l
+                    (pvar "ios")
+                    $ TyList l $ TyTuple l Boxed [
+                        wildcard,
+                        tyApp (tyApp (tyCon "Either") (tyCon "SomeException")) wildcard]
+                )
+                (infixApp
+                    (app (var "zip") insExpr)
+                    (symbol "<$>")
+                    (paren $ infixApp (var "sequence") dollar $ infixApp (infixApp (var "try") dot (infixApp (var "evaluate") dot $ paren fn)) (symbol "<$>") insExpr)
+                )
+            , Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
+            ]
     checksWithDetails <- typeChecksWithDetails $ show cmd
     case checksWithDetails of
         Right s -> interpretIO cmd
