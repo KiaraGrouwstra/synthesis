@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | generate task functions and sample input/output pairs
-module Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints) where
+module Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints, matchesType, typeRelation) where
 
 import Language.Haskell.Exts.Syntax (Type(..))
 import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
@@ -22,7 +22,6 @@ import MonadUtils (allM)
 import Language.Haskell.Exts.Parser ( ParseResult, parse )
 import Data.Ord (Ordering(..))
 import Control.Monad (forM, forM_)
-import Control.Monad.Loops (maximumByM)
 
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
@@ -131,10 +130,35 @@ instantiateTypeVars tps vars = do
     let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k,v) -> matchesConstraints v $ vars ! k) . toList
     filterM keysOk maps
 
--- | check if a type matches the given type constraints
+-- TODO: defined `Ord` on `Tp` then use `compare :: a -> a -> Ordering`?
+-- | find how two types relate
+typeRelation :: Tp -> Tp -> Interpreter Ordering
+typeRelation a b = do
+    sub   <- a `matchesType` b
+    super <- b `matchesType` a
+    return $ if sub then
+        if super then EQ else LT
+    else
+        if super then GT else error "types don't match!"
+
+-- | check if type `a` matches type `b`.
+-- | runs a command like `(undefined :: b -> ()) (undefined :: a)`.
+-- | without forall `a =>` constraints type variables will always match.
+matchesType :: Tp -> Tp -> Interpreter Bool
+matchesType a b = do
+        -- let cmd :: String = pp $ app (undef $ tyFun b unit) $ undef a
+        -- shift TyForall off the parameter type to the function type
+        let (forAll, b_) = case b of
+                TyForall _l maybeTyVarBinds maybeContext tp -> (tyForall maybeTyVarBinds maybeContext, tp)
+                _ -> (tyForall Nothing Nothing, b)
+        let cmd :: String = pp $ app (undef $ forAll $ tyFun b_ unit) $ undef a
+        -- say cmd
+        typeChecks cmd
+
+-- | check if a type matches the given type constraints.
+-- | runs a command like `(undefined :: (Num a, Eq a) => a -> ()) (undefined :: Bool)`
 matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
 matchesConstraints tp constraints = do
         let a :: Tp = tyVar "a"
-        -- (undefined :: (Num a, Eq a) => a -> a) (undefined :: Bool)
-        let cmd :: String = pp $ app (undef (tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> classA qname [a]) <$> constraints) $ tyFun a a)) $ undef tp
-
+        let forAll = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> classA qname [a]) <$> constraints) a
+        if null constraints then return True else matchesType tp forAll

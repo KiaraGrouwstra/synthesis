@@ -233,10 +233,10 @@ unParseResult = \case
 -- | any compiler extensions to use while parsing
 parseMode :: ParseMode
 parseMode = defaultParseMode {
-    extensions = [
-        EnableExtension ScopedTypeVariables
-        -- EnableExtension FlexibleContexts
-    ]
+    extensions = [ EnableExtension ScopedTypeVariables
+                 , EnableExtension ConstraintKinds
+                 -- , EnableExtension FlexibleContexts
+                 ]
 }
 
 -- | parse an expression from a string

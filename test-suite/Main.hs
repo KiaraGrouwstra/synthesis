@@ -95,7 +95,7 @@ hint = let
         fromRight "" x @?= "foo"
 
     , TestLabel "say" $ TestCase $ do
-        x <- runInterpreter_ $ say "hi"
+        x <- runInterpreter_ $ return ()
         fromRight () x @?= ()
 
     , TestLabel "errorString" $ TestCase $ do
@@ -225,6 +225,7 @@ gen = let
         maybeList = fmap $ \case
                     Right ls -> ls
                     Left _ -> []
+        right = fromRight undefined
     in TestList
 
     [ TestLabel "fnOutputs" $ TestCase $ do
@@ -275,8 +276,43 @@ gen = let
         lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" [tyCon "Num"]
         lst `shouldBe` [singleton "a" int]
 
+    , TestLabel "typeRelation" $ TestCase $ do
+        let a = tyVar "a"
+        -- crap, I cannot test NEQ as it explodes, while LT/GT seem to imply constraints/forall...
+        x <- runInterpreter_ $ typeRelation int a
+        right x `shouldBe` EQ
+        x <- runInterpreter_ $ typeRelation a bl
+        right x `shouldBe` EQ
+        x <- runInterpreter_ $ typeRelation bl bl
+        right x `shouldBe` EQ
+        x <- runInterpreter_ $ typeRelation a a
+        right x `shouldBe` EQ
+        x <- runInterpreter_ $ typeRelation a $ tyVar "b"
+        right x `shouldBe` EQ
+
+    , TestLabel "matchesType" $ TestCase $ do
+        let a = tyVar "a"
+        x <- runInterpreter_ $ matchesType int a
+        right x `shouldBe` True
+        x <- runInterpreter_ $ matchesType a bl
+        right x `shouldBe` True
+        x <- runInterpreter_ $ matchesType bl bl
+        right x `shouldBe` True
+        x <- runInterpreter_ $ matchesType bl int
+        right x `shouldBe` False
+        x <- runInterpreter_ $ matchesType a a
+        right x `shouldBe` True
+        x <- runInterpreter_ $ matchesType a $ tyVar "b"
+        right x `shouldBe` True
+
     , TestLabel "matchesConstraints" $ TestCase $ do
         x <- runInterpreter_ $ matchesConstraints int [tyCon "Enum"]
         fromRight False x `shouldBe` True
+
+    -- , TestLabel "filterTypeSigIoFnsM" $ TestCase $ do
+    --     let fn_asts = insert "not" (var "not") $ singleton "not_" $ app (var "id") $ var "not"
+    --     let hm = filterTypeSigIoFnsM fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
+    --     hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
+    --     -- TODO: test generic functions get priority
 
     ]
