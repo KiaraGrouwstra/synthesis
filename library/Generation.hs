@@ -132,27 +132,3 @@ matchesConstraints tp constraints = do
         -- (undefined :: (Num a, Eq a) => a -> a) (undefined :: Bool)
         let cmd :: String = pp $ app (undef (tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> classA qname [a]) <$> constraints) $ tyFun a a)) $ undef tp
 
--- -- | find equivalent functions (by type and then input/output) and keep those most generic/short.
--- filterTypeSigIoFnsM :: HashMap String Expr -> HashMap String (HashMap String [String]) -> Interpreter (HashMap String (HashMap String String))
--- filterTypeSigIoFnsM fn_asts type_sig_io_fns = mapM filterFns <$> type_sig_io_fns
---     where
---         -- I'd separate this into a `(a -> a -> Ordering) -> (a -> a -> Ordering) -> (a -> a -> Ordering)` `fallback` function but the monad complicates this...
---         comparator = maximumByM $ \ a b -> do
---             rel <- typeRelation a b
---             return $ case rel of
---                 -- as a tie-break check for smallest AST -- flip for max/min
---                 EQ -> flipOrder $ compare (numNodes a) (numNodes b)
---                 _ -> rel
---             where
---                 numNodes = numAstNodes . (!) fn_asts
---         filterFns fns = do
---                 -- case length fns of
---                 --     1 -> return ()
---                 --     _ -> say $ "deduping equivalent fns: " ++ show fns
---                 -- TODO: keep not just the function with the fewest number of AST nodes, but the more generic one (most type variable names/occurrences) if possible
---                 shortest <- comparator fns
---                 let rest = delete shortest fns
---                 forM_ rest $ \fn ->
---                     -- say $ "dropping " ++ fn ++ " for terser equivalent " ++ shortest
---                     say $ pp (gtrExpr (fn_asts ! fn)) ++ " -> " ++ pp (gtrExpr (fn_asts ! shortest))
---                 return shortest
