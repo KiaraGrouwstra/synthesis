@@ -159,6 +159,8 @@ types = parallel $ do
         let a = tyVar "a"
         let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
         findTypeVars tp `shouldBe` insert "a" [tyCon "Num"] (singleton "b" [])
+        -- Ord a => [a] -> [a]
+        findTypeVars (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" [tyCon "Ord"]
 
     it "randomType" $ do
         tp <- randomType False False nestLimit empty 0
@@ -172,9 +174,14 @@ types = parallel $ do
         tps <- nub . flatten <$> genTypes 0 10
         tps `shouldContain` [bl]
 
-    it "fillTypeVars" $
-        fillTypeVars (tyFun int $ tyVar "a") (singleton "a" bl) `shouldBe` tyFun int bl
-    
+    fit "fillTypeVars" $ do
+        let a = tyVar "a"
+        -- int -> a: a => Bool
+        pp (fillTypeVars (tyFun int a) (singleton "a" bl)) `shouldBe` pp (tyFun int bl)
+        -- Ord a => [a] -> [a]
+        let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a
+        pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
+
     it "mergeTyVars" $
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int, bl]) `shouldBe` singleton "a" [bl, str, int]
     
@@ -288,6 +295,9 @@ gen = let
         let a = tyVar "a"
         lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
         (pp <$> lst) `shouldBe` (pp <$> [tyFun int $ tyFun int int])
+        -- Ord a => [a] -> [a]
+        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
+        (pp <$> lst) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int) $ tyList int])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
         -- without type constraint
@@ -296,6 +306,9 @@ gen = let
         -- with type constraint
         lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" [tyCon "Num"]
         lst `shouldBe` [singleton "a" int]
+        -- Ord a => [a] -> [a]
+        lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" [tyCon "Ord"]
+        lst `shouldBe` [singleton "a" bl, singleton "a" int]
 
     , TestLabel "typeRelation" $ TestCase $ do
         let a = tyVar "a"

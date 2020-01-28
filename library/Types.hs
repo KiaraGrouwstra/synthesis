@@ -1,9 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..) )
+import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..) )
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parse, parseWithMode, fromParseResult, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
@@ -86,8 +86,6 @@ findTypeVars = fromListWith (++) . findTypeVars_
 -- | recursive `findTypeVars_` helper
 findTypeVars_ :: Tp -> [(String, [Tp])]
 findTypeVars_ tp = let f = findTypeVars_ in case tp of
-            TyVar _l _name -> [(pp tp, [])]
-            TyApp _l a b -> f a ++ f b
             TyForall _l maybeTyVarBinds maybeContext typ -> bindings ++ context ++ case typ of
                 TyFun _l a b -> f a ++ f b
                 where
@@ -105,16 +103,41 @@ findTypeVars_ tp = let f = findTypeVars_ in case tp of
                         ParenA _l asst -> unAsst asst
                         _ -> []
             TyFun _l a b -> f a ++ f b
+            TyTuple _l _boxed tps -> concat $ f <$> tps
+            TyUnboxedSum _l tps -> concat $ f <$> tps
+            TyList _l a -> f a
+            TyParArray _l a -> f a
+            TyApp _l a b -> f a ++ f b
+            TyVar _l _name -> [(pp tp, [])]
+            TyParen _l a -> f a
+            TyKind _l a kind -> f a ++ f kind
+            TyPromoted _l promoted -> case promoted of
+                PromotedList _l _bl tps -> concat $ f <$> tps
+                PromotedTuple _l tps -> concat $ f <$> tps
+                _ -> []
+            TyEquals _l a b -> f a ++ f b
+            TyBang _l _bangType _unpackedness a -> f a
             _ -> []
 
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
 fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case tp of
-    TyVar _l _name -> substitutions ! pp tp
-    TyApp _l a b -> tyApp (f a) $ f b
-    TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-        TyFun _l a b -> tyFun (f a) $ f b
+    TyForall _l maybeTyVarBinds maybeContext a -> f a  -- if I'm filling type vars I guess type constraints can be stripped out
     TyFun _l a b -> tyFun (f a) $ f b
+    TyTuple _l boxed tps -> TyTuple l boxed $ f <$> tps
+    TyUnboxedSum _l tps -> TyUnboxedSum l $ f <$> tps
+    TyList _l a -> tyList $ f a
+    TyParArray _l a -> TyParArray l $ f a
+    TyApp _l a b -> tyApp (f a) $ f b
+    TyVar _l _name -> substitutions ! pp tp
+    TyParen _l a -> TyParen l $ f a
+    TyKind _l a kind -> TyKind l (f a) $ f kind
+    TyPromoted _l promoted -> TyPromoted l $ case promoted of
+                PromotedList _l bl tps -> PromotedList l bl $ f <$> tps
+                PromotedTuple _l tps -> PromotedTuple l $ f <$> tps
+                _ -> promoted
+    TyEquals _l a b -> TyEquals l (f a) $ f b
+    TyBang l bangType unpackedness a -> TyBang l bangType unpackedness $ f a
     _ -> tp
 
 -- | generate a number of concrete types to be used in type variable substitution
@@ -262,8 +285,9 @@ con = Con l . qName
 lambda :: [Pat SrcSpanInfo] -> Expr -> Expr
 lambda = Lambda l
 
--- lit :: Literal SrcSpanInfo -> Expr
--- lit = Lit l
+-- | list type
+tyList :: Tp -> Tp
+tyList = TyList l
 
 -- assertParseResult :: Either String a -> a
 --         tp <- case exprType expr of
