@@ -154,8 +154,11 @@ types = parallel $ do
         let b = tyVar "b"
         fnTypeIO (tyFun a b) `shouldBe` ([a], b)
 
-    it "findTypeVars" $
-        findTypeVars (tyFun (tyVar "a") (TyApp l (tyCon "Set") (tyVar "b"))) `shouldBe` insert "a" [] (singleton "b" [])
+    it "findTypeVars" $ do
+        -- Num a => a -> Set b
+        let a = tyVar "a"
+        let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
+        findTypeVars tp `shouldBe` insert "a" [tyCon "Num"] (singleton "b" [])
 
     it "randomType" $ do
         tp <- randomType False False nestLimit empty 0
@@ -170,7 +173,7 @@ types = parallel $ do
         tps `shouldContain` [bl]
 
     it "fillTypeVars" $
-        fillTypeVars (tyFun int (tyVar "a")) (singleton "a" bl) `shouldBe` tyFun int bl
+        fillTypeVars (tyFun int $ tyVar "a") (singleton "a" bl) `shouldBe` tyFun int bl
     
     it "mergeTyVars" $
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int, bl]) `shouldBe` singleton "a" [bl, str, int]
@@ -277,9 +280,14 @@ gen = let
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "instantiateTypes" $ TestCase $ do
-        let set_ s = TyApp l (tyCon "Set") (tyCon s)
-        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (TyApp l (tyCon "Set") (tyVar "b"))
-        lst `shouldContain` [set_ "Bool", set_ "Int"]
+        -- a => Set a
+        let set_ s = tyApp (tyCon "Set") $ tyCon s
+        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyApp (tyCon "Set") $ tyVar "b")
+        (pp <$> lst) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
+        -- Num a => a -> a -> a
+        let a = tyVar "a"
+        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
+        (pp <$> lst) `shouldBe` (pp <$> [tyFun int $ tyFun int int])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
         -- without type constraint

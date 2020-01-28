@@ -83,14 +83,27 @@ holeType = \case
 findTypeVars :: Tp -> HashMap String [Tp]
 findTypeVars = fromListWith (++) . findTypeVars_
 
+-- | recursive `findTypeVars_` helper
 findTypeVars_ :: Tp -> [(String, [Tp])]
 findTypeVars_ tp = let f = findTypeVars_ in case tp of
             TyVar _l _name -> [(pp tp, [])]
             TyApp _l a b -> f a ++ f b
-            TyForall _l maybeTyVarBinds _maybeContext typ -> bindings ++ case typ of
+            TyForall _l maybeTyVarBinds maybeContext typ -> bindings ++ context ++ case typ of
                 TyFun _l a b -> f a ++ f b
                 where
                     bindings = toList $ fromListWith (++) $ (\(KindedVar _l name kind) -> (pp name, [kind])) <$> fromMaybe [] maybeTyVarBinds
+                    context = fromContext $ fromMaybe (CxEmpty l) maybeContext
+                    fromContext = \case
+                        CxTuple _l assts -> concat $ unAsst <$> assts
+                        CxSingle _l asst -> unAsst asst
+                        CxEmpty _l -> []
+                    unAsst = \case
+                        -- ClassA (UnQual (Ident "Num")) [TyVar (Ident "a")]
+                        ClassA _l qname tps -> (\tp -> (pp tp, [TyCon l qname])) <$> tps
+                        -- TypeA _l _tp -> error "unimplemented"
+                        IParam _l _iPName _tp -> error "unimplemented"
+                        ParenA _l asst -> unAsst asst
+                        _ -> []
             TyFun _l a b -> f a ++ f b
             _ -> []
 
