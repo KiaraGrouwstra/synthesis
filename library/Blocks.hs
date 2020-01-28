@@ -26,42 +26,42 @@ fnAsts = fnAstsTamandu
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm
 fnAstsTamandu :: HashMap String Expr
 fnAstsTamandu = fmap parseExpr $
-        --    insert "const_" "const" $
-        --    insert "flip_" "flip" $
+        --    insert "const_" "const" $ -- boom
+        --    insert "flip_" "flip" $ -- boom
            insert "not_" "not" $
-        --    insert "isZero" "(== 0)" $
+           insert "isZero" "(== 0)" $
         -- --    insert "foldNat" "\\f -> foldNatNat (const f)" $ -- test!
-        --    insert "foldNat" "\\ f acc i -> foldr (const f) acc [1..i]" $ -- test!
+        --    insert "foldNat" "\\ f acc i -> foldr (const f) acc [1..i]" $ -- test! -- boom
         -- -- https://hackage.haskell.org/package/hmatrix-0.20.0.0/docs/src/Internal.Vector.html#local-6989586621679046393
         -- -- foldLoop :: (Int -> t -> t) -> t -> Int -> t
         -- --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
-        --    insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test!
+        --    insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test! -- boom
            insert "add" "(+)" $
-        --    insert "mul" "(*)" $
-        --    insert "div_" "div" $ -- Int: for fractions use (/)
-        --    insert "max_" "max" $
-        --    insert "eq" "(==)" $ -- Tamandu restricts this to Int
-        --    insert "neq" "(/=)" $ -- Tamandu restricts this to Int
-        --    insert "con" "(:)" $
-        --    insert "head_" "head" $
-        --    insert "tail_" "tail" $
-        --    insert "isNil" "null" $
-        --    insert "map_" "map" $  -- list-specific, unlike fmap
-        --    insert "foldr_" "foldr" $
-        --    insert "foldl_" "foldl" $
-        --    insert "filter_" "filter" $
-        --    insert "length_" "length" $
-        --    insert "append" "(++)" $
-        --    insert "reverse_" "reverse" $
-        --    insert "replicate_" "replicate" $
-        --    insert "concat_" "concat" $
-        --    insert "sum_" "sum" $
-        --    insert "prod" "product" $
-        --    insert "maximum_" "maximum" $
-        --    insert "member" "elem" $
-        --    insert "enumTo" "\\i -> [1..i]" $ -- test!
-        --    insert "enumFromTo" "\\i j -> [i..j]" -- test!
-        singleton "succ_" "succ"
+           insert "mul" "(*)" $
+           insert "div_" "div" $ -- Int: for fractions use (/)
+        --    insert "max_" "max" $ -- boom
+        --    insert "eq" "(==)" $ -- Tamandu restricts this to Int -- boom
+        --    insert "neq" "(/=)" $ -- Tamandu restricts this to Int -- boom
+        --    insert "con" "(:)" $ -- boom
+        --    insert "head_" "head" $ -- boom
+        --    insert "tail_" "tail" $ -- boom
+           insert "isNil" "null" $
+        --    insert "map_" "map" $  -- list-specific, unlike fmap -- boom
+           insert "foldr_" "foldr" $
+           insert "foldl_" "foldl" $
+        --    insert "filter_" "filter" $ -- boom
+           insert "length_" "length" $
+        --    insert "append" "(++)" $ -- boom
+        --    insert "reverse_" "reverse" $ -- boom
+           insert "replicate_" "replicate" $
+           insert "concat_" "concat" $
+           insert "sum_" "sum" $
+           insert "prod" "product" $
+           insert "maximum_" "maximum" $
+           insert "member" "elem" $
+           insert "enumTo" "\\i -> [1..i]" $
+           insert "enumFromTo" "\\i j -> [i..j]" $
+           singleton "succ_" "succ"
 
 constants :: HashMap String Expr
 constants = constantsTamandu
