@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, DataKinds #-}
 
 -- | utility functions specifically related to types
 module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList) where
@@ -15,10 +15,11 @@ import Data.Bifunctor (first)
 import Utility (Item(..), pick, pp)
 
 -- these verbose types annoy me so let's alias them
-type Tp = Type SrcSpanInfo
-type Expr = Exp SrcSpanInfo
-type Hole = SpecialCon SrcSpanInfo -- ExprHole
--- type Fn = TyFun SrcSpanInfo (Type SrcSpanInfo a) (Type SrcSpanInfo b)
+type L = SrcSpanInfo
+type Tp = Type L
+type Expr = Exp L
+type Hole = SpecialCon L -- ExprHole
+-- type Fn = TyFun L (Type L a) (Type L b)
 
 -- | randomly generate a type
 -- TODO: allow generating new type vars
@@ -146,7 +147,7 @@ genTypes :: Int -> Int -> IO (Item Tp)
 genTypes nestLimit maxInstances = Many . fmap (One . pure) <$> replicateM maxInstances (randomType False False nestLimit empty 0)
 
 -- | dummy source span info, because I don't care
-l :: SrcSpanInfo
+l :: L
 l = SrcSpanInfo {srcInfoSpan = spn, srcInfoPoints = []}
     where
         spn = SrcSpan "<unknown>.hs" 1 1 1 1
@@ -156,7 +157,7 @@ undef :: Tp -> Expr
 undef = expTypeSig (var "undefined")
 
 -- | create a qname node
-qName :: String -> QName SrcSpanInfo
+qName :: String -> QName L
 qName = UnQual l . Ident l
 
 -- | create a variable node
@@ -164,11 +165,11 @@ var :: String -> Expr
 var = Var l . qName
 
 -- | $
-dollar :: QOp SrcSpanInfo
+dollar :: QOp L
 dollar = symbol "$"
 
 -- | .
-dot :: QOp SrcSpanInfo
+dot :: QOp L
 dot = symbol "."
 
 -- | create a monomorphic type node
@@ -191,7 +192,7 @@ expTypeSig = ExpTypeSig l
 tyFun :: Tp -> Tp -> Tp
 tyFun = TyFun l
 
-tyForall :: Maybe [TyVarBind SrcSpanInfo] -> Maybe (Context SrcSpanInfo) -> Tp -> Tp
+tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
 tyForall = TyForall l
 
 -- | star type node: *
@@ -206,31 +207,31 @@ wildcard = TyWildCard l Nothing
 unit :: Tp
 unit = TyCon l $ Special l $ UnitCon l
 
--- letIn :: Binds SrcSpanInfo -> Expr -> Expr
+-- letIn :: Binds L -> Expr -> Expr
 -- letIn = Let l
 letIn :: HashMap String Expr -> Expr -> Expr
 letIn = Let l . binds
 
--- binds :: [Decl SrcSpanInfo] -> Binds SrcSpanInfo
+-- binds :: [Decl L] -> Binds L
 -- binds = BDecls l
-binds :: HashMap String Expr -> Binds SrcSpanInfo
+binds :: HashMap String Expr -> Binds L
 binds = BDecls l . fmap (uncurry patBind) . toList
 
--- patBind :: Pat SrcSpanInfo -> Rhs SrcSpanInfo -> Maybe (Binds SrcSpanInfo) -> Decl SrcSpanInfo
-patBind :: String -> Expr -> Decl SrcSpanInfo
+-- patBind :: Pat L -> Rhs L -> Maybe (Binds L) -> Decl L
+patBind :: String -> Expr -> Decl L
 patBind name expr = PatBind l (pvar name) (rhs expr) Nothing
 
-rhs :: Expr -> Rhs SrcSpanInfo
+rhs :: Expr -> Rhs L
 rhs = UnGuardedRhs l
 
-pvar :: String -> Pat SrcSpanInfo
+pvar :: String -> Pat L
 pvar = PVar l . ident
 
-ptuple :: [Pat SrcSpanInfo] -> Pat SrcSpanInfo
+ptuple :: [Pat L] -> Pat L
 ptuple = PTuple l Boxed
 
 -- | symbol for use in infix expressions
-symbol :: String -> QOp SrcSpanInfo
+symbol :: String -> QOp L
 symbol = QVarOp l . UnQual l . Symbol l
 
 -- | parenthesized expression
@@ -238,7 +239,7 @@ paren :: Expr -> Expr
 paren = Paren l
 
 -- | used in name nodes
-ident :: String -> Name SrcSpanInfo
+ident :: String -> Name L
 ident = Ident l
 
 -- | function application
@@ -246,15 +247,15 @@ app :: Expr -> Expr -> Expr
 app = App l
 
 -- | tuple of type constraints
-cxTuple :: [Asst SrcSpanInfo] -> Context SrcSpanInfo
+cxTuple :: [Asst L] -> Context L
 cxTuple = CxTuple l
 
 -- | type constraint assertion
-classA :: QName SrcSpanInfo -> [Tp] -> Asst SrcSpanInfo
+classA :: QName L -> [Tp] -> Asst L
 classA = ClassA l
 
 -- | infix function application
-infixApp :: Expr -> QOp SrcSpanInfo -> Expr -> Expr
+infixApp :: Expr -> QOp L -> Expr -> Expr
 infixApp = InfixApp l
 
 -- | a list of expressions
@@ -266,7 +267,7 @@ tuple :: [Expr] -> Expr
 tuple = Tuple l Boxed
 
 -- | a literal expression
-lit :: Literal SrcSpanInfo -> Expr
+lit :: Literal L -> Expr
 lit = Lit l
 
 -- | Int expression
@@ -282,7 +283,7 @@ con :: String -> Expr
 con = Con l . qName
 
 -- | lambda function
-lambda :: [Pat SrcSpanInfo] -> Expr -> Expr
+lambda :: [Pat L] -> Expr -> Expr
 lambda = Lambda l
 
 -- | list type
