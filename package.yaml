@@ -1,15 +1,12 @@
-# This YAML file describes your package. Stack will automatically generate a
-# Cabal file when you run `stack build`. See the hpack website for help with
-# this file: <https://github.com/sol/hpack>.
 name: synthesis
 version: '0.0.0'
 github: "tycho01/synthesis"
 license: MIT
 author: "Kiara Grouwstra"
 maintainer: "Kiara Grouwstra"
-# synopsis: A new Haskeleton package.
-# description: synthesis is a new Haskeleton package.
-# category: Other
+synopsis: typed neural program synthesis
+description: code-base for my UvA MSc AI thesis on typed neural program synthesis
+category: Machine Learning
 
 extra-source-files:
 - CHANGELOG.md
@@ -28,8 +25,6 @@ default-extensions:
 
 dependencies:
   - base
-  # - base-noprelude
-  # - relude
   - haskell-src-exts
   - hint
   - QuickCheck
