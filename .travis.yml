@@ -25,6 +25,7 @@ install:
 script:
   - stack test --system-ghc
   - mkdir -p docs
+  - stack haddock
   - DOC_DIR=`stack haddock 2>&1 | tail -1` | sed -r -e 's/index.html//g'
   - cp -r $DOC_DIR/* docs
 
