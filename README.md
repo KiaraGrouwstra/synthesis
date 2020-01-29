@@ -27,14 +27,13 @@ Once you've done that, start working on your project with the Stack commands
 you know and love.
 
 ``` sh
-# Build the project.
-stack build --file-watch --fast --exec synthesis
-stack --nix build  # needs NIX_PATH
-snack build  # error: attribute 'ghc-lib-parser' missing
-cd ghx-nix && cabal install --installdir=./bin --overwrite-policy=always  # cabal: unrecognized 'install' option
+# basic Stack commands
+stack build
+stack test
+stack exec -- synthesis
 
-# Run the test suite.
-stack test --file-watch --fast
+# Continuously build by Nix, run tests and execute
+stack --nix test --file-watch --fast --exec synthesis
 
 # Run the benchmarks.
 stack bench
@@ -45,8 +44,10 @@ stack haddock
 # Run
 stack exec -- synthesis
 
-# All together
-stack test --file-watch --fast --exec synthesis
+# Docker: install deps from a base image, then rebuild the top image on code changes; this still sucks but Stack hates volume mounting. :(
+docker build -t synthesis -f ./docker/base/Dockerfile .
+docker build -t synthesis -f ./docker/top/Dockerfile .
+docker run -ti synthesis stack test --exec synthesis
 ```
 
 Thanks again, and happy hacking!
