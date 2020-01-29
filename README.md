@@ -1,4 +1,4 @@
-# [synthesis][]
+# [synthesis](https://tycho01.github.io/synthesis/)
 
 Thanks for starting a project with Haskeleton! If you haven't heard of it
 before, I suggest reading the introductory blog post. You can find it here:
@@ -44,7 +44,8 @@ stack haddock
 # Run
 stack exec -- synthesis
 
-# Docker: install deps from a base image, then rebuild the top image on code changes; this still sucks but Stack hates volume mounting. :(
+# Docker: install deps from base image; rebuild top image on code changes.
+# this still sucks but Stack hates volume mounting. :(
 docker build -t synthesis -f ./docker/base/Dockerfile .
 docker build -t synthesis -f ./docker/top/Dockerfile .
 docker run -ti synthesis stack test --exec synthesis
