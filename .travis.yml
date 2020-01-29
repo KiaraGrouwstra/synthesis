@@ -27,7 +27,7 @@ script:
   - mkdir -p docs
   - stack haddock --verbosity warn
   - stack haddock
-  - DOC_DIR=`stack haddock 2>&1 | tail -1` | sed -r -e 's/index.html//g'
+  - DOC_DIR=`stack haddock 2>&1 | tail -1 | sed -r -e 's/index.html//g'`
   - echo $DOC_DIR
   - cp -r $DOC_DIR/* ./docs
 
