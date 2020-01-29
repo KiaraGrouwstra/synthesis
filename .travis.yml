@@ -27,7 +27,10 @@ script:
   - mkdir -p docs
   - stack haddock --verbosity warn
   - DOC_DIR=`stack haddock 2>&1 | tail -1` | sed -r -e 's/index.html//g'
-  - cp -r $DOC_DIR/* docs
+  - echo $DOC_DIR
+  - ls
+  - pwd
+  - cp -r $DOC_DIR/* ./docs
 
 # can I just kinda cram this on?
 deploy:
