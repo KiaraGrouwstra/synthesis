@@ -1,0 +1,26 @@
+sudo: true
+language: haskell
+
+git:
+  depth: 5
+
+cache:
+  directories:
+  - "$HOME/.stack"
+  - "$TRAVIS_BUILD_DIR/.stack-work"
+
+matrix:
+  Include:
+  - ghc: 8.6.5
+    env: STACK_YAML="$TRAVIS_BUILD_DIR/stack.yaml"
+
+notifications:
+  email: false
+    
+install:
+  - curl -sSL https://get.haskellstack.org/ | sh
+  - stack --version
+  - stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+
+script:
+  - stack test --system-ghc
