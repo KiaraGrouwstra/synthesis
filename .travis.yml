@@ -24,3 +24,16 @@ install:
 
 script:
   - stack test --system-ghc
+  - mkdir -p docs
+  - DOC_DIR=`stack haddock 2>&1 | tail -1` | sed -r -e 's/index.html//g'
+  - cp -r $DOC_DIR/* docs
+
+# can I just kinda cram this on?
+deploy:
+    provider: pages
+    skip_cleanup: true
+    github_token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
+    keep_history: true
+    on:
+      branch: master
+    local_dir: docs
