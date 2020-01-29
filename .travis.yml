@@ -20,12 +20,12 @@ notifications:
 install:
   - curl -sSL https://get.haskellstack.org/ | sh
   - stack --version
-  - stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+  - stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks --verbosity warn
 
 script:
-  - stack test --system-ghc
+  - stack test --system-ghc --verbosity warn
   - mkdir -p docs
-  - stack haddock
+  - stack haddock --verbosity warn
   - DOC_DIR=`stack haddock 2>&1 | tail -1` | sed -r -e 's/index.html//g'
   - cp -r $DOC_DIR/* docs
 
