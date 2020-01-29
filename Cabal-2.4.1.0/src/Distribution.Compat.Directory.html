@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><a name="line-2"></a><span>
+</span><a name="line-3"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Distribution.Compat.Directory</span><span>
+</span><a name="line-4"></a><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-var">listDirectory</span><span>
+</span><a name="line-5"></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">makeAbsolute</span><span>
+</span><a name="line-6"></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">doesPathExist</span><span>
+</span><a name="line-7"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-8"></a><span>
+</span><a name="line-9"></a><span class="hs-cpp">#if MIN_VERSION_directory(1,2,7)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Directory</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Dir</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">doesPathExist</span><span class="hs-special">)</span><span>
+</span><a name="line-11"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Directory</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">doesPathExist</span><span class="hs-special">)</span><span>
+</span><a name="line-12"></a><span class="hs-cpp">#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Directory</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Dir</span><span>
+</span><a name="line-14"></a><span class="hs-cpp">#endif
+#if !MIN_VERSION_directory(1,2,2)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.FilePath</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Path</span><span>
+</span><a name="line-17"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-19"></a><span class="hs-cpp">#if !MIN_VERSION_directory(1,2,5)
+</span><span>
+</span><a name="line-21"></a><span class="hs-identifier">listDirectory</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">FilePath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">FilePath</span><span class="hs-special">]</span><span>
+</span><a name="line-22"></a><span class="hs-identifier">listDirectory</span><span> </span><span class="hs-identifier">path</span><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-23"></a><span>  </span><span class="hs-identifier">filter</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">fmap</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">Dir.getDirectoryContents</span><span> </span><span class="hs-identifier">path</span><span>
+</span><a name="line-24"></a><span>  </span><span class="hs-keyword">where</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">filename</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">filename</span><span> </span><span class="hs-operator">/=</span><span> </span><span class="hs-string">&quot;.&quot;</span><span> </span><span class="hs-operator">&amp;&amp;</span><span> </span><span class="hs-identifier">filename</span><span> </span><span class="hs-operator">/=</span><span> </span><span class="hs-string">&quot;..&quot;</span><span>
+</span><a name="line-25"></a><span>
+</span><a name="line-26"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-28"></a><span class="hs-cpp">#if !MIN_VERSION_directory(1,2,2)
+</span><span>
+</span><a name="line-30"></a><span class="hs-identifier">makeAbsolute</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">FilePath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FilePath</span><span>
+</span><a name="line-31"></a><span class="hs-identifier">makeAbsolute</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">Path.isAbsolute</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">p</span><span>
+</span><a name="line-32"></a><span>               </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><a name="line-33"></a><span>    </span><span class="hs-identifier">cwd</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Dir.getCurrentDirectory</span><span>
+</span><a name="line-34"></a><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">cwd</span><span> </span><span class="hs-operator">&lt;/&gt;</span><span> </span><span class="hs-identifier">p</span><span>
+</span><a name="line-35"></a><span>
+</span><a name="line-36"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-38"></a><span class="hs-cpp">#if !MIN_VERSION_directory(1,2,7)
+</span><span>
+</span><a name="line-40"></a><span class="hs-identifier">doesPathExist</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">FilePath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><a name="line-41"></a><span class="hs-identifier">doesPathExist</span><span> </span><span class="hs-identifier">path</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-operator">||</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">doesDirectoryExist</span><span> </span><span class="hs-identifier">path</span><span> </span><span class="hs-operator">&lt;*&gt;</span><span> </span><span class="hs-identifier">doesFileExist</span><span> </span><span class="hs-identifier">path</span><span>
+</span><a name="line-42"></a><span>
+</span><a name="line-43"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-45"></a></pre></body></html>

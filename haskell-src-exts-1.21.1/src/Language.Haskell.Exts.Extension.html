@@ -1,0 +1,745 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- Module      :  Language.Haskell.Exts.Extension</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- Copyright   :  (c) Niklas Broberg 2009</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE.txt)</span><span>
+</span><a name="line-8"></a><span class="hs-comment">--</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- Maintainer  :  Niklas Broberg, niklas.broberg@chalmers.se</span><span>
+</span><a name="line-10"></a><span class="hs-comment">-- Stability   :  transient</span><span>
+</span><a name="line-11"></a><span class="hs-comment">-- Portability :  portable</span><span>
+</span><a name="line-12"></a><span class="hs-comment">--</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- This module defines the list of recognized modular features</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- of Haskell, most often (sloppily) referred to as &quot;extensions&quot;.</span><span>
+</span><a name="line-15"></a><span class="hs-comment">--</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- Closely mimicking the Language.Haskell.Extension module from</span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- the Cabal library, this package also includes functionality for</span><span>
+</span><a name="line-18"></a><span class="hs-comment">-- &quot;computing&quot; languages as sets of features. Also, we make no</span><span>
+</span><a name="line-19"></a><span class="hs-comment">-- promise not to add extensions not yet recognized by Cabal.</span><span>
+</span><a name="line-20"></a><span class="hs-comment">--</span><span>
+</span><a name="line-21"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-22"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Haskell.Exts.Extension</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-23"></a><span>    </span><span class="hs-comment">-- * Language definitions</span><span>
+</span><a name="line-24"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier hs-type">Language</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-25"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#knownLanguages"><span class="hs-identifier hs-var">knownLanguages</span></a><span class="hs-special">,</span><span>
+</span><a name="line-26"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#classifyLanguage"><span class="hs-identifier hs-var">classifyLanguage</span></a><span class="hs-special">,</span><span>
+</span><a name="line-27"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#prettyLanguage"><span class="hs-identifier hs-var">prettyLanguage</span></a><span class="hs-special">,</span><span>
+</span><a name="line-28"></a><span>
+</span><a name="line-29"></a><span>    </span><span class="hs-comment">-- * Extensions</span><span>
+</span><a name="line-30"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-31"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#classifyExtension"><span class="hs-identifier hs-var">classifyExtension</span></a><span class="hs-special">,</span><span>
+</span><a name="line-32"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#parseExtension"><span class="hs-identifier hs-var">parseExtension</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#prettyExtension"><span class="hs-identifier hs-var">prettyExtension</span></a><span class="hs-special">,</span><span>
+</span><a name="line-33"></a><span>
+</span><a name="line-34"></a><span>    </span><span class="hs-comment">-- * Extension groups</span><span>
+</span><a name="line-35"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#ghcDefault"><span class="hs-identifier hs-var">ghcDefault</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#glasgowExts"><span class="hs-identifier hs-var">glasgowExts</span></a><span class="hs-special">,</span><span>
+</span><a name="line-36"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#knownExtensions"><span class="hs-identifier hs-var">knownExtensions</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#deprecatedExtensions"><span class="hs-identifier hs-var">deprecatedExtensions</span></a><span class="hs-special">,</span><span>
+</span><a name="line-37"></a><span>
+</span><a name="line-38"></a><span>    </span><span class="hs-comment">-- * Semantics of extensions applied to languages</span><span>
+</span><a name="line-39"></a><span>    </span><a href="Language.Haskell.Exts.Extension.html#impliesExts"><span class="hs-identifier hs-var">impliesExts</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#toExtensionList"><span class="hs-identifier hs-var">toExtensionList</span></a><span>
+</span><a name="line-40"></a><span>
+</span><a name="line-41"></a><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-42"></a><span>
+</span><a name="line-43"></a><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">&lt;$&gt;</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&lt;|&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-45"></a><span class="hs-cpp">#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator hs-var">&lt;|&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-47"></a><span class="hs-cpp">#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Array</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Array</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">accumArray</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">bounds</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Ix</span><span class="hs-special">(</span><span class="hs-identifier hs-var">inRange</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-49"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.List</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">nub</span><span class="hs-special">)</span><span>
+</span><a name="line-50"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">fromMaybe</span><span class="hs-special">)</span><span>
+</span><a name="line-51"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Data</span><span>
+</span><a name="line-52"></a><span>
+</span><a name="line-53"></a><span class="hs-comment">-- Copyright notice from Cabal's Language.Haskell.Extension,</span><span>
+</span><a name="line-54"></a><span class="hs-comment">-- from which we borrow plenty of features:</span><span>
+</span><a name="line-55"></a><span>
+</span><a name="line-56"></a><span class="hs-comment">{- All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+
+    * Neither the name of Isaac Jones nor the names of other
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+&quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. -}</span><span>
+</span><a name="line-85"></a><span>
+</span><a name="line-86"></a><span class="hs-keyword">data</span><span> </span><a name="Language"><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier">Language</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-87"></a><span>
+</span><a name="line-88"></a><span>  </span><span class="hs-comment">-- | The Haskell 98 language as defined by the Haskell 98 report.</span><span>
+</span><a name="line-89"></a><span>  </span><span class="hs-comment">-- &lt;http://haskell.org/onlinereport/&gt;</span><span>
+</span><a name="line-90"></a><span>     </span><a name="Haskell98"><a href="Language.Haskell.Exts.Extension.html#Haskell98"><span class="hs-identifier">Haskell98</span></a></a><span>
+</span><a name="line-91"></a><span>
+</span><a name="line-92"></a><span>  </span><span class="hs-comment">-- | The Haskell 2010 language as defined by the Haskell 2010 report.</span><span>
+</span><a name="line-93"></a><span>  </span><span class="hs-comment">-- &lt;http://www.haskell.org/onlinereport/haskell2010&gt;</span><span>
+</span><a name="line-94"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Haskell2010"><a href="Language.Haskell.Exts.Extension.html#Haskell2010"><span class="hs-identifier">Haskell2010</span></a></a><span>
+</span><a name="line-95"></a><span>
+</span><a name="line-96"></a><span>  </span><span class="hs-comment">-- | The minimal language resulting from disabling all recognized</span><span>
+</span><a name="line-97"></a><span>  </span><span class="hs-comment">-- extensions - including ones that are part of all known language</span><span>
+</span><a name="line-98"></a><span>  </span><span class="hs-comment">-- definitions e.g. MonomorphismRestriction.</span><span>
+</span><a name="line-99"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="HaskellAllDisabled"><a href="Language.Haskell.Exts.Extension.html#HaskellAllDisabled"><span class="hs-identifier">HaskellAllDisabled</span></a></a><span>
+</span><a name="line-100"></a><span>
+</span><a name="line-101"></a><span>  </span><span class="hs-comment">-- | An unknown language, identified by its name.</span><span>
+</span><a name="line-102"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnknownLanguage"><a href="Language.Haskell.Exts.Extension.html#UnknownLanguage"><span class="hs-identifier">UnknownLanguage</span></a></a><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-103"></a><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Read</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Ord</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Data</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span class="hs-special">)</span><span>
+</span><a name="line-104"></a><span>
+</span><a name="line-105"></a><span class="hs-identifier">knownLanguages</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier hs-type">Language</span></a><span class="hs-special">]</span><span>
+</span><a name="line-106"></a><a name="knownLanguages"><a href="Language.Haskell.Exts.Extension.html#knownLanguages"><span class="hs-identifier">knownLanguages</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Haskell98"><span class="hs-identifier hs-var">Haskell98</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Haskell2010"><span class="hs-identifier hs-var">Haskell2010</span></a><span class="hs-special">]</span><span>
+</span><a name="line-107"></a><span>
+</span><a name="line-108"></a><span class="hs-identifier">classifyLanguage</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier hs-type">Language</span></a><span>
+</span><a name="line-109"></a><a name="classifyLanguage"><a href="Language.Haskell.Exts.Extension.html#classifyLanguage"><span class="hs-identifier">classifyLanguage</span></a></a><span> </span><a name="local-6989586621679030980"><a href="#local-6989586621679030980"><span class="hs-identifier">str</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">fromMaybe</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#UnknownLanguage"><span class="hs-identifier hs-var">UnknownLanguage</span></a><span> </span><a href="#local-6989586621679030980"><span class="hs-identifier hs-var">str</span></a><span class="hs-special">)</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><span class="hs-identifier hs-var">lookup</span><span> </span><a href="#local-6989586621679030980"><span class="hs-identifier hs-var">str</span></a><span> </span><a href="#local-6989586621679030981"><span class="hs-identifier hs-var">langTable</span></a><span>
+</span><a name="line-110"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-111"></a><span>    </span><a name="local-6989586621679030981"><a href="#local-6989586621679030981"><span class="hs-identifier">langTable</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">show</span><span> </span><a href="#local-6989586621679030982"><span class="hs-identifier hs-var">lang</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679030982"><span class="hs-identifier hs-var">lang</span></a><span class="hs-special">)</span><span>
+</span><a name="line-112"></a><span>                </span><span class="hs-glyph">|</span><span> </span><a name="local-6989586621679030982"><a href="#local-6989586621679030982"><span class="hs-identifier">lang</span></a></a><span> </span><span class="hs-glyph">&lt;-</span><span> </span><a href="Language.Haskell.Exts.Extension.html#knownLanguages"><span class="hs-identifier hs-var">knownLanguages</span></a><span> </span><span class="hs-special">]</span><span>
+</span><a name="line-113"></a><span>
+</span><a name="line-114"></a><span class="hs-identifier">prettyLanguage</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier hs-type">Language</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-115"></a><a name="prettyLanguage"><a href="Language.Haskell.Exts.Extension.html#prettyLanguage"><span class="hs-identifier">prettyLanguage</span></a></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#UnknownLanguage"><span class="hs-identifier hs-var">UnknownLanguage</span></a><span> </span><a name="local-6989586621679031174"><a href="#local-6989586621679031174"><span class="hs-identifier">name</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679031174"><span class="hs-identifier hs-var">name</span></a><span>
+</span><a name="line-116"></a><span class="hs-identifier">prettyLanguage</span><span> </span><a name="local-6989586621679031175"><a href="#local-6989586621679031175"><span class="hs-identifier">lang</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">show</span><span> </span><a href="#local-6989586621679031175"><span class="hs-identifier hs-var">lang</span></a><span>
+</span><a name="line-117"></a><span>
+</span><a name="line-118"></a><span class="hs-comment">-- | This represents language extensions beyond a base 'Language' definition</span><span>
+</span><a name="line-119"></a><span class="hs-comment">-- (such as 'Haskell98') that are supported by some implementations, usually</span><span>
+</span><a name="line-120"></a><span class="hs-comment">-- in some special mode.</span><span>
+</span><a name="line-121"></a><span>
+</span><a name="line-122"></a><span class="hs-keyword">data</span><span> </span><a name="Extension"><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier">Extension</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-123"></a><span>  </span><span class="hs-comment">-- | Enable a known extension</span><span>
+</span><a name="line-124"></a><span>    </span><a name="EnableExtension"><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier">EnableExtension</span></a></a><span> </span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span>
+</span><a name="line-125"></a><span>
+</span><a name="line-126"></a><span>  </span><span class="hs-comment">-- | Disable a known extension</span><span>
+</span><a name="line-127"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DisableExtension"><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier">DisableExtension</span></a></a><span> </span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span>
+</span><a name="line-128"></a><span>
+</span><a name="line-129"></a><span>  </span><span class="hs-comment">-- | An unknown extension, identified by the name of its @LANGUAGE@</span><span>
+</span><a name="line-130"></a><span>  </span><span class="hs-comment">-- pragma.</span><span>
+</span><a name="line-131"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnknownExtension"><a href="Language.Haskell.Exts.Extension.html#UnknownExtension"><span class="hs-identifier">UnknownExtension</span></a></a><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-132"></a><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Read</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Ord</span><span class="hs-special">)</span><span>
+</span><a name="line-133"></a><span>
+</span><a name="line-134"></a><span>
+</span><a name="line-135"></a><span class="hs-keyword">data</span><span> </span><a name="KnownExtension"><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier">KnownExtension</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-136"></a><span>
+</span><a name="line-137"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.4] Allow overlapping class instances,</span><span>
+</span><a name="line-138"></a><span>  </span><span class="hs-comment">-- provided there is a unique most specific instance for each use.</span><span>
+</span><a name="line-139"></a><span>    </span><a name="OverlappingInstances"><a href="Language.Haskell.Exts.Extension.html#OverlappingInstances"><span class="hs-identifier">OverlappingInstances</span></a></a><span>
+</span><a name="line-140"></a><span>
+</span><a name="line-141"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.3] Ignore structural rules guaranteeing the</span><span>
+</span><a name="line-142"></a><span>  </span><span class="hs-comment">-- termination of class instance resolution.  Termination is</span><span>
+</span><a name="line-143"></a><span>  </span><span class="hs-comment">-- guaranteed by a fixed-depth recursion stack, and compilation</span><span>
+</span><a name="line-144"></a><span>  </span><span class="hs-comment">-- may fail if this depth is exceeded.</span><span>
+</span><a name="line-145"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UndecidableInstances"><a href="Language.Haskell.Exts.Extension.html#UndecidableInstances"><span class="hs-identifier">UndecidableInstances</span></a></a><span>
+</span><a name="line-146"></a><span>
+</span><a name="line-147"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.4] Implies 'OverlappingInstances'.  Allow the</span><span>
+</span><a name="line-148"></a><span>  </span><span class="hs-comment">-- implementation to choose an instance even when it is possible</span><span>
+</span><a name="line-149"></a><span>  </span><span class="hs-comment">-- that further instantiation of types will lead to a more specific</span><span>
+</span><a name="line-150"></a><span>  </span><span class="hs-comment">-- instance being applicable.</span><span>
+</span><a name="line-151"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="IncoherentInstances"><a href="Language.Haskell.Exts.Extension.html#IncoherentInstances"><span class="hs-identifier">IncoherentInstances</span></a></a><span>
+</span><a name="line-152"></a><span>
+</span><a name="line-153"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.5] Allow type signatures in instances.</span><span>
+</span><a name="line-154"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="InstanceSigs"><a href="Language.Haskell.Exts.Extension.html#InstanceSigs"><span class="hs-identifier">InstanceSigs</span></a></a><span>
+</span><a name="line-155"></a><span>
+</span><a name="line-156"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.8] Deprecated in GHC.  Allows recursive</span><span>
+</span><a name="line-157"></a><span>  </span><span class="hs-comment">-- bindings in @do@ blocks, using the @rec@ keyword.</span><span>
+</span><a name="line-158"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DoRec"><a href="Language.Haskell.Exts.Extension.html#DoRec"><span class="hs-identifier">DoRec</span></a></a><span>
+</span><a name="line-159"></a><span>
+</span><a name="line-160"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.8.2] Allows recursive bindings using @mdo@, a</span><span>
+</span><a name="line-161"></a><span>  </span><span class="hs-comment">-- variant of @do@, and @rec@.</span><span>
+</span><a name="line-162"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RecursiveDo"><a href="Language.Haskell.Exts.Extension.html#RecursiveDo"><span class="hs-identifier">RecursiveDo</span></a></a><span>
+</span><a name="line-163"></a><span>
+</span><a name="line-164"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.9] Provide syntax for writing list</span><span>
+</span><a name="line-165"></a><span>  </span><span class="hs-comment">-- comprehensions which iterate over several lists together, like</span><span>
+</span><a name="line-166"></a><span>  </span><span class="hs-comment">-- the 'zipWith' family of functions.</span><span>
+</span><a name="line-167"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ParallelListComp"><a href="Language.Haskell.Exts.Extension.html#ParallelListComp"><span class="hs-identifier">ParallelListComp</span></a></a><span>
+</span><a name="line-168"></a><span>
+</span><a name="line-169"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.1.1] Allow multiple parameters in a type class.</span><span>
+</span><a name="line-170"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MultiParamTypeClasses"><a href="Language.Haskell.Exts.Extension.html#MultiParamTypeClasses"><span class="hs-identifier">MultiParamTypeClasses</span></a></a><span>
+</span><a name="line-171"></a><span>
+</span><a name="line-172"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.17] Enable the dreaded monomorphism restriction.</span><span>
+</span><a name="line-173"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MonomorphismRestriction"><a href="Language.Haskell.Exts.Extension.html#MonomorphismRestriction"><span class="hs-identifier">MonomorphismRestriction</span></a></a><span>
+</span><a name="line-174"></a><span>
+</span><a name="line-175"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.2] Allow a specification attached to a</span><span>
+</span><a name="line-176"></a><span>  </span><span class="hs-comment">-- multi-parameter type class which indicates that some parameters</span><span>
+</span><a name="line-177"></a><span>  </span><span class="hs-comment">-- are entirely determined by others. The implementation will check</span><span>
+</span><a name="line-178"></a><span>  </span><span class="hs-comment">-- that this property holds for the declared instances, and will use</span><span>
+</span><a name="line-179"></a><span>  </span><span class="hs-comment">-- this property to reduce ambiguity in instance resolution.</span><span>
+</span><a name="line-180"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="FunctionalDependencies"><a href="Language.Haskell.Exts.Extension.html#FunctionalDependencies"><span class="hs-identifier">FunctionalDependencies</span></a></a><span>
+</span><a name="line-181"></a><span>
+</span><a name="line-182"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.5] Like 'RankNTypes' but does not allow a</span><span>
+</span><a name="line-183"></a><span>  </span><span class="hs-comment">-- higher-rank type to itself appear on the left of a function</span><span>
+</span><a name="line-184"></a><span>  </span><span class="hs-comment">-- arrow.</span><span>
+</span><a name="line-185"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Rank2Types"><a href="Language.Haskell.Exts.Extension.html#Rank2Types"><span class="hs-identifier">Rank2Types</span></a></a><span>
+</span><a name="line-186"></a><span>
+</span><a name="line-187"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.5] Allow a universally-quantified type to occur on</span><span>
+</span><a name="line-188"></a><span>  </span><span class="hs-comment">-- the left of a function arrow.</span><span>
+</span><a name="line-189"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RankNTypes"><a href="Language.Haskell.Exts.Extension.html#RankNTypes"><span class="hs-identifier">RankNTypes</span></a></a><span>
+</span><a name="line-190"></a><span>
+</span><a name="line-191"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.5] Allow data constructors to have polymorphic</span><span>
+</span><a name="line-192"></a><span>  </span><span class="hs-comment">-- arguments.  Unlike 'RankNTypes', does not allow this for ordinary</span><span>
+</span><a name="line-193"></a><span>  </span><span class="hs-comment">-- functions.</span><span>
+</span><a name="line-194"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PolymorphicComponents"><a href="Language.Haskell.Exts.Extension.html#PolymorphicComponents"><span class="hs-identifier">PolymorphicComponents</span></a></a><span>
+</span><a name="line-195"></a><span>
+</span><a name="line-196"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.4.4] Allow existentially-quantified data constructors.</span><span>
+</span><a name="line-197"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ExistentialQuantification"><a href="Language.Haskell.Exts.Extension.html#ExistentialQuantification"><span class="hs-identifier">ExistentialQuantification</span></a></a><span>
+</span><a name="line-198"></a><span>
+</span><a name="line-199"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.7] Cause a type variable in a signature, which has an</span><span>
+</span><a name="line-200"></a><span>  </span><span class="hs-comment">-- explicit @forall@ quantifier, to scope over the definition of the</span><span>
+</span><a name="line-201"></a><span>  </span><span class="hs-comment">-- accompanying value declaration.</span><span>
+</span><a name="line-202"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ScopedTypeVariables"><a href="Language.Haskell.Exts.Extension.html#ScopedTypeVariables"><span class="hs-identifier">ScopedTypeVariables</span></a></a><span>
+</span><a name="line-203"></a><span>
+</span><a name="line-204"></a><span>  </span><span class="hs-comment">-- | Deprecated, use 'ScopedTypeVariables' instead.</span><span>
+</span><a name="line-205"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PatternSignatures"><a href="Language.Haskell.Exts.Extension.html#PatternSignatures"><span class="hs-identifier">PatternSignatures</span></a></a><span>
+</span><a name="line-206"></a><span>
+</span><a name="line-207"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.3] Enable implicit function parameters with dynamic</span><span>
+</span><a name="line-208"></a><span>  </span><span class="hs-comment">-- scope.</span><span>
+</span><a name="line-209"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ImplicitParams"><a href="Language.Haskell.Exts.Extension.html#ImplicitParams"><span class="hs-identifier">ImplicitParams</span></a></a><span>
+</span><a name="line-210"></a><span>
+</span><a name="line-211"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.2] Relax some restrictions on the form of the context</span><span>
+</span><a name="line-212"></a><span>  </span><span class="hs-comment">-- of a type signature.</span><span>
+</span><a name="line-213"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="FlexibleContexts"><a href="Language.Haskell.Exts.Extension.html#FlexibleContexts"><span class="hs-identifier">FlexibleContexts</span></a></a><span>
+</span><a name="line-214"></a><span>
+</span><a name="line-215"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.2] Relax some restrictions on the form of the</span><span>
+</span><a name="line-216"></a><span>  </span><span class="hs-comment">-- context of an instance declaration.</span><span>
+</span><a name="line-217"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="FlexibleInstances"><a href="Language.Haskell.Exts.Extension.html#FlexibleInstances"><span class="hs-identifier">FlexibleInstances</span></a></a><span>
+</span><a name="line-218"></a><span>
+</span><a name="line-219"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.4.1] Allow data type declarations with no constructors.</span><span>
+</span><a name="line-220"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="EmptyDataDecls"><a href="Language.Haskell.Exts.Extension.html#EmptyDataDecls"><span class="hs-identifier">EmptyDataDecls</span></a></a><span>
+</span><a name="line-221"></a><span>
+</span><a name="line-222"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 4.10.3] Run the C preprocessor on Haskell source code.</span><span>
+</span><a name="line-223"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="CPP"><a href="Language.Haskell.Exts.Extension.html#CPP"><span class="hs-identifier">CPP</span></a></a><span>
+</span><a name="line-224"></a><span>
+</span><a name="line-225"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.4] Allow an explicit kind signature giving the kind of</span><span>
+</span><a name="line-226"></a><span>  </span><span class="hs-comment">-- types over which a type variable ranges.</span><span>
+</span><a name="line-227"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="KindSignatures"><a href="Language.Haskell.Exts.Extension.html#KindSignatures"><span class="hs-identifier">KindSignatures</span></a></a><span>
+</span><a name="line-228"></a><span>
+</span><a name="line-229"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.11] Enable a form of pattern which forces evaluation</span><span>
+</span><a name="line-230"></a><span>  </span><span class="hs-comment">-- before an attempted match, and a form of strict @let@/@where@</span><span>
+</span><a name="line-231"></a><span>  </span><span class="hs-comment">-- binding.</span><span>
+</span><a name="line-232"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="BangPatterns"><a href="Language.Haskell.Exts.Extension.html#BangPatterns"><span class="hs-identifier">BangPatterns</span></a></a><span>
+</span><a name="line-233"></a><span>
+</span><a name="line-234"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.3.1] Allow type synonyms in instance heads.</span><span>
+</span><a name="line-235"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeSynonymInstances"><a href="Language.Haskell.Exts.Extension.html#TypeSynonymInstances"><span class="hs-identifier">TypeSynonymInstances</span></a></a><span>
+</span><a name="line-236"></a><span>
+</span><a name="line-237"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.9] Enable Template Haskell, a system for compile-time</span><span>
+</span><a name="line-238"></a><span>  </span><span class="hs-comment">-- metaprogramming.</span><span>
+</span><a name="line-239"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TemplateHaskell"><a href="Language.Haskell.Exts.Extension.html#TemplateHaskell"><span class="hs-identifier">TemplateHaskell</span></a></a><span>
+</span><a name="line-240"></a><span>
+</span><a name="line-241"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 8] Enable the Foreign Function Interface.  In GHC,</span><span>
+</span><a name="line-242"></a><span>  </span><span class="hs-comment">-- implements the standard Haskell 98 Foreign Function Interface</span><span>
+</span><a name="line-243"></a><span>  </span><span class="hs-comment">-- Addendum, plus some GHC-specific extensions.</span><span>
+</span><a name="line-244"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ForeignFunctionInterface"><a href="Language.Haskell.Exts.Extension.html#ForeignFunctionInterface"><span class="hs-identifier">ForeignFunctionInterface</span></a></a><span>
+</span><a name="line-245"></a><span>
+</span><a name="line-246"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.10] Enable arrow notation.</span><span>
+</span><a name="line-247"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Arrows"><a href="Language.Haskell.Exts.Extension.html#Arrows"><span class="hs-identifier">Arrows</span></a></a><span>
+</span><a name="line-248"></a><span>
+</span><a name="line-249"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.16] Enable generic type classes, with default instances</span><span>
+</span><a name="line-250"></a><span>  </span><span class="hs-comment">-- defined in terms of the algebraic structure of a type.</span><span>
+</span><a name="line-251"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Generics"><a href="Language.Haskell.Exts.Extension.html#Generics"><span class="hs-identifier">Generics</span></a></a><span>
+</span><a name="line-252"></a><span>
+</span><a name="line-253"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.11] Enable the implicit importing of the module</span><span>
+</span><a name="line-254"></a><span>  </span><span class="hs-comment">-- @Prelude@.  When disabled, when desugaring certain built-in syntax</span><span>
+</span><a name="line-255"></a><span>  </span><span class="hs-comment">-- into ordinary identifiers, use whatever is in scope rather than the</span><span>
+</span><a name="line-256"></a><span>  </span><span class="hs-comment">-- @Prelude@ -- version.</span><span>
+</span><a name="line-257"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ImplicitPrelude"><a href="Language.Haskell.Exts.Extension.html#ImplicitPrelude"><span class="hs-identifier">ImplicitPrelude</span></a></a><span>
+</span><a name="line-258"></a><span>
+</span><a name="line-259"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.15] Enable syntax for implicitly binding local names</span><span>
+</span><a name="line-260"></a><span>  </span><span class="hs-comment">-- corresponding to the field names of a record.  Puns bind specific</span><span>
+</span><a name="line-261"></a><span>  </span><span class="hs-comment">-- names, unlike 'RecordWildCards'.</span><span>
+</span><a name="line-262"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="NamedFieldPuns"><a href="Language.Haskell.Exts.Extension.html#NamedFieldPuns"><span class="hs-identifier">NamedFieldPuns</span></a></a><span>
+</span><a name="line-263"></a><span>
+</span><a name="line-264"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.5] Enable a form of guard which matches a pattern and</span><span>
+</span><a name="line-265"></a><span>  </span><span class="hs-comment">-- binds variables.</span><span>
+</span><a name="line-266"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PatternGuards"><a href="Language.Haskell.Exts.Extension.html#PatternGuards"><span class="hs-identifier">PatternGuards</span></a></a><span>
+</span><a name="line-267"></a><span>
+</span><a name="line-268"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.5.4] Allow a type declared with @newtype@ to use</span><span>
+</span><a name="line-269"></a><span>  </span><span class="hs-comment">-- @deriving@ for any class with an instance for the underlying type.</span><span>
+</span><a name="line-270"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="GeneralizedNewtypeDeriving"><a href="Language.Haskell.Exts.Extension.html#GeneralizedNewtypeDeriving"><span class="hs-identifier">GeneralizedNewtypeDeriving</span></a></a><span>
+</span><a name="line-271"></a><span>
+</span><a name="line-272"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 9.6.10] Allow use of any typeclass in deriving clauses.</span><span>
+</span><a name="line-273"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveAnyClass"><a href="Language.Haskell.Exts.Extension.html#DeriveAnyClass"><span class="hs-identifier">DeriveAnyClass</span></a></a><span>
+</span><a name="line-274"></a><span>
+</span><a name="line-275"></a><span>  </span><span class="hs-comment">-- | [Hugs &amp;#xa7; 7.1] Enable the \&quot;Trex\&quot; extensible records system.</span><span>
+</span><a name="line-276"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ExtensibleRecords"><a href="Language.Haskell.Exts.Extension.html#ExtensibleRecords"><span class="hs-identifier">ExtensibleRecords</span></a></a><span>
+</span><a name="line-277"></a><span>
+</span><a name="line-278"></a><span>  </span><span class="hs-comment">-- | [Hugs &amp;#xa7; 7.2] Enable type synonyms which are transparent in</span><span>
+</span><a name="line-279"></a><span>  </span><span class="hs-comment">-- some definitions and opaque elsewhere, as a way of implementing</span><span>
+</span><a name="line-280"></a><span>  </span><span class="hs-comment">-- abstract datatypes.</span><span>
+</span><a name="line-281"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RestrictedTypeSynonyms"><a href="Language.Haskell.Exts.Extension.html#RestrictedTypeSynonyms"><span class="hs-identifier">RestrictedTypeSynonyms</span></a></a><span>
+</span><a name="line-282"></a><span>
+</span><a name="line-283"></a><span>  </span><span class="hs-comment">-- | [Hugs &amp;#xa7; 7.3] Enable an alternate syntax for string literals,</span><span>
+</span><a name="line-284"></a><span>  </span><span class="hs-comment">-- with string templating.</span><span>
+</span><a name="line-285"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="HereDocuments"><a href="Language.Haskell.Exts.Extension.html#HereDocuments"><span class="hs-identifier">HereDocuments</span></a></a><span>
+</span><a name="line-286"></a><span>
+</span><a name="line-287"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.2] Allow the character @#@ as a postfix modifier on</span><span>
+</span><a name="line-288"></a><span>  </span><span class="hs-comment">-- identifiers.  Also enables literal syntax for unboxed values.</span><span>
+</span><a name="line-289"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MagicHash"><a href="Language.Haskell.Exts.Extension.html#MagicHash"><span class="hs-identifier">MagicHash</span></a></a><span>
+</span><a name="line-290"></a><span>
+</span><a name="line-291"></a><span>  </span><span class="hs-comment">-- | Binary integer literals</span><span>
+</span><a name="line-292"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="BinaryLiterals"><a href="Language.Haskell.Exts.Extension.html#BinaryLiterals"><span class="hs-identifier">BinaryLiterals</span></a></a><span>
+</span><a name="line-293"></a><span>
+</span><a name="line-294"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.7] Allow data types and type synonyms which are</span><span>
+</span><a name="line-295"></a><span>  </span><span class="hs-comment">-- indexed by types, i.e. ad-hoc polymorphism for types.</span><span>
+</span><a name="line-296"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeFamilies"><a href="Language.Haskell.Exts.Extension.html#TypeFamilies"><span class="hs-identifier">TypeFamilies</span></a></a><span>
+</span><a name="line-297"></a><span>
+</span><a name="line-298"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.5.2] Allow a standalone declaration which invokes the</span><span>
+</span><a name="line-299"></a><span>  </span><span class="hs-comment">-- type class @deriving@ mechanism.</span><span>
+</span><a name="line-300"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="StandaloneDeriving"><a href="Language.Haskell.Exts.Extension.html#StandaloneDeriving"><span class="hs-identifier">StandaloneDeriving</span></a></a><span>
+</span><a name="line-301"></a><span>
+</span><a name="line-302"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.1] Allow certain Unicode characters to stand for</span><span>
+</span><a name="line-303"></a><span>  </span><span class="hs-comment">-- certain ASCII character sequences, e.g. keywords and punctuation.</span><span>
+</span><a name="line-304"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnicodeSyntax"><a href="Language.Haskell.Exts.Extension.html#UnicodeSyntax"><span class="hs-identifier">UnicodeSyntax</span></a></a><span>
+</span><a name="line-305"></a><span>
+</span><a name="line-306"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 8.1.1] Allow the use of unboxed types as foreign types,</span><span>
+</span><a name="line-307"></a><span>  </span><span class="hs-comment">-- e.g. in @foreign import@ and @foreign export@.</span><span>
+</span><a name="line-308"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnliftedFFITypes"><a href="Language.Haskell.Exts.Extension.html#UnliftedFFITypes"><span class="hs-identifier">UnliftedFFITypes</span></a></a><span>
+</span><a name="line-309"></a><span>
+</span><a name="line-310"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.4.3] Defer validity checking of types until after</span><span>
+</span><a name="line-311"></a><span>  </span><span class="hs-comment">-- expanding type synonyms, relaxing the constraints on how synonyms</span><span>
+</span><a name="line-312"></a><span>  </span><span class="hs-comment">-- may be used.</span><span>
+</span><a name="line-313"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="LiberalTypeSynonyms"><a href="Language.Haskell.Exts.Extension.html#LiberalTypeSynonyms"><span class="hs-identifier">LiberalTypeSynonyms</span></a></a><span>
+</span><a name="line-314"></a><span>
+</span><a name="line-315"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.4.2] Allow the name of a type constructor, type class,</span><span>
+</span><a name="line-316"></a><span>  </span><span class="hs-comment">-- or type variable to be an infix operator.</span><span>
+</span><a name="line-317"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeOperators"><a href="Language.Haskell.Exts.Extension.html#TypeOperators"><span class="hs-identifier">TypeOperators</span></a></a><span>
+</span><a name="line-318"></a><span>
+</span><a name="line-319"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.26.5] Parallel arrays for Data Parallel Haskell.</span><span>
+</span><a name="line-320"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ParallelArrays"><a href="Language.Haskell.Exts.Extension.html#ParallelArrays"><span class="hs-identifier">ParallelArrays</span></a></a><span>
+</span><a name="line-321"></a><span>
+</span><a name="line-322"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.16] Enable syntax for implicitly binding local names</span><span>
+</span><a name="line-323"></a><span>  </span><span class="hs-comment">-- corresponding to the field names of a record.  A wildcard binds</span><span>
+</span><a name="line-324"></a><span>  </span><span class="hs-comment">-- all unmentioned names, unlike 'NamedFieldPuns'.</span><span>
+</span><a name="line-325"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RecordWildCards"><a href="Language.Haskell.Exts.Extension.html#RecordWildCards"><span class="hs-identifier">RecordWildCards</span></a></a><span>
+</span><a name="line-326"></a><span>
+</span><a name="line-327"></a><span>  </span><span class="hs-comment">-- | Deprecated, use 'NamedFieldPuns' instead.</span><span>
+</span><a name="line-328"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RecordPuns"><a href="Language.Haskell.Exts.Extension.html#RecordPuns"><span class="hs-identifier">RecordPuns</span></a></a><span>
+</span><a name="line-329"></a><span>
+</span><a name="line-330"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.14] Allow a record field name to be disambiguated</span><span>
+</span><a name="line-331"></a><span>  </span><span class="hs-comment">-- by the type of the record it's in.</span><span>
+</span><a name="line-332"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DisambiguateRecordFields"><a href="Language.Haskell.Exts.Extension.html#DisambiguateRecordFields"><span class="hs-identifier">DisambiguateRecordFields</span></a></a><span>
+</span><a name="line-333"></a><span>
+</span><a name="line-334"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.4] Enable overloading of string literals using a</span><span>
+</span><a name="line-335"></a><span>  </span><span class="hs-comment">-- type class, much like integer literals.</span><span>
+</span><a name="line-336"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="OverloadedStrings"><a href="Language.Haskell.Exts.Extension.html#OverloadedStrings"><span class="hs-identifier">OverloadedStrings</span></a></a><span>
+</span><a name="line-337"></a><span>
+</span><a name="line-338"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.4.6] Enable generalized algebraic data types, in</span><span>
+</span><a name="line-339"></a><span>  </span><span class="hs-comment">-- which type variables may be instantiated on a per-constructor</span><span>
+</span><a name="line-340"></a><span>  </span><span class="hs-comment">-- basis. Implies GADTSyntax.</span><span>
+</span><a name="line-341"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="GADTs"><a href="Language.Haskell.Exts.Extension.html#GADTs"><span class="hs-identifier">GADTs</span></a></a><span>
+</span><a name="line-342"></a><span>
+</span><a name="line-343"></a><span class="hs-comment">{- GADTSyntax (the extension name) not yet supported by HSE
+
+  -- | Enable GADT syntax for declaring ordinary algebraic datatypes.
+  | GADTSyntax
+
+-}</span><span>
+</span><a name="line-349"></a><span>
+</span><a name="line-350"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.17.2] Make pattern bindings monomorphic.</span><span>
+</span><a name="line-351"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MonoPatBinds"><a href="Language.Haskell.Exts.Extension.html#MonoPatBinds"><span class="hs-identifier">MonoPatBinds</span></a></a><span>
+</span><a name="line-352"></a><span>
+</span><a name="line-353"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.8] Relax the requirements on mutually-recursive</span><span>
+</span><a name="line-354"></a><span>  </span><span class="hs-comment">-- polymorphic functions.</span><span>
+</span><a name="line-355"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RelaxedPolyRec"><a href="Language.Haskell.Exts.Extension.html#RelaxedPolyRec"><span class="hs-identifier">RelaxedPolyRec</span></a></a><span>
+</span><a name="line-356"></a><span>
+</span><a name="line-357"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 2.4.5] Allow default instantiation of polymorphic</span><span>
+</span><a name="line-358"></a><span>  </span><span class="hs-comment">-- types in more situations.</span><span>
+</span><a name="line-359"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ExtendedDefaultRules"><a href="Language.Haskell.Exts.Extension.html#ExtendedDefaultRules"><span class="hs-identifier">ExtendedDefaultRules</span></a></a><span>
+</span><a name="line-360"></a><span>
+</span><a name="line-361"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.2.2] Enable unboxed tuples.</span><span>
+</span><a name="line-362"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnboxedTuples"><a href="Language.Haskell.Exts.Extension.html#UnboxedTuples"><span class="hs-identifier">UnboxedTuples</span></a></a><span>
+</span><a name="line-363"></a><span>
+</span><a name="line-364"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.5.3] Enable @deriving@ for classes</span><span>
+</span><a name="line-365"></a><span>  </span><span class="hs-comment">-- @Data.Typeable.Typeable@ and @Data.Generics.Data@.</span><span>
+</span><a name="line-366"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveDataTypeable"><a href="Language.Haskell.Exts.Extension.html#DeriveDataTypeable"><span class="hs-identifier">DeriveDataTypeable</span></a></a><span>
+</span><a name="line-367"></a><span>
+</span><a name="line-368"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.1.3] Allow a class method's type to place</span><span>
+</span><a name="line-369"></a><span>  </span><span class="hs-comment">-- additional constraints on a class type variable.</span><span>
+</span><a name="line-370"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ConstrainedClassMethods"><a href="Language.Haskell.Exts.Extension.html#ConstrainedClassMethods"><span class="hs-identifier">ConstrainedClassMethods</span></a></a><span>
+</span><a name="line-371"></a><span>
+</span><a name="line-372"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.18] Allow imports to be qualified by the package</span><span>
+</span><a name="line-373"></a><span>  </span><span class="hs-comment">-- name the module is intended to be imported from, e.g.</span><span>
+</span><a name="line-374"></a><span>  </span><span class="hs-comment">--</span><span>
+</span><a name="line-375"></a><span>  </span><span class="hs-comment">-- &gt; import &quot;network&quot; Network.Socket</span><span>
+</span><a name="line-376"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PackageImports"><a href="Language.Haskell.Exts.Extension.html#PackageImports"><span class="hs-identifier">PackageImports</span></a></a><span>
+</span><a name="line-377"></a><span>
+</span><a name="line-378"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="LambdaCase"><a href="Language.Haskell.Exts.Extension.html#LambdaCase"><span class="hs-identifier">LambdaCase</span></a></a><span>
+</span><a name="line-379"></a><span>
+</span><a name="line-380"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.20] Allow case expressions with no alternatives.</span><span>
+</span><a name="line-381"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="EmptyCase"><a href="Language.Haskell.Exts.Extension.html#EmptyCase"><span class="hs-identifier">EmptyCase</span></a></a><span>
+</span><a name="line-382"></a><span>
+</span><a name="line-383"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.8.6] Deprecated in GHC 6.12 and will be removed in</span><span>
+</span><a name="line-384"></a><span>  </span><span class="hs-comment">-- GHC 7.  Allow a type variable to be instantiated at a</span><span>
+</span><a name="line-385"></a><span>  </span><span class="hs-comment">-- polymorphic type.</span><span>
+</span><a name="line-386"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ImpredicativeTypes"><a href="Language.Haskell.Exts.Extension.html#ImpredicativeTypes"><span class="hs-identifier">ImpredicativeTypes</span></a></a><span>
+</span><a name="line-387"></a><span>
+</span><a name="line-388"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.3] Change the syntax for qualified infix</span><span>
+</span><a name="line-389"></a><span>  </span><span class="hs-comment">-- operators.</span><span>
+</span><a name="line-390"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="NewQualifiedOperators"><a href="Language.Haskell.Exts.Extension.html#NewQualifiedOperators"><span class="hs-identifier">NewQualifiedOperators</span></a></a><span>
+</span><a name="line-391"></a><span>
+</span><a name="line-392"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.12] Relax the interpretation of left operator</span><span>
+</span><a name="line-393"></a><span>  </span><span class="hs-comment">-- sections to allow unary postfix operators.</span><span>
+</span><a name="line-394"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PostfixOperators"><a href="Language.Haskell.Exts.Extension.html#PostfixOperators"><span class="hs-identifier">PostfixOperators</span></a></a><span>
+</span><a name="line-395"></a><span>
+</span><a name="line-396"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.9.5] Enable quasi-quotation, a mechanism for defining</span><span>
+</span><a name="line-397"></a><span>  </span><span class="hs-comment">-- new concrete syntax for expressions and patterns.</span><span>
+</span><a name="line-398"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="QuasiQuotes"><a href="Language.Haskell.Exts.Extension.html#QuasiQuotes"><span class="hs-identifier">QuasiQuotes</span></a></a><span>
+</span><a name="line-399"></a><span>
+</span><a name="line-400"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.10] Enable generalized list comprehensions,</span><span>
+</span><a name="line-401"></a><span>  </span><span class="hs-comment">-- supporting operations such as sorting and grouping.</span><span>
+</span><a name="line-402"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TransformListComp"><a href="Language.Haskell.Exts.Extension.html#TransformListComp"><span class="hs-identifier">TransformListComp</span></a></a><span>
+</span><a name="line-403"></a><span>
+</span><a name="line-404"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.6] Enable view patterns, which match a value by</span><span>
+</span><a name="line-405"></a><span>  </span><span class="hs-comment">-- applying a function and matching on the result.</span><span>
+</span><a name="line-406"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ViewPatterns"><a href="Language.Haskell.Exts.Extension.html#ViewPatterns"><span class="hs-identifier">ViewPatterns</span></a></a><span>
+</span><a name="line-407"></a><span>
+</span><a name="line-408"></a><span>  </span><span class="hs-comment">-- | Allow concrete XML syntax to be used in expressions and patterns,</span><span>
+</span><a name="line-409"></a><span>  </span><span class="hs-comment">-- as per the Haskell Server Pages extension language:</span><span>
+</span><a name="line-410"></a><span>  </span><span class="hs-comment">-- &lt;http://www.haskell.org/haskellwiki/HSP&gt;. The ideas behind it are</span><span>
+</span><a name="line-411"></a><span>  </span><span class="hs-comment">-- discussed in the paper \&quot;Haskell Server Pages through Dynamic Loading\&quot;</span><span>
+</span><a name="line-412"></a><span>  </span><span class="hs-comment">-- by Niklas Broberg, from Haskell Workshop '05.</span><span>
+</span><a name="line-413"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="XmlSyntax"><a href="Language.Haskell.Exts.Extension.html#XmlSyntax"><span class="hs-identifier">XmlSyntax</span></a></a><span>
+</span><a name="line-414"></a><span>
+</span><a name="line-415"></a><span>  </span><span class="hs-comment">-- | Allow regular pattern matching over lists, as discussed in the</span><span>
+</span><a name="line-416"></a><span>  </span><span class="hs-comment">-- paper \&quot;Regular Expression Patterns\&quot; by Niklas Broberg, Andreas Farre</span><span>
+</span><a name="line-417"></a><span>  </span><span class="hs-comment">-- and Josef Svenningsson, from ICFP '04.</span><span>
+</span><a name="line-418"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RegularPatterns"><a href="Language.Haskell.Exts.Extension.html#RegularPatterns"><span class="hs-identifier">RegularPatterns</span></a></a><span>
+</span><a name="line-419"></a><span>
+</span><a name="line-420"></a><span>  </span><span class="hs-comment">-- | Enables the use of tuple sections, e.g. @(, True)@ desugars into</span><span>
+</span><a name="line-421"></a><span>  </span><span class="hs-comment">-- @\x -&gt; (x, True)@.</span><span>
+</span><a name="line-422"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TupleSections"><a href="Language.Haskell.Exts.Extension.html#TupleSections"><span class="hs-identifier">TupleSections</span></a></a><span>
+</span><a name="line-423"></a><span>
+</span><a name="line-424"></a><span>  </span><span class="hs-comment">-- | Allows GHC primops, written in C--, to be imported into a Haskell</span><span>
+</span><a name="line-425"></a><span>  </span><span class="hs-comment">-- file.</span><span>
+</span><a name="line-426"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="GHCForeignImportPrim"><a href="Language.Haskell.Exts.Extension.html#GHCForeignImportPrim"><span class="hs-identifier">GHCForeignImportPrim</span></a></a><span>
+</span><a name="line-427"></a><span>
+</span><a name="line-428"></a><span>  </span><span class="hs-comment">-- | Support for patterns of the form @n + k@, where @k@ is an</span><span>
+</span><a name="line-429"></a><span>  </span><span class="hs-comment">-- integer literal.</span><span>
+</span><a name="line-430"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="NPlusKPatterns"><a href="Language.Haskell.Exts.Extension.html#NPlusKPatterns"><span class="hs-identifier">NPlusKPatterns</span></a></a><span>
+</span><a name="line-431"></a><span>
+</span><a name="line-432"></a><span>  </span><span class="hs-comment">-- | Improve the layout rule when @if@ expressions are used in a @do@</span><span>
+</span><a name="line-433"></a><span>  </span><span class="hs-comment">-- block.</span><span>
+</span><a name="line-434"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DoAndIfThenElse"><a href="Language.Haskell.Exts.Extension.html#DoAndIfThenElse"><span class="hs-identifier">DoAndIfThenElse</span></a></a><span>
+</span><a name="line-435"></a><span>
+</span><a name="line-436"></a><span>  </span><span class="hs-comment">-- | Makes much of the Haskell sugar be desugared into calls to the</span><span>
+</span><a name="line-437"></a><span>  </span><span class="hs-comment">-- function with a particular name that is in scope.</span><span>
+</span><a name="line-438"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RebindableSyntax"><a href="Language.Haskell.Exts.Extension.html#RebindableSyntax"><span class="hs-identifier">RebindableSyntax</span></a></a><span>
+</span><a name="line-439"></a><span>
+</span><a name="line-440"></a><span>  </span><span class="hs-comment">-- | Make @forall@ a keyword in types, which can be used to give the</span><span>
+</span><a name="line-441"></a><span>  </span><span class="hs-comment">-- generalisation explicitly.</span><span>
+</span><a name="line-442"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ExplicitForAll"><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier">ExplicitForAll</span></a></a><span>
+</span><a name="line-443"></a><span>
+</span><a name="line-444"></a><span>  </span><span class="hs-comment">-- | Allow contexts to be put on datatypes, e.g. the @Eq a@ in</span><span>
+</span><a name="line-445"></a><span>  </span><span class="hs-comment">-- @data Eq a =&gt; Set a = NilSet | ConsSet a (Set a)@.</span><span>
+</span><a name="line-446"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DatatypeContexts"><a href="Language.Haskell.Exts.Extension.html#DatatypeContexts"><span class="hs-identifier">DatatypeContexts</span></a></a><span>
+</span><a name="line-447"></a><span>
+</span><a name="line-448"></a><span>  </span><span class="hs-comment">-- | Local (@let@ and @where@) bindings are monomorphic.</span><span>
+</span><a name="line-449"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MonoLocalBinds"><a href="Language.Haskell.Exts.Extension.html#MonoLocalBinds"><span class="hs-identifier">MonoLocalBinds</span></a></a><span>
+</span><a name="line-450"></a><span>
+</span><a name="line-451"></a><span>  </span><span class="hs-comment">-- | Enable @deriving@ for the @Data.Functor.Functor@ class.</span><span>
+</span><a name="line-452"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveFunctor"><a href="Language.Haskell.Exts.Extension.html#DeriveFunctor"><span class="hs-identifier">DeriveFunctor</span></a></a><span>
+</span><a name="line-453"></a><span>
+</span><a name="line-454"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.5.3] Enable @deriving@ for the @Generic@ and @Generic1@ classes.</span><span>
+</span><a name="line-455"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveGeneric"><a href="Language.Haskell.Exts.Extension.html#DeriveGeneric"><span class="hs-identifier">DeriveGeneric</span></a></a><span>
+</span><a name="line-456"></a><span>
+</span><a name="line-457"></a><span>  </span><span class="hs-comment">-- | Enable @deriving@ for the @Data.Traversable.Traversable@ class.</span><span>
+</span><a name="line-458"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveTraversable"><a href="Language.Haskell.Exts.Extension.html#DeriveTraversable"><span class="hs-identifier">DeriveTraversable</span></a></a><span>
+</span><a name="line-459"></a><span>
+</span><a name="line-460"></a><span>  </span><span class="hs-comment">-- | Enable @deriving@ for the @Data.Foldable.Foldable@ class.</span><span>
+</span><a name="line-461"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DeriveFoldable"><a href="Language.Haskell.Exts.Extension.html#DeriveFoldable"><span class="hs-identifier">DeriveFoldable</span></a></a><span>
+</span><a name="line-462"></a><span>
+</span><a name="line-463"></a><span>  </span><span class="hs-comment">-- | Enable non-decreasing indentation for 'do' blocks.</span><span>
+</span><a name="line-464"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="NondecreasingIndentation"><a href="Language.Haskell.Exts.Extension.html#NondecreasingIndentation"><span class="hs-identifier">NondecreasingIndentation</span></a></a><span>
+</span><a name="line-465"></a><span>
+</span><a name="line-466"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 8.1.4] Enable interruptible FFI.</span><span>
+</span><a name="line-467"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="InterruptibleFFI"><a href="Language.Haskell.Exts.Extension.html#InterruptibleFFI"><span class="hs-identifier">InterruptibleFFI</span></a></a><span>
+</span><a name="line-468"></a><span>
+</span><a name="line-469"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 8.1.5] Enable the 'capi' calling convention in the</span><span>
+</span><a name="line-470"></a><span>  </span><span class="hs-comment">-- foreign function interface.</span><span>
+</span><a name="line-471"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="CApiFFI"><a href="Language.Haskell.Exts.Extension.html#CApiFFI"><span class="hs-identifier">CApiFFI</span></a></a><span>
+</span><a name="line-472"></a><span>
+</span><a name="line-473"></a><span>  </span><span class="hs-comment">-- | GHCJS FFI extension with convenient import patterns,</span><span>
+</span><a name="line-474"></a><span>  </span><span class="hs-comment">-- asynchronous FFI and a JSVal FFI type</span><span>
+</span><a name="line-475"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="JavaScriptFFI"><a href="Language.Haskell.Exts.Extension.html#JavaScriptFFI"><span class="hs-identifier">JavaScriptFFI</span></a></a><span>
+</span><a name="line-476"></a><span>
+</span><a name="line-477"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.27] Enable explicit namespaces in import/export.</span><span>
+</span><a name="line-478"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ExplicitNamespaces"><a href="Language.Haskell.Exts.Extension.html#ExplicitNamespaces"><span class="hs-identifier">ExplicitNamespaces</span></a></a><span>
+</span><a name="line-479"></a><span>
+</span><a name="line-480"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DataKinds"><a href="Language.Haskell.Exts.Extension.html#DataKinds"><span class="hs-identifier">DataKinds</span></a></a><span>
+</span><a name="line-481"></a><span>
+</span><a name="line-482"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PolyKinds"><a href="Language.Haskell.Exts.Extension.html#PolyKinds"><span class="hs-identifier">PolyKinds</span></a></a><span>
+</span><a name="line-483"></a><span>
+</span><a name="line-484"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.16] Enable the multi-way if-expressions</span><span>
+</span><a name="line-485"></a><span>  </span><span class="hs-comment">-- extension to accept conditional expressions with multiple branches.</span><span>
+</span><a name="line-486"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="MultiWayIf"><a href="Language.Haskell.Exts.Extension.html#MultiWayIf"><span class="hs-identifier">MultiWayIf</span></a></a><span>
+</span><a name="line-487"></a><span>
+</span><a name="line-488"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.20.3] Allow imports to be qualified with a safe</span><span>
+</span><a name="line-489"></a><span>  </span><span class="hs-comment">-- keyword that requires the imported module be trusted as according</span><span>
+</span><a name="line-490"></a><span>  </span><span class="hs-comment">-- to the Safe Haskell definition of trust.</span><span>
+</span><a name="line-491"></a><span>  </span><span class="hs-comment">--</span><span>
+</span><a name="line-492"></a><span>  </span><span class="hs-comment">-- &gt; import safe Network.Socket</span><span>
+</span><a name="line-493"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="SafeImports"><a href="Language.Haskell.Exts.Extension.html#SafeImports"><span class="hs-identifier">SafeImports</span></a></a><span>
+</span><a name="line-494"></a><span>
+</span><a name="line-495"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.20] Compile a module in the Safe, Safe Haskell</span><span>
+</span><a name="line-496"></a><span>  </span><span class="hs-comment">-- mode -- a restricted form of the Haskell language to ensure</span><span>
+</span><a name="line-497"></a><span>  </span><span class="hs-comment">-- type safety.</span><span>
+</span><a name="line-498"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Safe"><a href="Language.Haskell.Exts.Extension.html#Safe"><span class="hs-identifier">Safe</span></a></a><span>
+</span><a name="line-499"></a><span>
+</span><a name="line-500"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.20] Compile a module in the Trustworthy, Safe</span><span>
+</span><a name="line-501"></a><span>  </span><span class="hs-comment">-- Haskell mode -- no restrictions apply but the module is marked</span><span>
+</span><a name="line-502"></a><span>  </span><span class="hs-comment">-- as trusted as long as the package the module resides in is</span><span>
+</span><a name="line-503"></a><span>  </span><span class="hs-comment">-- trusted.</span><span>
+</span><a name="line-504"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Trustworthy"><a href="Language.Haskell.Exts.Extension.html#Trustworthy"><span class="hs-identifier">Trustworthy</span></a></a><span>
+</span><a name="line-505"></a><span>
+</span><a name="line-506"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.6.1.4] Allow default signatures in class</span><span>
+</span><a name="line-507"></a><span>  </span><span class="hs-comment">-- definitions. They apply to default methods implemented in this</span><span>
+</span><a name="line-508"></a><span>  </span><span class="hs-comment">-- class.</span><span>
+</span><a name="line-509"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DefaultSignatures"><a href="Language.Haskell.Exts.Extension.html#DefaultSignatures"><span class="hs-identifier">DefaultSignatures</span></a></a><span>
+</span><a name="line-510"></a><span>
+</span><a name="line-511"></a><span>
+</span><a name="line-512"></a><span class="hs-comment">-- ConstraintKinds not generally supported by HSE. This flag makes RCategory2.hs</span><span>
+</span><a name="line-513"></a><span class="hs-comment">-- pass testing though.</span><span>
+</span><a name="line-514"></a><span>
+</span><a name="line-515"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.40] Allow type class/implicit parameter/equality</span><span>
+</span><a name="line-516"></a><span>  </span><span class="hs-comment">-- constraints to be used as types with the special kind Constraint.</span><span>
+</span><a name="line-517"></a><span>  </span><span class="hs-comment">-- Also generalise the (ctxt =&gt; ty) syntax so that any type of kind</span><span>
+</span><a name="line-518"></a><span>  </span><span class="hs-comment">-- Constraint can occur before the arrow.</span><span>
+</span><a name="line-519"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="ConstraintKinds"><a href="Language.Haskell.Exts.Extension.html#ConstraintKinds"><span class="hs-identifier">ConstraintKinds</span></a></a><span>
+</span><a name="line-520"></a><span>
+</span><a name="line-521"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.25.3] Allow role annotations.</span><span>
+</span><a name="line-522"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="RoleAnnotations"><a href="Language.Haskell.Exts.Extension.html#RoleAnnotations"><span class="hs-identifier">RoleAnnotations</span></a></a><span>
+</span><a name="line-523"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.3.8] Enable giving names to parametrized pattern</span><span>
+</span><a name="line-524"></a><span>  </span><span class="hs-comment">-- schemes</span><span>
+</span><a name="line-525"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PatternSynonyms"><a href="Language.Haskell.Exts.Extension.html#PatternSynonyms"><span class="hs-identifier">PatternSynonyms</span></a></a><span>
+</span><a name="line-526"></a><span>
+</span><a name="line-527"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.15] Allow partial specified type signatures.</span><span>
+</span><a name="line-528"></a><span>  </span><span class="hs-comment">-- Note that this extension does not affect parsing. It only affects whether the</span><span>
+</span><a name="line-529"></a><span>  </span><span class="hs-comment">-- program is able to be run with partial signatures.</span><span>
+</span><a name="line-530"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="PartialTypeSignatures"><a href="Language.Haskell.Exts.Extension.html#PartialTypeSignatures"><span class="hs-identifier">PartialTypeSignatures</span></a></a><span>
+</span><a name="line-531"></a><span>
+</span><a name="line-532"></a><span>  </span><span class="hs-comment">-- | [GHC &amp;#xa7; 7.15.1.2] This extension treats type variables which</span><span>
+</span><a name="line-533"></a><span>  </span><span class="hs-comment">-- start with an underscore as wildcards. For example, `foo :: _x` is</span><span>
+</span><a name="line-534"></a><span>  </span><span class="hs-comment">-- equivalent to `foo :: _`.</span><span>
+</span><a name="line-535"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="NamedWildCards"><a href="Language.Haskell.Exts.Extension.html#NamedWildCards"><span class="hs-identifier">NamedWildCards</span></a></a><span>
+</span><a name="line-536"></a><span>
+</span><a name="line-537"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeApplications"><a href="Language.Haskell.Exts.Extension.html#TypeApplications"><span class="hs-identifier">TypeApplications</span></a></a><span>
+</span><a name="line-538"></a><span>
+</span><a name="line-539"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeFamilyDependencies"><a href="Language.Haskell.Exts.Extension.html#TypeFamilyDependencies"><span class="hs-identifier">TypeFamilyDependencies</span></a></a><span>
+</span><a name="line-540"></a><span>
+</span><a name="line-541"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="OverloadedLabels"><a href="Language.Haskell.Exts.Extension.html#OverloadedLabels"><span class="hs-identifier">OverloadedLabels</span></a></a><span>
+</span><a name="line-542"></a><span>
+</span><a name="line-543"></a><span>  </span><span class="hs-comment">-- | Allow multiple @deriving@ clauses, each optionally qualified with a</span><span>
+</span><a name="line-544"></a><span>  </span><span class="hs-comment">-- /strategy/.</span><span>
+</span><a name="line-545"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DerivingStrategies"><a href="Language.Haskell.Exts.Extension.html#DerivingStrategies"><span class="hs-identifier">DerivingStrategies</span></a></a><span>
+</span><a name="line-546"></a><span>
+</span><a name="line-547"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="UnboxedSums"><a href="Language.Haskell.Exts.Extension.html#UnboxedSums"><span class="hs-identifier">UnboxedSums</span></a></a><span>
+</span><a name="line-548"></a><span>
+</span><a name="line-549"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="TypeInType"><a href="Language.Haskell.Exts.Extension.html#TypeInType"><span class="hs-identifier">TypeInType</span></a></a><span>
+</span><a name="line-550"></a><span>
+</span><a name="line-551"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="Strict"><a href="Language.Haskell.Exts.Extension.html#Strict"><span class="hs-identifier">Strict</span></a></a><span>
+</span><a name="line-552"></a><span>
+</span><a name="line-553"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="StrictData"><a href="Language.Haskell.Exts.Extension.html#StrictData"><span class="hs-identifier">StrictData</span></a></a><span>
+</span><a name="line-554"></a><span>
+</span><a name="line-555"></a><span>  </span><span class="hs-comment">-- | Enable deriving instances via types of the same runtime representation.</span><span>
+</span><a name="line-556"></a><span>  </span><span class="hs-comment">-- Implies 'DerivingStrategies'.</span><span>
+</span><a name="line-557"></a><span>  </span><span class="hs-glyph">|</span><span> </span><a name="DerivingVia"><a href="Language.Haskell.Exts.Extension.html#DerivingVia"><span class="hs-identifier">DerivingVia</span></a></a><span>
+</span><a name="line-558"></a><span>
+</span><a name="line-559"></a><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Read</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Ord</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Enum</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Bounded</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Data</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span class="hs-special">)</span><span>
+</span><a name="line-560"></a><span>
+</span><a name="line-561"></a><span class="hs-comment">-- | Certain extensions imply other extensions, and this function</span><span>
+</span><a name="line-562"></a><span class="hs-comment">--   makes the implication explicit. This also handles deprecated</span><span>
+</span><a name="line-563"></a><span class="hs-comment">--   extensions, which imply their replacements.</span><span>
+</span><a name="line-564"></a><span class="hs-comment">--   The returned value is the transitive closure of implied</span><span>
+</span><a name="line-565"></a><span class="hs-comment">--   extensions.</span><span>
+</span><a name="line-566"></a><span class="hs-comment">{-impliesExts :: [Extension] -&gt; [Extension]
+impliesExts exts =
+    let posExts = [ ke | EnableExtension  ke &lt;- exts ]
+        negExts = [ ke | DisableExtension ke &lt;- exts ]
+
+        implExts = impliesKnownExts posExts
+     in
+-}</span><span>
+</span><a name="line-574"></a><span class="hs-identifier">impliesExts</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-575"></a><a name="impliesExts"><a href="Language.Haskell.Exts.Extension.html#impliesExts"><span class="hs-identifier">impliesExts</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679031176"><span class="hs-identifier hs-var">go</span></a><span>
+</span><a name="line-576"></a><span>  </span><span class="hs-keyword">where</span><span> </span><a name="local-6989586621679031176"><a href="#local-6989586621679031176"><span class="hs-identifier">go</span></a></a><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><a name="line-577"></a><span>        </span><span class="hs-identifier">go</span><span> </span><a name="local-6989586621679031178"><a href="#local-6989586621679031178"><span class="hs-identifier">es</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><a name="local-6989586621679031179"><a href="#local-6989586621679031179"><span class="hs-identifier">xs</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">concatMap</span><span> </span><a href="#local-6989586621679031177"><span class="hs-identifier hs-var">implE</span></a><span> </span><a href="#local-6989586621679031178"><span class="hs-identifier hs-var">es</span></a><span>
+</span><a name="line-578"></a><span>                    </span><a name="local-6989586621679031180"><a href="#local-6989586621679031180"><span class="hs-identifier">ys</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">filter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">not</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">flip</span><span> </span><span class="hs-identifier hs-var">elem</span><span> </span><a href="#local-6989586621679031178"><span class="hs-identifier hs-var">es</span></a><span class="hs-special">)</span><span> </span><a href="#local-6989586621679031179"><span class="hs-identifier hs-var">xs</span></a><span>
+</span><a name="line-579"></a><span>                 </span><span class="hs-keyword">in</span><span> </span><a href="#local-6989586621679031178"><span class="hs-identifier hs-var">es</span></a><span> </span><span class="hs-operator hs-var">++</span><span> </span><a href="#local-6989586621679031176"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679031180"><span class="hs-identifier hs-var">ys</span></a><span>
+</span><a name="line-580"></a><span>
+</span><a name="line-581"></a><span>        </span><a name="local-6989586621679031177"><a href="#local-6989586621679031177"><span class="hs-identifier">implE</span></a></a><span> </span><a name="local-6989586621679032309"><a href="#local-6989586621679032309"><span class="hs-identifier">e</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="#local-6989586621679032309"><span class="hs-identifier hs-var">e</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-582"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#TypeFamilies"><span class="hs-identifier hs-var">TypeFamilies</span></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KindSignatures"><span class="hs-identifier hs-var">KindSignatures</span></a><span class="hs-special">]</span><span>
+</span><a name="line-583"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#ScopedTypeVariables"><span class="hs-identifier hs-var">ScopedTypeVariables</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#TypeOperators"><span class="hs-identifier hs-var">TypeOperators</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-584"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#XmlSyntax"><span class="hs-identifier hs-var">XmlSyntax</span></a><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#RegularPatterns"><span class="hs-identifier hs-var">RegularPatterns</span></a><span class="hs-special">]</span><span>
+</span><a name="line-585"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#RegularPatterns"><span class="hs-identifier hs-var">RegularPatterns</span></a><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#PatternGuards"><span class="hs-identifier hs-var">PatternGuards</span></a><span class="hs-special">]</span><span>
+</span><a name="line-586"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#RankNTypes"><span class="hs-identifier hs-var">RankNTypes</span></a><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Rank2Types"><span class="hs-identifier hs-var">Rank2Types</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-587"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#Rank2Types"><span class="hs-identifier hs-var">Rank2Types</span></a><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#PolymorphicComponents"><span class="hs-identifier hs-var">PolymorphicComponents</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-588"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#PolymorphicComponents"><span class="hs-identifier hs-var">PolymorphicComponents</span></a><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-589"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#LiberalTypeSynonyms"><span class="hs-identifier hs-var">LiberalTypeSynonyms</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-590"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#ExistentialQuantification"><span class="hs-identifier hs-var">ExistentialQuantification</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-591"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#ImpredicativeTypes"><span class="hs-identifier hs-var">ImpredicativeTypes</span></a><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ExplicitForAll"><span class="hs-identifier hs-var">ExplicitForAll</span></a><span class="hs-special">]</span><span>
+</span><a name="line-592"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#PolyKinds"><span class="hs-identifier hs-var">PolyKinds</span></a><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KindSignatures"><span class="hs-identifier hs-var">KindSignatures</span></a><span class="hs-special">]</span><span>
+</span><a name="line-593"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#TypeFamilyDependencies"><span class="hs-identifier hs-var">TypeFamilyDependencies</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#TypeFamilies"><span class="hs-identifier hs-var">TypeFamilies</span></a><span class="hs-special">]</span><span>
+</span><a name="line-594"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#TypeInType"><span class="hs-identifier hs-var">TypeInType</span></a><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#PolyKinds"><span class="hs-identifier hs-var">PolyKinds</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#DataKinds"><span class="hs-identifier hs-var">DataKinds</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#KindSignatures"><span class="hs-identifier hs-var">KindSignatures</span></a><span class="hs-special">]</span><span>
+</span><a name="line-595"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#TypeOperators"><span class="hs-identifier hs-var">TypeOperators</span></a><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ExplicitNamespaces"><span class="hs-identifier hs-var">ExplicitNamespaces</span></a><span class="hs-special">]</span><span>
+</span><a name="line-596"></a><span>                    </span><span class="hs-comment">-- Deprecations</span><span>
+</span><a name="line-597"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#RecordPuns"><span class="hs-identifier hs-var">RecordPuns</span></a><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#NamedFieldPuns"><span class="hs-identifier hs-var">NamedFieldPuns</span></a><span class="hs-special">]</span><span>
+</span><a name="line-598"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#PatternSignatures"><span class="hs-identifier hs-var">PatternSignatures</span></a><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#ScopedTypeVariables"><span class="hs-identifier hs-var">ScopedTypeVariables</span></a><span class="hs-special">]</span><span>
+</span><a name="line-599"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#DerivingVia"><span class="hs-identifier hs-var">DerivingVia</span></a><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#DerivingStrategies"><span class="hs-identifier hs-var">DerivingStrategies</span></a><span class="hs-special">]</span><span>
+</span><a name="line-600"></a><span>                    </span><span class="hs-identifier">_</span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><a name="line-601"></a><span>
+</span><a name="line-602"></a><span class="hs-comment">-- | The list of extensions enabled by</span><span>
+</span><a name="line-603"></a><span class="hs-comment">--   GHC's portmanteau -fglasgow-exts flag.</span><span>
+</span><a name="line-604"></a><span class="hs-identifier">glasgowExts</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-605"></a><a name="glasgowExts"><a href="Language.Haskell.Exts.Extension.html#glasgowExts"><span class="hs-identifier">glasgowExts</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">map</span><span> </span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><span class="hs-special">[</span><span>
+</span><a name="line-606"></a><span>      </span><a href="Language.Haskell.Exts.Extension.html#ForeignFunctionInterface"><span class="hs-identifier hs-var">ForeignFunctionInterface</span></a><span>
+</span><a name="line-607"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#UnliftedFFITypes"><span class="hs-identifier hs-var">UnliftedFFITypes</span></a><span>
+</span><a name="line-608"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#GADTs"><span class="hs-identifier hs-var">GADTs</span></a><span>
+</span><a name="line-609"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ImplicitParams"><span class="hs-identifier hs-var">ImplicitParams</span></a><span>
+</span><a name="line-610"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ScopedTypeVariables"><span class="hs-identifier hs-var">ScopedTypeVariables</span></a><span>
+</span><a name="line-611"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#UnboxedTuples"><span class="hs-identifier hs-var">UnboxedTuples</span></a><span>
+</span><a name="line-612"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#TypeSynonymInstances"><span class="hs-identifier hs-var">TypeSynonymInstances</span></a><span>
+</span><a name="line-613"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#StandaloneDeriving"><span class="hs-identifier hs-var">StandaloneDeriving</span></a><span>
+</span><a name="line-614"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#DeriveDataTypeable"><span class="hs-identifier hs-var">DeriveDataTypeable</span></a><span>
+</span><a name="line-615"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#FlexibleContexts"><span class="hs-identifier hs-var">FlexibleContexts</span></a><span>
+</span><a name="line-616"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#FlexibleInstances"><span class="hs-identifier hs-var">FlexibleInstances</span></a><span>
+</span><a name="line-617"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ConstrainedClassMethods"><span class="hs-identifier hs-var">ConstrainedClassMethods</span></a><span>
+</span><a name="line-618"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#MultiParamTypeClasses"><span class="hs-identifier hs-var">MultiParamTypeClasses</span></a><span>
+</span><a name="line-619"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#FunctionalDependencies"><span class="hs-identifier hs-var">FunctionalDependencies</span></a><span>
+</span><a name="line-620"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#MagicHash"><span class="hs-identifier hs-var">MagicHash</span></a><span>
+</span><a name="line-621"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#PolymorphicComponents"><span class="hs-identifier hs-var">PolymorphicComponents</span></a><span>
+</span><a name="line-622"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ExistentialQuantification"><span class="hs-identifier hs-var">ExistentialQuantification</span></a><span>
+</span><a name="line-623"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#UnicodeSyntax"><span class="hs-identifier hs-var">UnicodeSyntax</span></a><span>
+</span><a name="line-624"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#PostfixOperators"><span class="hs-identifier hs-var">PostfixOperators</span></a><span>
+</span><a name="line-625"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#PatternGuards"><span class="hs-identifier hs-var">PatternGuards</span></a><span>
+</span><a name="line-626"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#LiberalTypeSynonyms"><span class="hs-identifier hs-var">LiberalTypeSynonyms</span></a><span>
+</span><a name="line-627"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#RankNTypes"><span class="hs-identifier hs-var">RankNTypes</span></a><span>
+</span><a name="line-628"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ImpredicativeTypes"><span class="hs-identifier hs-var">ImpredicativeTypes</span></a><span>
+</span><a name="line-629"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#TypeOperators"><span class="hs-identifier hs-var">TypeOperators</span></a><span>
+</span><a name="line-630"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#RecursiveDo"><span class="hs-identifier hs-var">RecursiveDo</span></a><span>
+</span><a name="line-631"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ParallelListComp"><span class="hs-identifier hs-var">ParallelListComp</span></a><span>
+</span><a name="line-632"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#EmptyDataDecls"><span class="hs-identifier hs-var">EmptyDataDecls</span></a><span>
+</span><a name="line-633"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#KindSignatures"><span class="hs-identifier hs-var">KindSignatures</span></a><span>
+</span><a name="line-634"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#GeneralizedNewtypeDeriving"><span class="hs-identifier hs-var">GeneralizedNewtypeDeriving</span></a><span>
+</span><a name="line-635"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#TypeFamilies"><span class="hs-identifier hs-var">TypeFamilies</span></a><span>
+</span><a name="line-636"></a><span>    </span><span class="hs-special">]</span><span>
+</span><a name="line-637"></a><span>
+</span><a name="line-638"></a><span class="hs-comment">-- Not exported, just used locally in several places.</span><span>
+</span><a name="line-639"></a><span class="hs-identifier">allLangDefault</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-640"></a><a name="allLangDefault"><a href="Language.Haskell.Exts.Extension.html#allLangDefault"><span class="hs-identifier">allLangDefault</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#MonomorphismRestriction"><span class="hs-identifier hs-var">MonomorphismRestriction</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#MonoPatBinds"><span class="hs-identifier hs-var">MonoPatBinds</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ImplicitPrelude"><span class="hs-identifier hs-var">ImplicitPrelude</span></a><span class="hs-special">]</span><span>
+</span><a name="line-641"></a><span>
+</span><a name="line-642"></a><span class="hs-identifier">ghcDefault</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-643"></a><a name="ghcDefault"><a href="Language.Haskell.Exts.Extension.html#ghcDefault"><span class="hs-identifier">ghcDefault</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">map</span><span> </span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#NondecreasingIndentation"><span class="hs-identifier hs-var">NondecreasingIndentation</span></a><span class="hs-glyph">:</span><a href="Language.Haskell.Exts.Extension.html#allLangDefault"><span class="hs-identifier hs-var">allLangDefault</span></a><span class="hs-special">)</span><span>
+</span><a name="line-644"></a><span>
+</span><a name="line-645"></a><span class="hs-comment">-- | List of all known extensions, both \&quot;yes\&quot; and \&quot;no\&quot; versions.</span><span>
+</span><a name="line-646"></a><span class="hs-identifier">knownExtensions</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-647"></a><a name="knownExtensions"><a href="Language.Haskell.Exts.Extension.html#knownExtensions"><span class="hs-identifier">knownExtensions</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-648"></a><span>  </span><span class="hs-identifier hs-var">concat</span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="#local-6989586621679032310"><span class="hs-identifier hs-var">x</span></a><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier hs-var">DisableExtension</span></a><span> </span><a href="#local-6989586621679032310"><span class="hs-identifier hs-var">x</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><a name="local-6989586621679032310"><a href="#local-6989586621679032310"><span class="hs-identifier">x</span></a></a><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-var">minBound</span><span class="hs-glyph">..</span><span class="hs-identifier hs-var">maxBound</span><span class="hs-special">]</span><span> </span><span class="hs-special">]</span><span>
+</span><a name="line-649"></a><span>
+</span><a name="line-650"></a><span class="hs-comment">-- | Extensions that have been deprecated, possibly paired with another</span><span>
+</span><a name="line-651"></a><span class="hs-comment">-- extension that replaces it.</span><span>
+</span><a name="line-652"></a><span class="hs-comment">--</span><span>
+</span><a name="line-653"></a><span class="hs-identifier">deprecatedExtensions</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><a name="line-654"></a><a name="deprecatedExtensions"><a href="Language.Haskell.Exts.Extension.html#deprecatedExtensions"><span class="hs-identifier">deprecatedExtensions</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-655"></a><span>  </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="Language.Haskell.Exts.Extension.html#RecordPuns"><span class="hs-identifier hs-var">RecordPuns</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">Just</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="Language.Haskell.Exts.Extension.html#NamedFieldPuns"><span class="hs-identifier hs-var">NamedFieldPuns</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-656"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="Language.Haskell.Exts.Extension.html#PatternSignatures"><span class="hs-identifier hs-var">PatternSignatures</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">Just</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="Language.Haskell.Exts.Extension.html#ScopedTypeVariables"><span class="hs-identifier hs-var">ScopedTypeVariables</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-657"></a><span>  </span><span class="hs-special">]</span><span>
+</span><a name="line-658"></a><span>
+</span><a name="line-659"></a><span>
+</span><a name="line-660"></a><span>
+</span><a name="line-661"></a><span class="hs-comment">-- | A clever version of read that returns an 'UnknownExtension'</span><span>
+</span><a name="line-662"></a><span class="hs-comment">--   if the string is not recognised.</span><span>
+</span><a name="line-663"></a><span class="hs-identifier">classifyExtension</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span>
+</span><a name="line-664"></a><a name="classifyExtension"><a href="Language.Haskell.Exts.Extension.html#classifyExtension"><span class="hs-identifier">classifyExtension</span></a></a><span> </span><a name="local-6989586621679032311"><a href="#local-6989586621679032311"><span class="hs-identifier">string</span></a></a><span>
+</span><a name="line-665"></a><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="Language.Haskell.Exts.Extension.html#classifyKnownExtension"><span class="hs-identifier hs-var">classifyKnownExtension</span></a><span> </span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">string</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-666"></a><span>    </span><span class="hs-identifier hs-var">Just</span><span> </span><a name="local-6989586621679032312"><a href="#local-6989586621679032312"><span class="hs-identifier">ext</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span> </span><a href="#local-6989586621679032312"><span class="hs-identifier hs-var">ext</span></a><span>
+</span><a name="line-667"></a><span>    </span><span class="hs-identifier hs-var">Nothing</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><a name="line-668"></a><span>        </span><span class="hs-keyword">case</span><span> </span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">string</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-669"></a><span>        </span><span class="hs-char">'N'</span><span class="hs-glyph">:</span><span class="hs-char">'o'</span><span class="hs-glyph">:</span><a name="local-6989586621679032313"><a href="#local-6989586621679032313"><span class="hs-identifier">string'</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><a name="line-670"></a><span>            </span><span class="hs-keyword">case</span><span> </span><a href="Language.Haskell.Exts.Extension.html#classifyKnownExtension"><span class="hs-identifier hs-var">classifyKnownExtension</span></a><span> </span><a href="#local-6989586621679032313"><span class="hs-identifier hs-var">string'</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-671"></a><span>            </span><span class="hs-identifier hs-var">Just</span><span> </span><a name="local-6989586621679032314"><a href="#local-6989586621679032314"><span class="hs-identifier">ext</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier hs-var">DisableExtension</span></a><span> </span><a href="#local-6989586621679032314"><span class="hs-identifier hs-var">ext</span></a><span>
+</span><a name="line-672"></a><span>            </span><span class="hs-identifier hs-var">Nothing</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#UnknownExtension"><span class="hs-identifier hs-var">UnknownExtension</span></a><span> </span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">string</span></a><span>
+</span><a name="line-673"></a><span>        </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#UnknownExtension"><span class="hs-identifier hs-var">UnknownExtension</span></a><span> </span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">string</span></a><span>
+</span><a name="line-674"></a><span>
+</span><a name="line-675"></a><span>
+</span><a name="line-676"></a><span class="hs-identifier">classifyKnownExtension</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span>
+</span><a name="line-677"></a><a name="classifyKnownExtension"><a href="Language.Haskell.Exts.Extension.html#classifyKnownExtension"><span class="hs-identifier">classifyKnownExtension</span></a></a><span> </span><span class="hs-string">&quot;&quot;</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">Nothing</span><span>
+</span><a name="line-678"></a><span class="hs-identifier">classifyKnownExtension</span><span> </span><a name="local-6989586621679032315"><a href="#local-6989586621679032315"><span class="hs-identifier">string</span></a></a><span class="hs-glyph">@</span><span class="hs-special">(</span><a name="local-6989586621679032316"><a href="#local-6989586621679032316"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">:</span><span> </span><span class="hs-identifier">_</span><span class="hs-special">)</span><span>
+</span><a name="line-679"></a><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier hs-var">inRange</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">bounds</span><span> </span><a href="Language.Haskell.Exts.Extension.html#knownExtensionTable"><span class="hs-identifier hs-var">knownExtensionTable</span></a><span class="hs-special">)</span><span> </span><a href="#local-6989586621679032316"><span class="hs-identifier hs-var">c</span></a><span>
+</span><a name="line-680"></a><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">lookup</span><span> </span><a href="#local-6989586621679032315"><span class="hs-identifier hs-var">string</span></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#knownExtensionTable"><span class="hs-identifier hs-var">knownExtensionTable</span></a><span> </span><span class="hs-glyph">!</span><span> </span><a href="#local-6989586621679032316"><span class="hs-identifier hs-var">c</span></a><span class="hs-special">)</span><span>
+</span><a name="line-681"></a><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier hs-var">otherwise</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">Nothing</span><span>
+</span><a name="line-682"></a><span>
+</span><a name="line-683"></a><span class="hs-identifier">knownExtensionTable</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Array</span><span> </span><span class="hs-identifier hs-type">Char</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-identifier hs-type">String</span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><a name="line-684"></a><a name="knownExtensionTable"><a href="Language.Haskell.Exts.Extension.html#knownExtensionTable"><span class="hs-identifier">knownExtensionTable</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-685"></a><span>  </span><span class="hs-identifier hs-var">accumArray</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">flip</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="hs-char">'A'</span><span class="hs-special">,</span><span> </span><span class="hs-char">'Z'</span><span class="hs-special">)</span><span>
+</span><a name="line-686"></a><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">head</span><span> </span><a href="#local-6989586621679032318"><span class="hs-identifier hs-var">str</span></a><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679032318"><span class="hs-identifier hs-var">str</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679032317"><span class="hs-identifier hs-var">extension</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-687"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="local-6989586621679032317"><a href="#local-6989586621679032317"><span class="hs-identifier">extension</span></a></a><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-var">toEnum</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span>
+</span><a name="line-688"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">let</span><span> </span><a name="local-6989586621679032318"><a href="#local-6989586621679032318"><span class="hs-identifier">str</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">show</span><span> </span><a href="#local-6989586621679032317"><span class="hs-identifier hs-var">extension</span></a><span> </span><span class="hs-special">]</span><span>
+</span><a name="line-689"></a><span>
+</span><a name="line-690"></a><span class="hs-comment">-- | Parse an enabled or disabled extension; returns</span><span>
+</span><a name="line-691"></a><span class="hs-comment">-- 'UnknownExtension' if the parse fails.</span><span>
+</span><a name="line-692"></a><span class="hs-identifier">parseExtension</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span>
+</span><a name="line-693"></a><a name="parseExtension"><a href="Language.Haskell.Exts.Extension.html#parseExtension"><span class="hs-identifier">parseExtension</span></a></a><span> </span><a name="local-6989586621679032319"><a href="#local-6989586621679032319"><span class="hs-identifier">str</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">fromMaybe</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#UnknownExtension"><span class="hs-identifier hs-var">UnknownExtension</span></a><span> </span><a href="#local-6989586621679032319"><span class="hs-identifier hs-var">str</span></a><span class="hs-special">)</span><span> </span><span class="hs-operator hs-var">$</span><span>
+</span><a name="line-694"></a><span>      </span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span>  </span><span class="hs-operator hs-var">&lt;$&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#readMay"><span class="hs-identifier hs-var">readMay</span></a><span> </span><a href="#local-6989586621679032319"><span class="hs-identifier hs-var">str</span></a><span>
+</span><a name="line-695"></a><span>  </span><span class="hs-operator hs-var">&lt;|&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier hs-var">DisableExtension</span></a><span> </span><span class="hs-operator hs-var">&lt;$&gt;</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#readMay"><span class="hs-identifier hs-var">readMay</span></a><span> </span><span class="hs-operator hs-var">=&lt;&lt;</span><span> </span><a href="#local-6989586621679032320"><span class="hs-identifier hs-var">dropNo</span></a><span> </span><a href="#local-6989586621679032319"><span class="hs-identifier hs-var">str</span></a><span class="hs-special">)</span><span>
+</span><a name="line-696"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-697"></a><span>    </span><a name="local-6989586621679032320"><a href="#local-6989586621679032320"><span class="hs-identifier">dropNo</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-char">'N'</span><span class="hs-glyph">:</span><span class="hs-char">'o'</span><span class="hs-glyph">:</span><a name="local-6989586621679032321"><a href="#local-6989586621679032321"><span class="hs-identifier">rest</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">Just</span><span> </span><a href="#local-6989586621679032321"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-698"></a><span>    </span><span class="hs-identifier">dropNo</span><span> </span><span class="hs-identifier">_</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">Nothing</span><span>
+</span><a name="line-699"></a><span>
+</span><a name="line-700"></a><span class="hs-comment">-- | Pretty print an extension. Disabled extensions are prefixed with</span><span>
+</span><a name="line-701"></a><span class="hs-comment">-- \'No\'.</span><span>
+</span><a name="line-702"></a><span class="hs-identifier">prettyExtension</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-703"></a><a name="prettyExtension"><a href="Language.Haskell.Exts.Extension.html#prettyExtension"><span class="hs-identifier">prettyExtension</span></a></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span>  </span><a name="local-6989586621679032336"><a href="#local-6989586621679032336"><span class="hs-identifier">ext</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">show</span><span> </span><a href="#local-6989586621679032336"><span class="hs-identifier hs-var">ext</span></a><span>
+</span><a name="line-704"></a><span class="hs-identifier">prettyExtension</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier hs-var">DisableExtension</span></a><span> </span><a name="local-6989586621679032337"><a href="#local-6989586621679032337"><span class="hs-identifier">ext</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;No&quot;</span><span> </span><span class="hs-operator hs-var">++</span><span> </span><span class="hs-identifier hs-var">show</span><span> </span><a href="#local-6989586621679032337"><span class="hs-identifier hs-var">ext</span></a><span>
+</span><a name="line-705"></a><span class="hs-identifier">prettyExtension</span><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#UnknownExtension"><span class="hs-identifier hs-var">UnknownExtension</span></a><span> </span><a name="local-6989586621679032338"><a href="#local-6989586621679032338"><span class="hs-identifier">str</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679032338"><span class="hs-identifier hs-var">str</span></a><span>
+</span><a name="line-706"></a><span>
+</span><a name="line-707"></a><span class="hs-identifier">readMay</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Read</span><span> </span><a href="#local-6989586621679028663"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="#local-6989586621679028663"><span class="hs-identifier hs-type">a</span></a><span>
+</span><a name="line-708"></a><a name="readMay"><a href="Language.Haskell.Exts.Extension.html#readMay"><span class="hs-identifier">readMay</span></a></a><span> </span><a name="local-6989586621679032339"><a href="#local-6989586621679032339"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679032372"><span class="hs-identifier hs-var">x</span></a><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679032372"><a href="#local-6989586621679032372"><span class="hs-identifier">x</span></a></a><span class="hs-special">,</span><a name="local-6989586621679032373"><a href="#local-6989586621679032373"><span class="hs-identifier">t</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">reads</span><span> </span><a href="#local-6989586621679032339"><span class="hs-identifier hs-var">s</span></a><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-string">&quot;&quot;</span><span class="hs-special">,</span><span class="hs-string">&quot;&quot;</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">lex</span><span> </span><a href="#local-6989586621679032373"><span class="hs-identifier hs-var">t</span></a><span class="hs-special">]</span><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-709"></a><span>                </span><span class="hs-special">[</span><a name="local-6989586621679032374"><a href="#local-6989586621679032374"><span class="hs-identifier">x</span></a></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-var">Just</span><span> </span><a href="#local-6989586621679032374"><span class="hs-identifier hs-var">x</span></a><span>
+</span><a name="line-710"></a><span>                </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-var">Nothing</span><span>
+</span><a name="line-711"></a><span>
+</span><a name="line-712"></a><span class="hs-comment">{-------------------------------------------
+ -- Transform a 'Language', and possibly a modifying set of'Extension's, into a list
+ -- of 'KnownExtension's, to be interpreted as modifying the language you get
+ -- when all known extensions are disabled.
+ -- Extensions are interpreted in a right-biased fashion, so the last instance
+ -- of an occurence of 'EnableExtension' or 'DisableExtension' for a given
+ -- 'KnownExtension' takes precedence.
+ -------------------------------------------}</span><span>
+</span><a name="line-720"></a><span>
+</span><a name="line-721"></a><span class="hs-identifier">toExtensionList</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Language.Haskell.Exts.Extension.html#Language"><span class="hs-identifier hs-type">Language</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-722"></a><a name="toExtensionList"><a href="Language.Haskell.Exts.Extension.html#toExtensionList"><span class="hs-identifier">toExtensionList</span></a></a><span> </span><a name="local-6989586621679032375"><a href="#local-6989586621679032375"><span class="hs-identifier">lang</span></a></a><span> </span><a name="local-6989586621679032376"><a href="#local-6989586621679032376"><span class="hs-identifier">exts'</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-723"></a><span>    </span><span class="hs-keyword">let</span><span> </span><a name="local-6989586621679032387"><a href="#local-6989586621679032387"><span class="hs-identifier">langKes</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="#local-6989586621679032375"><span class="hs-identifier hs-var">lang</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-724"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#Haskell98"><span class="hs-identifier hs-var">Haskell98</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Language.Haskell.Exts.Extension.html#NPlusKPatterns"><span class="hs-identifier hs-var">NPlusKPatterns</span></a><span class="hs-glyph">:</span><a href="Language.Haskell.Exts.Extension.html#allLangDefault"><span class="hs-identifier hs-var">allLangDefault</span></a><span>
+</span><a name="line-725"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#Haskell2010"><span class="hs-identifier hs-var">Haskell2010</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#DoAndIfThenElse"><span class="hs-identifier hs-var">DoAndIfThenElse</span></a><span>
+</span><a name="line-726"></a><span>                                   </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#PatternGuards"><span class="hs-identifier hs-var">PatternGuards</span></a><span>
+</span><a name="line-727"></a><span>                                   </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#ForeignFunctionInterface"><span class="hs-identifier hs-var">ForeignFunctionInterface</span></a><span>
+</span><a name="line-728"></a><span>                                   </span><span class="hs-special">,</span><span> </span><a href="Language.Haskell.Exts.Extension.html#EmptyDataDecls"><span class="hs-identifier hs-var">EmptyDataDecls</span></a><span>
+</span><a name="line-729"></a><span>                                   </span><span class="hs-special">]</span><span> </span><span class="hs-operator hs-var">++</span><span> </span><a href="Language.Haskell.Exts.Extension.html#allLangDefault"><span class="hs-identifier hs-var">allLangDefault</span></a><span>
+</span><a name="line-730"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#HaskellAllDisabled"><span class="hs-identifier hs-var">HaskellAllDisabled</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><a name="line-731"></a><span>                    </span><a href="Language.Haskell.Exts.Extension.html#UnknownLanguage"><span class="hs-identifier hs-var">UnknownLanguage</span></a><span> </span><a name="local-6989586621679032388"><a href="#local-6989586621679032388"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><a name="line-732"></a><span>                        </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><span class="hs-string">&quot;toExtensionList: Unknown language &quot;</span><span> </span><span class="hs-operator hs-var">++</span><span> </span><a href="#local-6989586621679032388"><span class="hs-identifier hs-var">s</span></a><span>
+</span><a name="line-733"></a><span class="hs-comment">{-
+        addExts = [ ke | EnableExtension  ke &lt;- exts ]
+        remExts = [ ke | DisableExtension ke &lt;- exts ]
+     in impliesExts $ nub $ (langKes ++ addExts) \\ remExts
+-}</span><span>
+</span><a name="line-738"></a><span>  </span><span class="hs-keyword">in</span><span> </span><a href="Language.Haskell.Exts.Extension.html#impliesExts"><span class="hs-identifier hs-var">impliesExts</span></a><span> </span><span class="hs-operator hs-var">$</span><span> </span><span class="hs-identifier hs-var">nub</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679032387"><span class="hs-identifier hs-var">langKes</span></a><span> </span><a href="#local-6989586621679032376"><span class="hs-identifier hs-var">exts'</span></a><span>
+</span><a name="line-739"></a><span>    </span><span class="hs-keyword">where</span><span> </span><span class="hs-identifier">go</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#Extension"><span class="hs-identifier hs-type">Extension</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Language.Haskell.Exts.Extension.html#KnownExtension"><span class="hs-identifier hs-type">KnownExtension</span></a><span class="hs-special">]</span><span>
+</span><a name="line-740"></a><span>          </span><a name="local-6989586621679032377"><a href="#local-6989586621679032377"><span class="hs-identifier">go</span></a></a><span> </span><a name="local-6989586621679032378"><a href="#local-6989586621679032378"><span class="hs-identifier">acc</span></a></a><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679032378"><span class="hs-identifier hs-var">acc</span></a><span>
+</span><a name="line-741"></a><span>          </span><span class="hs-identifier">go</span><span> </span><a name="local-6989586621679032379"><a href="#local-6989586621679032379"><span class="hs-identifier">acc</span></a></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#DisableExtension"><span class="hs-identifier hs-var">DisableExtension</span></a><span> </span><a name="local-6989586621679032380"><a href="#local-6989586621679032380"><span class="hs-identifier">x</span></a></a><span> </span><span class="hs-glyph">:</span><span> </span><a name="local-6989586621679032381"><a href="#local-6989586621679032381"><span class="hs-identifier">exts</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">go</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">filter</span><span> </span><span class="hs-special">(</span><span class="hs-operator hs-var">/=</span><span> </span><a href="#local-6989586621679032380"><span class="hs-identifier hs-var">x</span></a><span class="hs-special">)</span><span> </span><a href="#local-6989586621679032379"><span class="hs-identifier hs-var">acc</span></a><span class="hs-special">)</span><span> </span><a href="#local-6989586621679032381"><span class="hs-identifier hs-var">exts</span></a><span>
+</span><a name="line-742"></a><span>          </span><span class="hs-identifier">go</span><span> </span><a name="local-6989586621679032382"><a href="#local-6989586621679032382"><span class="hs-identifier">acc</span></a></a><span> </span><span class="hs-special">(</span><a href="Language.Haskell.Exts.Extension.html#EnableExtension"><span class="hs-identifier hs-var">EnableExtension</span></a><span>  </span><a name="local-6989586621679032383"><a href="#local-6989586621679032383"><span class="hs-identifier">x</span></a></a><span> </span><span class="hs-glyph">:</span><span> </span><a name="local-6989586621679032384"><a href="#local-6989586621679032384"><span class="hs-identifier">exts</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">go</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679032383"><span class="hs-identifier hs-var">x</span></a><span> </span><span class="hs-glyph">:</span><span> </span><a href="#local-6989586621679032382"><span class="hs-identifier hs-var">acc</span></a><span class="hs-special">)</span><span>           </span><a href="#local-6989586621679032384"><span class="hs-identifier hs-var">exts</span></a><span>
+</span><a name="line-743"></a><span>          </span><span class="hs-comment">-- We just throw away UnknownExtensions</span><span>
+</span><a name="line-744"></a><span>          </span><span class="hs-identifier">go</span><span> </span><a name="local-6989586621679032385"><a href="#local-6989586621679032385"><span class="hs-identifier">acc</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">:</span><span> </span><a name="local-6989586621679032386"><a href="#local-6989586621679032386"><span class="hs-identifier">exts</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679032385"><span class="hs-identifier hs-var">acc</span></a><span> </span><a href="#local-6989586621679032386"><span class="hs-identifier hs-var">exts</span></a><span>
+</span><a name="line-745"></a></pre></body></html>

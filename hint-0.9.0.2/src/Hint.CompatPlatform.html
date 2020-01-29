@@ -1,0 +1,32 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-cpp">#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+</span><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><a name="line-3"></a><span class="hs-cpp">#endif
+</span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hint.CompatPlatform</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-5"></a><span>    </span><a href="Hint.CompatPlatform.html#getPID"><span class="hs-identifier hs-var">getPID</span></a><span>
+</span><a name="line-6"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-7"></a><span>
+</span><a name="line-8"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span>
+</span><a name="line-9"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-10"></a><span>
+</span><a name="line-11"></a><span class="hs-cpp">#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span>
+</span><a name="line-13"></a><span class="hs-cpp">#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Process</span><span>
+</span><a name="line-15"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-17"></a><span class="hs-identifier">getPID</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-identifier hs-type">Int</span><span>
+</span><a name="line-18"></a><span>
+</span><a name="line-19"></a><span class="hs-cpp">#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+</span><span class="hs-comment">-- This function is not yet in the win32 package, so we have to</span><span>
+</span><a name="line-21"></a><span class="hs-comment">-- roll down our own definition.</span><span>
+</span><a name="line-22"></a><span class="hs-comment">--</span><span>
+</span><a name="line-23"></a><span class="hs-comment">-- Credit goes where it is deserved:</span><span>
+</span><a name="line-24"></a><span class="hs-comment">--     http://www.haskell.org/pipermail/haskell-cafe/2009-February/055097.html</span><span>
+</span><a name="line-25"></a><span class="hs-identifier">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">stdcall</span><span> </span><span class="hs-identifier">unsafe</span><span> </span><span class="hs-string">&quot;winbase.h GetCurrentProcessId&quot;</span><span>
+</span><a name="line-26"></a><span>    </span><span class="hs-identifier">c_GetCurrentProcessId</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Word32</span><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span class="hs-identifier">getPID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">c_GetCurrentProcessId</span><span>
+</span><a name="line-29"></a><span class="hs-cpp">#else
+</span><a name="getPID"><a href="Hint.CompatPlatform.html#getPID"><span class="hs-identifier">getPID</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">fromIntegral</span><span> </span><span class="hs-operator hs-var">&lt;$&gt;</span><span> </span><span class="hs-identifier hs-var">getProcessID</span><span>
+</span><a name="line-31"></a><span class="hs-cpp">#endif
+</span></pre></body></html>

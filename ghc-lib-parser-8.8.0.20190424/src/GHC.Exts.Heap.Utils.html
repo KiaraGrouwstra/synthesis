@@ -1,0 +1,131 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE</span><span> </span><span class="hs-pragma">1</span><span> </span><span class="hs-pragma">&quot;libraries/ghc-heap/GHC/Exts/Heap/Utils.hsc&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE CPP, MagicHash #-}</span><span>
+</span><a name="line-3"></a><span>
+</span><a name="line-4"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.Utils</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-5"></a><span>    </span><span class="hs-identifier">dataConNames</span><span>
+</span><a name="line-6"></a><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-7"></a><span>
+</span><a name="line-8"></a><span>
+</span><a name="line-9"></a><span>
+</span><a name="line-10"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span> </span><span class="hs-comment">-- See note [Why do we import Prelude here?]</span><span>
+</span><a name="line-11"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.Constants</span><span>
+</span><a name="line-12"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.InfoTable</span><span>
+</span><a name="line-13"></a><span>
+</span><a name="line-14"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Char</span><span>
+</span><a name="line-15"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.List</span><span>
+</span><a name="line-16"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign</span><span>
+</span><a name="line-17"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.CString</span><span>
+</span><a name="line-18"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Exts</span><span>
+</span><a name="line-19"></a><span>
+</span><a name="line-20"></a><span class="hs-comment">{- To find the string in the constructor's info table we need to consider
+      the layout of info tables relative to the entry code for a closure.
+
+      An info table can be next to the entry code for the closure, or it can
+      be separate. The former (faster) is used in registerised versions of ghc,
+      and the latter (portable) is for non-registerised versions.
+
+      The diagrams below show where the string is to be found relative to
+      the normal info table of the closure.
+
+      1) Tables next to code:
+
+         --------------
+         |            |   &lt;- pointer to the start of the string
+         --------------
+         |            |   &lt;- the (start of the) info table structure
+         |            |
+         |            |
+         --------------
+         | entry code |
+         |    ....    |
+
+         In this case the pointer to the start of the string can be found in
+         the memory location _one word before_ the first entry in the normal info
+         table.
+
+      2) Tables NOT next to code:
+
+                                 --------------
+         info table structure -&gt; |     *------------------&gt; --------------
+                                 |            |             | entry code |
+                                 |            |             |    ....    |
+                                 --------------
+         ptr to start of str -&gt;  |            |
+                                 --------------
+
+         In this case the pointer to the start of the string can be found
+         in the memory location: info_table_ptr + info_table_size
+-}</span><span>
+</span><a name="line-59"></a><span>
+</span><a name="line-60"></a><span class="hs-comment">-- Given a ptr to an 'StgInfoTable' for a data constructor</span><span>
+</span><a name="line-61"></a><span class="hs-comment">-- return (Package, Module, Name)</span><span>
+</span><a name="line-62"></a><span class="hs-identifier">dataConNames</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">StgInfoTable</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">String</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">)</span><span>
+</span><a name="line-63"></a><span class="hs-identifier">dataConNames</span><span> </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><a name="line-64"></a><span>    </span><span class="hs-identifier">conDescAddress</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getConDescAddress</span><span>
+</span><a name="line-65"></a><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">parse</span><span> </span><span class="hs-identifier">conDescAddress</span><span>
+</span><a name="line-66"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-67"></a><span>    </span><span class="hs-comment">-- Retrieve the con_desc field address pointing to</span><span>
+</span><a name="line-68"></a><span>    </span><span class="hs-comment">-- 'Package:Module.Name' string</span><span>
+</span><a name="line-69"></a><span>    </span><span class="hs-identifier">getConDescAddress</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">Word8</span><span class="hs-special">)</span><span>
+</span><a name="line-70"></a><span>    </span><span class="hs-identifier">getConDescAddress</span><span>
+</span><a name="line-71"></a><span>
+</span><a name="line-72"></a><span class="hs-pragma">{-# LINE</span><span> </span><span class="hs-pragma">71</span><span> </span><span class="hs-pragma">&quot;libraries/ghc-heap/GHC/Exts/Heap/Utils.hsc&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><a name="line-73"></a><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><a name="line-74"></a><span>        </span><span class="hs-identifier">offsetToString</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ptr</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">plusPtr</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">negate</span><span> </span><span class="hs-identifier">wORD_SIZE</span><span class="hs-special">)</span><span>
+</span><a name="line-75"></a><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ptr</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">plusPtr</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">stdInfoTableSizeB</span><span class="hs-special">)</span><span>
+</span><a name="line-76"></a><span>                    </span><span class="hs-special">`</span><span class="hs-identifier">plusPtr</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">offsetToString</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int32</span><span class="hs-special">)</span><span>
+</span><a name="line-77"></a><span>
+</span><a name="line-78"></a><span class="hs-pragma">{-# LINE</span><span> </span><span class="hs-pragma">78</span><span> </span><span class="hs-pragma">&quot;libraries/ghc-heap/GHC/Exts/Heap/Utils.hsc&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><a name="line-79"></a><span>
+</span><a name="line-80"></a><span>    </span><span class="hs-identifier">stdInfoTableSizeW</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int</span><span>
+</span><a name="line-81"></a><span>    </span><span class="hs-comment">-- The size of a standard info table varies with profiling/ticky etc,</span><span>
+</span><a name="line-82"></a><span>    </span><span class="hs-comment">-- so we can't get it from Constants</span><span>
+</span><a name="line-83"></a><span>    </span><span class="hs-comment">-- It must vary in sync with mkStdInfoTable</span><span>
+</span><a name="line-84"></a><span>    </span><span class="hs-identifier">stdInfoTableSizeW</span><span>
+</span><a name="line-85"></a><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">size_fixed</span><span> </span><span class="hs-operator">+</span><span> </span><span class="hs-identifier">size_prof</span><span>
+</span><a name="line-86"></a><span>      </span><span class="hs-keyword">where</span><span>
+</span><a name="line-87"></a><span>        </span><span class="hs-identifier">size_fixed</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">2</span><span>  </span><span class="hs-comment">-- layout, type</span><span>
+</span><a name="line-88"></a><span class="hs-cpp">#if defined(PROFILING)
+</span><span>        </span><span class="hs-identifier">size_prof</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">2</span><span>
+</span><a name="line-90"></a><span class="hs-cpp">#else
+</span><span>        </span><span class="hs-identifier">size_prof</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0</span><span>
+</span><a name="line-92"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-94"></a><span>    </span><span class="hs-identifier">stdInfoTableSizeB</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int</span><span>
+</span><a name="line-95"></a><span>    </span><span class="hs-identifier">stdInfoTableSizeB</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">stdInfoTableSizeW</span><span> </span><span class="hs-operator">*</span><span> </span><span class="hs-identifier">wORD_SIZE</span><span>
+</span><a name="line-96"></a><span>
+</span><a name="line-97"></a><span class="hs-comment">-- parsing names is a little bit fiddly because we have a string in the form:</span><span>
+</span><a name="line-98"></a><span class="hs-comment">-- pkg:A.B.C.foo, and we want to split it into three parts: (&quot;pkg&quot;, &quot;A.B.C&quot;, &quot;foo&quot;).</span><span>
+</span><a name="line-99"></a><span class="hs-comment">-- Thus we split at the leftmost colon and the rightmost occurrence of the dot.</span><span>
+</span><a name="line-100"></a><span class="hs-comment">-- It would be easier if the string was in the form pkg:A.B.C:foo, but alas</span><span>
+</span><a name="line-101"></a><span class="hs-comment">-- this is not the conventional way of writing Haskell names. We stick with</span><span>
+</span><a name="line-102"></a><span class="hs-comment">-- convention, even though it makes the parsing code more troublesome.</span><span>
+</span><a name="line-103"></a><span class="hs-comment">-- Warning: this code assumes that the string is well formed.</span><span>
+</span><a name="line-104"></a><span class="hs-identifier">parse</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">Word8</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">String</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">)</span><span>
+</span><a name="line-105"></a><span class="hs-identifier">parse</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">addr</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">not</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">all</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&gt;</span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">length</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">p</span><span class="hs-special">,</span><span class="hs-identifier">m</span><span class="hs-special">,</span><span class="hs-identifier">occ</span><span class="hs-special">]</span><span>
+</span><a name="line-106"></a><span>                     </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">input</span><span class="hs-special">)</span><span>
+</span><a name="line-107"></a><span>                     </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">p</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">m</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">occ</span><span class="hs-special">)</span><span>
+</span><a name="line-108"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-109"></a><span>    </span><span class="hs-identifier">input</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">unpackCStringUtf8#</span><span> </span><span class="hs-identifier">addr</span><span>
+</span><a name="line-110"></a><span>    </span><span class="hs-special">(</span><span class="hs-identifier">p</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">rest1</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">break</span><span> </span><span class="hs-special">(</span><span class="hs-operator">==</span><span> </span><span class="hs-char">':'</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">input</span><span>
+</span><a name="line-111"></a><span>    </span><span class="hs-special">(</span><span class="hs-identifier">m</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">occ</span><span class="hs-special">)</span><span>
+</span><a name="line-112"></a><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">intercalate</span><span> </span><span class="hs-string">&quot;.&quot;</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">reverse</span><span> </span><span class="hs-identifier">modWords</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">occWord</span><span class="hs-special">)</span><span>
+</span><a name="line-113"></a><span>        </span><span class="hs-keyword">where</span><span>
+</span><a name="line-114"></a><span>        </span><span class="hs-special">(</span><span class="hs-identifier">modWords</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">occWord</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-115"></a><span>            </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">length</span><span> </span><span class="hs-identifier">rest1</span><span> </span><span class="hs-operator">&lt;</span><span> </span><span class="hs-number">1</span><span> </span><span class="hs-comment">--  XXXXXXXXx YUKX</span><span>
+</span><a name="line-116"></a><span>                </span><span class="hs-comment">--then error &quot;getConDescAddress:parse:length rest1 &lt; 1&quot;</span><span>
+</span><a name="line-117"></a><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><a name="line-118"></a><span>                </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">tail</span><span> </span><span class="hs-identifier">rest1</span><span class="hs-special">)</span><span>
+</span><a name="line-119"></a><span>    </span><span class="hs-comment">-- We only look for dots if str could start with a module name,</span><span>
+</span><a name="line-120"></a><span>    </span><span class="hs-comment">-- i.e. if it starts with an upper case character.</span><span>
+</span><a name="line-121"></a><span>    </span><span class="hs-comment">-- Otherwise we might think that &quot;X.:-&gt;&quot; is the module name in</span><span>
+</span><a name="line-122"></a><span>    </span><span class="hs-comment">-- &quot;X.:-&gt;.+&quot;, whereas actually &quot;X&quot; is the module name and</span><span>
+</span><a name="line-123"></a><span>    </span><span class="hs-comment">-- &quot;:-&gt;.+&quot; is a constructor name.</span><span>
+</span><a name="line-124"></a><span>    </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">String</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier">String</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">)</span><span>
+</span><a name="line-125"></a><span>    </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-identifier">acc</span><span> </span><span class="hs-identifier">str</span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-identifier">c</span><span> </span><span class="hs-glyph">:</span><span> </span><span class="hs-identifier">_</span><span class="hs-special">)</span><span>
+</span><a name="line-126"></a><span>        </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isUpper</span><span> </span><span class="hs-identifier">c</span><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-127"></a><span>            </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">break</span><span> </span><span class="hs-special">(</span><span class="hs-operator">==</span><span> </span><span class="hs-char">'.'</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">str</span><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-128"></a><span>                </span><span class="hs-special">(</span><span class="hs-identifier">top</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">acc</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">top</span><span class="hs-special">)</span><span>
+</span><a name="line-129"></a><span>                </span><span class="hs-special">(</span><span class="hs-identifier">top</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">_</span><span class="hs-glyph">:</span><span class="hs-identifier">bot</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">top</span><span> </span><span class="hs-glyph">:</span><span> </span><span class="hs-identifier">acc</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">bot</span><span>
+</span><a name="line-130"></a><span>    </span><span class="hs-identifier">parseModOcc</span><span> </span><span class="hs-identifier">acc</span><span> </span><span class="hs-identifier">str</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">acc</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">str</span><span class="hs-special">)</span><span>
+</span><a name="line-131"></a></pre></body></html>

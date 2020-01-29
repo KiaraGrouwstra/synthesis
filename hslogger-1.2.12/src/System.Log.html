@@ -1,0 +1,53 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- |
+   Module     : System.Log
+   Copyright  : Copyright (C) 2004-2011 John Goerzen
+   License    : BSD3
+
+   Maintainer : John Goerzen &lt;jgoerzen@complete.org&gt; 
+   Stability  : experimental
+   Portability: portable
+
+Haskell Logging Framework
+
+Written by John Goerzen, jgoerzen\@complete.org
+
+This module defines basic types used for logging.
+
+Extensive documentation is available in
+&quot;System.Log.Logger&quot;.
+
+-}</span><span>
+</span><a name="line-20"></a><span>
+</span><a name="line-21"></a><span>
+</span><a name="line-22"></a><span>
+</span><a name="line-23"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Log</span><span class="hs-special">(</span><span class="hs-comment">-- * Types</span><span>
+</span><a name="line-24"></a><span>                        </span><a href="System.Log.html#Priority"><span class="hs-identifier hs-type">Priority</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-25"></a><span>                        </span><a href="System.Log.html#LogRecord"><span class="hs-identifier hs-type">LogRecord</span></a><span>
+</span><a name="line-26"></a><span class="hs-special">)</span><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span>    </span><span class="hs-keyword">where</span><span>
+</span><a name="line-29"></a><span>
+</span><a name="line-30"></a><span class="hs-comment">{- | Priorities are used to define how important a log message is.
+Users can filter log messages based on priorities.
+
+These have their roots on the traditional syslog system.  The standard
+definitions are given below, but you are free to interpret them however you
+like.  They are listed here in ascending importance order.
+-}</span><span>
+</span><a name="line-37"></a><span>
+</span><a name="line-38"></a><span class="hs-keyword">data</span><span> </span><a name="Priority"><a href="System.Log.html#Priority"><span class="hs-identifier">Priority</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-39"></a><span>            </span><a name="DEBUG"><a href="System.Log.html#DEBUG"><span class="hs-identifier">DEBUG</span></a></a><span>                   </span><span class="hs-comment">-- ^ Debug messages</span><span>
+</span><a name="line-40"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="INFO"><a href="System.Log.html#INFO"><span class="hs-identifier">INFO</span></a></a><span>                    </span><span class="hs-comment">-- ^ Information</span><span>
+</span><a name="line-41"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="NOTICE"><a href="System.Log.html#NOTICE"><span class="hs-identifier">NOTICE</span></a></a><span>                  </span><span class="hs-comment">-- ^ Normal runtime conditions</span><span>
+</span><a name="line-42"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="WARNING"><a href="System.Log.html#WARNING"><span class="hs-identifier">WARNING</span></a></a><span>                 </span><span class="hs-comment">-- ^ General Warnings</span><span>
+</span><a name="line-43"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="ERROR"><a href="System.Log.html#ERROR"><span class="hs-identifier">ERROR</span></a></a><span>                   </span><span class="hs-comment">-- ^ General Errors</span><span>
+</span><a name="line-44"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="CRITICAL"><a href="System.Log.html#CRITICAL"><span class="hs-identifier">CRITICAL</span></a></a><span>                </span><span class="hs-comment">-- ^ Severe situations</span><span>
+</span><a name="line-45"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="ALERT"><a href="System.Log.html#ALERT"><span class="hs-identifier">ALERT</span></a></a><span>                   </span><span class="hs-comment">-- ^ Take immediate action</span><span>
+</span><a name="line-46"></a><span>          </span><span class="hs-glyph">|</span><span> </span><a name="EMERGENCY"><a href="System.Log.html#EMERGENCY"><span class="hs-identifier">EMERGENCY</span></a></a><span>               </span><span class="hs-comment">-- ^ System is unusable</span><span>
+</span><a name="line-47"></a><span>                    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Ord</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Enum</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Bounded</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Read</span><span class="hs-special">)</span><span>
+</span><a name="line-48"></a><span>
+</span><a name="line-49"></a><span class="hs-comment">{- | Internal type of log records -}</span><span>
+</span><a name="line-50"></a><span>
+</span><a name="line-51"></a><span class="hs-keyword">type</span><span> </span><a name="LogRecord"><a href="System.Log.html#LogRecord"><span class="hs-identifier">LogRecord</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a href="System.Log.html#Priority"><span class="hs-identifier hs-type">Priority</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">String</span><span class="hs-special">)</span><span>
+</span><a name="line-52"></a><span>
+</span><a name="line-53"></a></pre></body></html>

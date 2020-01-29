@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- Module      :  Data.Generics.Text</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, CWI 2001--2003</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file)</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- </span><span>
+</span><a name="line-8"></a><span class="hs-comment">-- Maintainer  :  generics@haskell.org</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><a name="line-10"></a><span class="hs-comment">-- Portability :  non-portable (uses Data.Generics.Basics)</span><span>
+</span><a name="line-11"></a><span class="hs-comment">--</span><span>
+</span><a name="line-12"></a><span class="hs-comment">-- \&quot;Scrap your boilerplate\&quot; --- Generic programming in Haskell </span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- See &lt;http://www.cs.uu.nl/wiki/GenericProgramming/SYB&gt;. The present module</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- provides generic operations for text serialisation of terms.</span><span>
+</span><a name="line-15"></a><span class="hs-comment">--</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Generics.Text</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-19"></a><span>
+</span><a name="line-20"></a><span>    </span><span class="hs-comment">-- * Generic show</span><span>
+</span><a name="line-21"></a><span>    </span><a href="Data.Generics.Text.html#gshow"><span class="hs-identifier hs-var">gshow</span></a><span class="hs-special">,</span><span> </span><a href="Data.Generics.Text.html#gshows"><span class="hs-identifier hs-var">gshows</span></a><span class="hs-special">,</span><span>
+</span><a name="line-22"></a><span>
+</span><a name="line-23"></a><span>    </span><span class="hs-comment">-- * Generic read</span><span>
+</span><a name="line-24"></a><span>    </span><a href="Data.Generics.Text.html#gread"><span class="hs-identifier hs-var">gread</span></a><span>
+</span><a name="line-25"></a><span>
+</span><a name="line-26"></a><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-29"></a><span>
+</span><a name="line-30"></a><span class="hs-cpp">#ifdef __HADDOCK__
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-32"></a><span class="hs-cpp">#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad</span><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Data</span><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Generics.Aliases.html"><span class="hs-identifier">Data.Generics.Aliases</span></a><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Text.ParserCombinators.ReadP</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Text.Read.Lex</span><span>
+</span><a name="line-38"></a><span>
+</span><a name="line-39"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-40"></a><span>
+</span><a name="line-41"></a><span>
+</span><a name="line-42"></a><span class="hs-comment">-- | Generic show: an alternative to \&quot;deriving Show\&quot;</span><span>
+</span><a name="line-43"></a><span class="hs-identifier">gshow</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679050331"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679050331"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-44"></a><a name="gshow"><a href="Data.Generics.Text.html#gshow"><span class="hs-identifier">gshow</span></a></a><span> </span><a name="local-6989586621679050332"><a href="#local-6989586621679050332"><span class="hs-identifier">x</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Text.html#gshows"><span class="hs-identifier hs-var">gshows</span></a><span> </span><a href="#local-6989586621679050332"><span class="hs-identifier hs-var">x</span></a><span> </span><span class="hs-string">&quot;&quot;</span><span>
+</span><a name="line-45"></a><span>
+</span><a name="line-46"></a><span class="hs-comment">-- | Generic shows</span><span>
+</span><a name="line-47"></a><span class="hs-identifier">gshows</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679049527"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679049527"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">ShowS</span><span>
+</span><a name="line-48"></a><span>
+</span><a name="line-49"></a><span class="hs-comment">-- This is a prefix-show using surrounding &quot;(&quot; and &quot;)&quot;,</span><span>
+</span><a name="line-50"></a><span class="hs-comment">-- where we recurse into subterms with gmapQ.</span><span>
+</span><a name="line-51"></a><a name="gshows"><a href="Data.Generics.Text.html#gshows"><span class="hs-identifier">gshows</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><a name="local-6989586621679050333"><a href="#local-6989586621679050333"><span class="hs-identifier">t</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><a name="line-52"></a><span>                </span><span class="hs-identifier hs-var">showChar</span><span> </span><span class="hs-char">'('</span><span>
+</span><a name="line-53"></a><span>              </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">showString</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">showConstr</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">toConstr</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><a href="#local-6989586621679050333"><span class="hs-identifier hs-var">t</span></a><span class="hs-special">)</span><span>
+</span><a name="line-54"></a><span>              </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">foldr</span><span> </span><span class="hs-special">(</span><span class="hs-operator hs-var">.</span><span class="hs-special">)</span><span> </span><span class="hs-identifier hs-var">id</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">gmapQ</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-identifier hs-var">showChar</span><span> </span><span class="hs-char">' '</span><span> </span><span class="hs-operator hs-var">.</span><span class="hs-special">)</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><a href="Data.Generics.Text.html#gshows"><span class="hs-identifier hs-var">gshows</span></a><span class="hs-special">)</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><a href="#local-6989586621679050333"><span class="hs-identifier hs-var">t</span></a><span class="hs-special">)</span><span>
+</span><a name="line-55"></a><span>              </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">showChar</span><span> </span><span class="hs-char">')'</span><span>
+</span><a name="line-56"></a><span>         </span><span class="hs-special">)</span><span> </span><span class="hs-special">`</span><a href="Data.Generics.Aliases.html#extQ"><span class="hs-identifier hs-var">extQ</span></a><span class="hs-special">`</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">shows</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">ShowS</span><span class="hs-special">)</span><span>
+</span><a name="line-57"></a><span>
+</span><a name="line-58"></a><span>
+</span><a name="line-59"></a><span class="hs-comment">-- | Generic read: an alternative to \&quot;deriving Read\&quot;</span><span>
+</span><a name="line-60"></a><span class="hs-identifier">gread</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679049526"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">ReadS</span><span> </span><a href="#local-6989586621679049526"><span class="hs-identifier hs-type">a</span></a><span>
+</span><a name="line-61"></a><span>
+</span><a name="line-62"></a><span class="hs-comment">{-
+
+This is a read operation which insists on prefix notation.  (The
+Haskell 98 read deals with infix operators subject to associativity
+and precedence as well.) We use fromConstrM to &quot;parse&quot; the input. To be
+precise, fromConstrM is used for all types except String. The
+type-specific case for String uses basic String read.
+
+-}</span><span>
+</span><a name="line-71"></a><span>
+</span><a name="line-72"></a><a name="gread"><a href="Data.Generics.Text.html#gread"><span class="hs-identifier">gread</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">readP_to_S</span><span> </span><a href="#local-6989586621679050334"><span class="hs-identifier hs-var">gread'</span></a><span>
+</span><a name="line-73"></a><span>
+</span><a name="line-74"></a><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-75"></a><span>
+</span><a name="line-76"></a><span>  </span><span class="hs-comment">-- Helper for recursive read</span><span>
+</span><a name="line-77"></a><span>  </span><span class="hs-identifier">gread'</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679050335"><span class="hs-identifier hs-type">a'</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><a href="#local-6989586621679050335"><span class="hs-identifier hs-type">a'</span></a><span>
+</span><a name="line-78"></a><span>  </span><a name="local-6989586621679050334"><a href="#local-6989586621679050334"><span class="hs-identifier">gread'</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679050338"><span class="hs-identifier hs-var">allButString</span></a><span> </span><span class="hs-special">`</span><a href="Data.Generics.Aliases.html#extR"><span class="hs-identifier hs-var">extR</span></a><span class="hs-special">`</span><span> </span><a href="#local-6989586621679050336"><span class="hs-identifier hs-var">stringCase</span></a><span>
+</span><a name="line-79"></a><span>
+</span><a name="line-80"></a><span>   </span><span class="hs-keyword">where</span><span>
+</span><a name="line-81"></a><span>
+</span><a name="line-82"></a><span>    </span><span class="hs-comment">-- A specific case for strings</span><span>
+</span><a name="line-83"></a><span>    </span><span class="hs-identifier">stringCase</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-84"></a><span>    </span><a name="local-6989586621679050336"><a href="#local-6989586621679050336"><span class="hs-identifier">stringCase</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">readS_to_P</span><span> </span><span class="hs-identifier hs-var">reads</span><span>
+</span><a name="line-85"></a><span>
+</span><a name="line-86"></a><span>    </span><span class="hs-comment">-- Determine result type</span><span>
+</span><a name="line-87"></a><span>    </span><a name="local-6989586621679050337"><a href="#local-6989586621679050337"><span class="hs-identifier">myDataType</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">dataTypeOf</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679050373"><span class="hs-identifier hs-var">getArg</span></a><span> </span><a href="#local-6989586621679050338"><span class="hs-identifier hs-var">allButString</span></a><span class="hs-special">)</span><span>
+</span><a name="line-88"></a><span>     </span><span class="hs-keyword">where</span><span>
+</span><a name="line-89"></a><span>      </span><span class="hs-identifier">getArg</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><a href="#local-6989586621679050374"><span class="hs-identifier hs-type">a''</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679050374"><span class="hs-identifier hs-type">a''</span></a><span>
+</span><a name="line-90"></a><span>      </span><a name="local-6989586621679050373"><a href="#local-6989586621679050373"><span class="hs-identifier">getArg</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">undefined</span><span>
+</span><a name="line-91"></a><span>
+</span><a name="line-92"></a><span>    </span><span class="hs-comment">-- The generic default for gread</span><span>
+</span><a name="line-93"></a><span>    </span><a name="local-6989586621679050338"><a href="#local-6989586621679050338"><span class="hs-identifier">allButString</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-94"></a><span>      </span><span class="hs-keyword">do</span><span>
+</span><a name="line-95"></a><span>                </span><span class="hs-comment">-- Drop &quot;  (  &quot;</span><span>
+</span><a name="line-96"></a><span>         </span><span class="hs-identifier hs-var">skipSpaces</span><span>                     </span><span class="hs-comment">-- Discard leading space</span><span>
+</span><a name="line-97"></a><span>         </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">char</span><span> </span><span class="hs-char">'('</span><span>                  </span><span class="hs-comment">-- Parse '('</span><span>
+</span><a name="line-98"></a><span>         </span><span class="hs-identifier hs-var">skipSpaces</span><span>                     </span><span class="hs-comment">-- Discard following space</span><span>
+</span><a name="line-99"></a><span>
+</span><a name="line-100"></a><span>                </span><span class="hs-comment">-- Do the real work</span><span>
+</span><a name="line-101"></a><span>         </span><a name="local-6989586621679050375"><a href="#local-6989586621679050375"><span class="hs-identifier">str</span></a></a><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><a href="#local-6989586621679050340"><span class="hs-identifier hs-var">parseConstr</span></a><span>            </span><span class="hs-comment">-- Get a lexeme for the constructor</span><span>
+</span><a name="line-102"></a><span>         </span><a name="local-6989586621679050376"><a href="#local-6989586621679050376"><span class="hs-identifier">con</span></a></a><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><a href="#local-6989586621679050339"><span class="hs-identifier hs-var">str2con</span></a><span> </span><a href="#local-6989586621679050375"><span class="hs-identifier hs-var">str</span></a><span>            </span><span class="hs-comment">-- Convert it to a Constr (may fail)</span><span>
+</span><a name="line-103"></a><span>         </span><a name="local-6989586621679050377"><a href="#local-6989586621679050377"><span class="hs-identifier">x</span></a></a><span>    </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">fromConstrM</span><span> </span><a href="#local-6989586621679050334"><span class="hs-identifier hs-var">gread'</span></a><span> </span><a href="#local-6989586621679050376"><span class="hs-identifier hs-var">con</span></a><span> </span><span class="hs-comment">-- Read the children</span><span>
+</span><a name="line-104"></a><span>
+</span><a name="line-105"></a><span>                </span><span class="hs-comment">-- Drop &quot;  )  &quot;</span><span>
+</span><a name="line-106"></a><span>         </span><span class="hs-identifier hs-var">skipSpaces</span><span>                     </span><span class="hs-comment">-- Discard leading space</span><span>
+</span><a name="line-107"></a><span>         </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">char</span><span> </span><span class="hs-char">')'</span><span>                  </span><span class="hs-comment">-- Parse ')'</span><span>
+</span><a name="line-108"></a><span>         </span><span class="hs-identifier hs-var">skipSpaces</span><span>                     </span><span class="hs-comment">-- Discard following space</span><span>
+</span><a name="line-109"></a><span>
+</span><a name="line-110"></a><span>         </span><span class="hs-identifier hs-var">return</span><span> </span><a href="#local-6989586621679050377"><span class="hs-identifier hs-var">x</span></a><span>
+</span><a name="line-111"></a><span>
+</span><a name="line-112"></a><span>    </span><span class="hs-comment">-- Turn string into constructor driven by the requested result type,</span><span>
+</span><a name="line-113"></a><span>    </span><span class="hs-comment">-- failing in the monad if it isn't a constructor of this data type</span><span>
+</span><a name="line-114"></a><span>    </span><span class="hs-identifier">str2con</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><span class="hs-identifier hs-type">Constr</span><span>
+</span><a name="line-115"></a><span>    </span><a name="local-6989586621679050339"><a href="#local-6989586621679050339"><span class="hs-identifier">str2con</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">maybe</span><span> </span><span class="hs-identifier hs-var">mzero</span><span> </span><span class="hs-identifier hs-var">return</span><span>
+</span><a name="line-116"></a><span>            </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">readConstr</span><span> </span><a href="#local-6989586621679050337"><span class="hs-identifier hs-var">myDataType</span></a><span>
+</span><a name="line-117"></a><span>
+</span><a name="line-118"></a><span>    </span><span class="hs-comment">-- Get a Constr's string at the front of an input string</span><span>
+</span><a name="line-119"></a><span>    </span><span class="hs-identifier">parseConstr</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-120"></a><span>    </span><a name="local-6989586621679050340"><a href="#local-6989586621679050340"><span class="hs-identifier">parseConstr</span></a></a><span> </span><span class="hs-glyph">=</span><span>
+</span><a name="line-121"></a><span>               </span><span class="hs-identifier hs-var">string</span><span> </span><span class="hs-string">&quot;[]&quot;</span><span>     </span><span class="hs-comment">-- Compound lexeme &quot;[]&quot;</span><span>
+</span><a name="line-122"></a><span>          </span><span class="hs-operator hs-var">&lt;++</span><span>  </span><span class="hs-identifier hs-var">string</span><span> </span><span class="hs-string">&quot;()&quot;</span><span>     </span><span class="hs-comment">-- singleton &quot;()&quot;</span><span>
+</span><a name="line-123"></a><span>          </span><span class="hs-operator hs-var">&lt;++</span><span>  </span><a href="#local-6989586621679050341"><span class="hs-identifier hs-var">infixOp</span></a><span>         </span><span class="hs-comment">-- Infix operator in parantheses</span><span>
+</span><a name="line-124"></a><span>          </span><span class="hs-operator hs-var">&lt;++</span><span>  </span><span class="hs-identifier hs-var">hsLex</span><span>           </span><span class="hs-comment">-- Ordinary constructors and literals</span><span>
+</span><a name="line-125"></a><span>
+</span><a name="line-126"></a><span>    </span><span class="hs-comment">-- Handle infix operators such as (:)</span><span>
+</span><a name="line-127"></a><span>    </span><span class="hs-identifier">infixOp</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">ReadP</span><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-128"></a><span>    </span><a name="local-6989586621679050341"><a href="#local-6989586621679050341"><span class="hs-identifier">infixOp</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><a name="local-6989586621679050378"><a href="#local-6989586621679050378"><span class="hs-identifier">c1</span></a></a><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">char</span><span> </span><span class="hs-char">'('</span><span>
+</span><a name="line-129"></a><span>                 </span><a name="local-6989586621679050379"><a href="#local-6989586621679050379"><span class="hs-identifier">str</span></a></a><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">munch1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">not</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-special">(</span><span class="hs-operator hs-var">==</span><span class="hs-special">)</span><span> </span><span class="hs-char">')'</span><span class="hs-special">)</span><span>
+</span><a name="line-130"></a><span>                 </span><a name="local-6989586621679050380"><a href="#local-6989586621679050380"><span class="hs-identifier">c2</span></a></a><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier hs-var">char</span><span> </span><span class="hs-char">')'</span><span>
+</span><a name="line-131"></a><span>                 </span><span class="hs-identifier hs-var">return</span><span> </span><span class="hs-operator hs-var">$</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679050378"><span class="hs-identifier hs-var">c1</span></a><span class="hs-special">]</span><span> </span><span class="hs-operator hs-var">++</span><span> </span><a href="#local-6989586621679050379"><span class="hs-identifier hs-var">str</span></a><span> </span><span class="hs-operator hs-var">++</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679050380"><span class="hs-identifier hs-var">c2</span></a><span class="hs-special">]</span><span>
+</span><a name="line-132"></a></pre></body></html>

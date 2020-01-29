@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- (c) The University of Glasgow 2006-2012</span><span>
+</span><a name="line-2"></a><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><a name="line-4"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Kind</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-5"></a><span>        </span><span class="hs-comment">-- * Main data type</span><span>
+</span><a name="line-6"></a><span>        </span><a href="TyCoRep.html#Kind"><span class="hs-identifier hs-type">Kind</span></a><span class="hs-special">,</span><span>
+</span><a name="line-7"></a><span>
+</span><a name="line-8"></a><span>        </span><span class="hs-comment">-- ** Predicates on Kinds</span><span>
+</span><a name="line-9"></a><span>        </span><a href="TyCoRep.html#isLiftedTypeKind"><span class="hs-identifier hs-var">isLiftedTypeKind</span></a><span class="hs-special">,</span><span> </span><a href="TyCoRep.html#isUnliftedTypeKind"><span class="hs-identifier hs-var">isUnliftedTypeKind</span></a><span class="hs-special">,</span><span>
+</span><a name="line-10"></a><span>        </span><a href="Kind.html#isConstraintKindCon"><span class="hs-identifier hs-var">isConstraintKindCon</span></a><span class="hs-special">,</span><span>
+</span><a name="line-11"></a><span>
+</span><a name="line-12"></a><span>        </span><a href="Kind.html#classifiesTypeWithValues"><span class="hs-identifier hs-var">classifiesTypeWithValues</span></a><span class="hs-special">,</span><span>
+</span><a name="line-13"></a><span>        </span><a href="Kind.html#isKindLevPoly"><span class="hs-identifier hs-var">isKindLevPoly</span></a><span>
+</span><a name="line-14"></a><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-15"></a><span>
+</span><a name="line-16"></a><span class="hs-cpp">#include &quot;HsVersions.h&quot;
+</span><span>
+</span><a name="line-18"></a><span class="hs-keyword">import</span><span> </span><a href="GhcPrelude.html"><span class="hs-identifier">GhcPrelude</span></a><span>
+</span><a name="line-19"></a><span>
+</span><a name="line-20"></a><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><a href="Type.html"><span class="hs-identifier">Type</span></a><span>    </span><span class="hs-special">(</span><span> </span><a href="Type.html#coreView"><span class="hs-identifier hs-var">coreView</span></a><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-21"></a><span>
+</span><a name="line-22"></a><span class="hs-keyword">import</span><span> </span><a href="TyCoRep.html"><span class="hs-identifier">TyCoRep</span></a><span>
+</span><a name="line-23"></a><span class="hs-keyword">import</span><span> </span><a href="TyCon.html"><span class="hs-identifier">TyCon</span></a><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span> </span><a href="PrelNames.html"><span class="hs-identifier">PrelNames</span></a><span>
+</span><a name="line-25"></a><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span> </span><a href="Outputable.html"><span class="hs-identifier">Outputable</span></a><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span> </span><a href="Util.html"><span class="hs-identifier">Util</span></a><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Maybe</span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-var">isJust</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-29"></a><span>
+</span><a name="line-30"></a><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+        Functions over Kinds
+*                                                                      *
+************************************************************************
+
+Note [Kind Constraint and kind Type]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The kind Constraint is the kind of classes and other type constraints.
+The special thing about types of kind Constraint is that
+ * They are displayed with double arrow:
+     f :: Ord a =&gt; a -&gt; a
+ * They are implicitly instantiated at call sites; so the type inference
+   engine inserts an extra argument of type (Ord a) at every call site
+   to f.
+
+However, once type inference is over, there is *no* distinction between
+Constraint and Type. Indeed we can have coercions between the two. Consider
+   class C a where
+     op :: a -&gt; a
+For this single-method class we may generate a newtype, which in turn
+generates an axiom witnessing
+    C a ~ (a -&gt; a)
+so on the left we have Constraint, and on the right we have Type.
+See Trac #7451.
+
+Bottom line: although 'Type' and 'Constraint' are distinct TyCons, with
+distinct uniques, they are treated as equal at all times except
+during type inference.
+-}</span><span>
+</span><a name="line-61"></a><span>
+</span><a name="line-62"></a><span class="hs-identifier">isConstraintKindCon</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="TyCon.html#TyCon"><span class="hs-identifier hs-type">TyCon</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Bool</span><span>
+</span><a name="line-63"></a><a name="isConstraintKindCon"><a href="Kind.html#isConstraintKindCon"><span class="hs-identifier">isConstraintKindCon</span></a></a><span> </span><a name="local-6989586621681923698"><a href="#local-6989586621681923698"><span class="hs-identifier">tc</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">tyConUnique</span><span> </span><a href="#local-6989586621681923698"><span class="hs-identifier hs-var">tc</span></a><span> </span><span class="hs-operator hs-var">==</span><span> </span><a href="PrelNames.html#constraintKindTyConKey"><span class="hs-identifier hs-var">constraintKindTyConKey</span></a><span>
+</span><a name="line-64"></a><span>
+</span><a name="line-65"></a><span class="hs-comment">-- | Tests whether the given kind (which should look like @TYPE x@)</span><span>
+</span><a name="line-66"></a><span class="hs-comment">-- is something other than a constructor tree (that is, constructors at every node).</span><span>
+</span><a name="line-67"></a><span class="hs-comment">-- E.g.  True of   TYPE k, TYPE (F Int)</span><span>
+</span><a name="line-68"></a><span class="hs-comment">--       False of  TYPE 'LiftedRep</span><span>
+</span><a name="line-69"></a><span class="hs-identifier">isKindLevPoly</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="TyCoRep.html#Kind"><span class="hs-identifier hs-type">Kind</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Bool</span><span>
+</span><a name="line-70"></a><a name="isKindLevPoly"><a href="Kind.html#isKindLevPoly"><span class="hs-identifier">isKindLevPoly</span></a></a><span> </span><a name="local-6989586621681923699"><a href="#local-6989586621681923699"><span class="hs-identifier">k</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ASSERT2</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">isLiftedTypeKind</span><span> </span><a href="TyCoRep.html#isLiftedTypeKind"><span class="hs-identifier hs-var">k</span></a><span> </span><a href="TyCoRep.html#isLiftedTypeKind"><span class="hs-operator hs-var">||</span></a><span> </span><span class="hs-identifier">_is_type</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ppr</span><span> </span><a href="#local-6989586621681923701"><span class="hs-identifier hs-var">k</span></a><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-71"></a><span>                    </span><span class="hs-comment">-- the isLiftedTypeKind check is necessary b/c of Constraint</span><span>
+</span><a name="line-72"></a><span>                  </span><a href="#local-6989586621681923700"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621681923699"><span class="hs-identifier hs-var">k</span></a><span>
+</span><a name="line-73"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-74"></a><span>    </span><a name="local-6989586621681923700"><a href="#local-6989586621681923700"><span class="hs-identifier">go</span></a></a><span> </span><a name="local-6989586621681923702"><a href="#local-6989586621681923702"><span class="hs-identifier">ty</span></a></a><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier hs-var">Just</span><span> </span><a name="local-6989586621681923703"><a href="#local-6989586621681923703"><span class="hs-identifier">ty'</span></a></a><span> </span><span class="hs-glyph">&lt;-</span><span> </span><a href="Type.html#coreView"><span class="hs-identifier hs-var">coreView</span></a><span> </span><a href="#local-6989586621681923702"><span class="hs-identifier hs-var">ty</span></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621681923700"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621681923703"><span class="hs-identifier hs-var">ty'</span></a><span>
+</span><a name="line-75"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#TyVarTy"><span class="hs-identifier hs-var">TyVarTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">True</span><span>
+</span><a name="line-76"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#AppTy"><span class="hs-identifier hs-var">AppTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">True</span><span>  </span><span class="hs-comment">-- it can't be a TyConApp</span><span>
+</span><a name="line-77"></a><span>    </span><span class="hs-identifier">go</span><span> </span><span class="hs-special">(</span><a href="TyCoRep.html#TyConApp"><span class="hs-identifier hs-var">TyConApp</span></a><span> </span><a name="local-6989586621681923704"><a href="#local-6989586621681923704"><span class="hs-identifier">tc</span></a></a><span> </span><a name="local-6989586621681923705"><a href="#local-6989586621681923705"><span class="hs-identifier">tys</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="TyCon.html#isFamilyTyCon"><span class="hs-identifier hs-var">isFamilyTyCon</span></a><span> </span><a href="#local-6989586621681923704"><span class="hs-identifier hs-var">tc</span></a><span> </span><span class="hs-operator hs-var">||</span><span> </span><span class="hs-identifier hs-var">any</span><span> </span><a href="#local-6989586621681923700"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621681923705"><span class="hs-identifier hs-var">tys</span></a><span>
+</span><a name="line-78"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#ForAllTy"><span class="hs-identifier hs-var">ForAllTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">True</span><span>
+</span><a name="line-79"></a><span>    </span><span class="hs-identifier">go</span><span> </span><span class="hs-special">(</span><a href="TyCoRep.html#FunTy"><span class="hs-identifier hs-var">FunTy</span></a><span> </span><a name="local-6989586621681923706"><a href="#local-6989586621681923706"><span class="hs-identifier">t1</span></a></a><span> </span><a name="local-6989586621681923707"><a href="#local-6989586621681923707"><span class="hs-identifier">t2</span></a></a><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621681923700"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621681923706"><span class="hs-identifier hs-var">t1</span></a><span> </span><span class="hs-operator hs-var">||</span><span> </span><a href="#local-6989586621681923700"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621681923707"><span class="hs-identifier hs-var">t2</span></a><span>
+</span><a name="line-80"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#LitTy"><span class="hs-identifier hs-var">LitTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">False</span><span>
+</span><a name="line-81"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#CastTy"><span class="hs-identifier hs-var">CastTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">True</span><span>
+</span><a name="line-82"></a><span>    </span><span class="hs-identifier">go</span><span> </span><a href="TyCoRep.html#CoercionTy"><span class="hs-identifier hs-var">CoercionTy</span></a><span class="hs-special">{</span><span class="hs-special">}</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">True</span><span>
+</span><a name="line-83"></a><span>
+</span><a name="line-84"></a><span>    </span><a name="local-6989586621681923701"><a href="#local-6989586621681923701"><span class="hs-identifier">_is_type</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Kind.html#classifiesTypeWithValues"><span class="hs-identifier hs-var">classifiesTypeWithValues</span></a><span> </span><a href="#local-6989586621681923699"><span class="hs-identifier hs-var">k</span></a><span>
+</span><a name="line-85"></a><span>
+</span><a name="line-86"></a><span class="hs-comment">-----------------------------------------</span><span>
+</span><a name="line-87"></a><span class="hs-comment">--              Subkinding</span><span>
+</span><a name="line-88"></a><span class="hs-comment">-- The tc variants are used during type-checking, where ConstraintKind</span><span>
+</span><a name="line-89"></a><span class="hs-comment">-- is distinct from all other kinds</span><span>
+</span><a name="line-90"></a><span class="hs-comment">-- After type-checking (in core), Constraint and liftedTypeKind are</span><span>
+</span><a name="line-91"></a><span class="hs-comment">-- indistinguishable</span><span>
+</span><a name="line-92"></a><span>
+</span><a name="line-93"></a><span class="hs-comment">-- | Does this classify a type allowed to have values? Responds True to things</span><span>
+</span><a name="line-94"></a><span class="hs-comment">-- like *, #, TYPE Lifted, TYPE v, Constraint.</span><span>
+</span><a name="line-95"></a><span class="hs-identifier">classifiesTypeWithValues</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="TyCoRep.html#Kind"><span class="hs-identifier hs-type">Kind</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Bool</span><span>
+</span><a name="line-96"></a><span class="hs-comment">-- ^ True of any sub-kind of OpenTypeKind</span><span>
+</span><a name="line-97"></a><a name="classifiesTypeWithValues"><a href="Kind.html#classifiesTypeWithValues"><span class="hs-identifier">classifiesTypeWithValues</span></a></a><span> </span><a name="local-6989586621681923708"><a href="#local-6989586621681923708"><span class="hs-identifier">k</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">isJust</span><span> </span><span class="hs-special">(</span><a href="TyCoRep.html#kindRep_maybe"><span class="hs-identifier hs-var">kindRep_maybe</span></a><span> </span><a href="#local-6989586621681923708"><span class="hs-identifier hs-var">k</span></a><span class="hs-special">)</span><span>
+</span><a name="line-98"></a></pre></body></html>
