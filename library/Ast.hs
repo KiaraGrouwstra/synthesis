@@ -59,6 +59,7 @@ anyFn = skeleton $ tyFun wildcard wildcard
 letRes :: Expr -> Expr
 letRes = \case
     (Let _l _binds xp) -> xp
+    x -> x
 
 -- | check if an expression contains holes
 hasHoles :: Expr -> Bool

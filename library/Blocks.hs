@@ -6,27 +6,27 @@ import Data.HashMap.Lazy (HashMap, singleton, insert, union)
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants
 
--- | building blocks. warning: we *must* alias existing functions, or their definitions will be regarded as recursive!
+-- | building blocks
 fnAsts :: HashMap String Expr
 
 -- -- | functions used for testing
--- fnAsts = insert "not__" "\\b -> not b" $
--- -- fnAsts = insert "not_" "\\b -> not b :: Bool -> Bool" $
--- -- fnAsts = insert "not_" "\\(b :: Bool) -> not b" $
--- -- fnAsts = insert "not_" "\\b -> let _b = (b :: Bool) in not b" $
+-- fnAsts = insert "not_" "\\b -> not b" $
+-- -- fnAsts = insert "not" "\\b -> not b :: Bool -> Bool" $
+-- -- fnAsts = insert "not" "\\(b :: Bool) -> not b" $
+-- -- fnAsts = insert "not" "\\b -> let _b = (b :: Bool) in not b" $
 -- -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
---                 insert "not_" "not" $
+--                 insert "not" "not" $
 --                 -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
---                 singleton "id_" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
+--                 singleton "id" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
 fnAsts = fnAstsTamandu
 
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/builtin.ml
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm
 fnAstsTamandu :: HashMap String Expr
 fnAstsTamandu = fmap parseExpr $
-        --    insert "const_" "const" $
-           insert "flip_" "flip" $
-         --   insert "not_" "not" $
+        --    insert "const" "const" $
+           insert "flip" "flip" $
+         --   insert "not" "not" $
          --   insert "isZero" "(== 0)" $
         -- --    insert "foldNat" "\\f -> foldNatNat (const f)" $ -- test!
         --    insert "foldNat" "\\ f acc i -> foldr (const f) acc [1..i]" $ -- test!
@@ -36,30 +36,30 @@ fnAstsTamandu = fmap parseExpr $
         --    insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test!
          --   insert "add" "(+)" $
          --   insert "mul" "(*)" $
-         --   insert "div_" "div" $ -- Int: for fractions use (/)
-         --   insert "max_" "max" $
+         --   insert "div" "div" $ -- Int: for fractions use (/)
+         --   insert "max" "max" $
         --    insert "eq" "(==)" $ -- Tamandu restricts this to Int
         --    insert "neq" "(/=)" $ -- Tamandu restricts this to Int
          --   insert "con" "(:)" $
-         --   insert "head_" "head" $
-         --   insert "tail_" "tail" $
+         --   insert "head" "head" $
+         --   insert "tail" "tail" $
          --   insert "isNil" "null" $
-        --    insert "map_" "map" $  -- list-specific, unlike fmap
-         --   insert "foldr_" "foldr" $
-         --   insert "foldl_" "foldl" $
-        --    insert "filter_" "filter" $
-         --   insert "length_" "length" $
+        --    insert "map" "map" $  -- list-specific, unlike fmap
+         --   insert "foldr" "foldr" $
+         --   insert "foldl" "foldl" $
+        --    insert "filter" "filter" $
+         --   insert "length" "length" $
          --   insert "append" "(++)" $
-         --   insert "reverse_" "reverse" $
-         --   insert "replicate_" "replicate" $
-         --   insert "concat_" "concat" $
-         --   insert "sum_" "sum" $
+         --   insert "reverse" "reverse" $
+         --   insert "replicate" "replicate" $
+         --   insert "concat" "concat" $
+         --   insert "sum" "sum" $
          --   insert "prod" "product" $
-         --   insert "maximum_" "maximum" $
+         --   insert "maximum" "maximum" $
          --   insert "member" "elem" $
-         --   insert "enumTo_" "\\i -> [1..i]" $
-         --   insert "enumFromTo_" "enumFromTo" $
-           singleton "succ_" "succ"
+         --   insert "enumTo" "\\i -> [1..i]" $
+         --   insert "enumFromTo" "enumFromTo" $
+           singleton "succ" "succ"
 
 constants :: HashMap String Expr
 constants = constantsTamandu
@@ -85,12 +85,12 @@ _tasks = tasksTamandu
 -- | functionality implemented from: https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/benchmark.ml
 tasksTamandu :: HashMap String String
 tasksTamandu = 
-        insert "drop_" "drop" $
+        insert "drop" "drop" $
         insert "droplast" "init" $
         insert "dropmax" "\\xs -> filter (maximum xs /=) xs" $
         insert "factorial" "product . flip take [1..]" $ -- https://stackoverflow.com/a/36735375/1502035
         insert "isEven" "\\i -> mod i 2 == (0 :: Int)" $
-        insert "last_" "last" $
+        insert "last" "last" $
         insert "mapAdd" "\\n -> map (+ n)" $
         insert "mapDouble" "map (* (2 :: Int))" $
         insert "multfirst" "\\xs -> replicate (length xs) (head xs)" $ -- solution from paper
@@ -99,13 +99,13 @@ tasksTamandu =
         insert "stutter" "concatMap (replicate 2)" $
         -- TODO: the below task functions are also blocks... I guess for the task versions the identically named blocks must specifically be excluded then?
         insert "append" "(++)" $
-        insert "concat_" "concat" $
-        insert "enumFromTo_" "enumFromTo" $
+        insert "concat" "concat" $
+        insert "enumFromTo" "enumFromTo" $
         insert "enumTo" "\\i -> [1..i]" $ -- test!
         insert "isNil" "null" $
-        insert "length_" "length" $
-        insert "maximum_" "maximum" $
+        insert "length" "length" $
+        insert "maximum" "maximum" $
         insert "member" "elem" $
-        insert "replicate_" "replicate" $
-        insert "reverse_" "reverse" $
-        singleton "sum_" "sum"
+        insert "replicate" "replicate" $
+        insert "reverse" "reverse" $
+        singleton "sum" "sum"

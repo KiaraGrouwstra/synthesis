@@ -14,7 +14,7 @@ import qualified Data.Set
 import Types
 import FindHoles (findHolesExpr)
 import Hint (fnIoPairs, say)
-import Utility (pick, pp, ppMap, pickKeys)
+import Utility (pick, pp, pickKeysSafe)
 import Ast (hasHoles, anyFn)
 import Data.Bifunctor (second)
 import Util (fstOf3, thdOf3)
@@ -62,7 +62,8 @@ fillHole block_asts used_blocks expr_blocks expr = do
         buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \pair -> let
                 (block_name, inserted) = pair
                 used :: Set String = insert block_name used_blocks
-                lets :: Expr = letIn (pickKeys (Data.Set.toList used) block_asts) inserted
+                defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) block_asts
+                lets :: Expr = if null defs then inserted else letIn defs inserted
             in (inserted, used, lets)
         inserteds :: [(String, Expr)] = second (hole_setter expr) <$> expr_blocks
         triplets :: [(Expr, Set String, Expr)] = buildExpr <$> inserteds
