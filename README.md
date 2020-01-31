@@ -1,4 +1,12 @@
-# [synthesis](https://tycho01.github.io/synthesis/)
+# synthesis
+
+## Links
+
+- introductory [slides](https://docs.google.com/presentation/d/1gS3sDgF7HPkiTnE9piQ6IDSFm6idGD7MaXalYzw9BC0/edit?usp=sharing)
+- the accompanying [paper](https://github.com/tycho01/thesis), my AI master thesis at UvA
+- [spreadsheet](https://docs.google.com/spreadsheets/d/1uDA9suwASDzllxJZDt--wZ0ci7q4eJIfPcAw9qr18-U/edit?usp=sharing) used a bit in design
+- Haddock [documentation](https://tycho01.github.io/synthesis/) for the codebase
+- [roadmap](https://github.com/tycho01/synthesis/projects/1)
 
 ## Usage
 
