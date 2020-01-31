@@ -142,6 +142,7 @@ program = do
     -- say "\n\nfinding fits!"
     forM_ kept_fns $ \ast -> do
         let fn_type :: Tp = fn_types ! ast
+        say "================================================"
         say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
         let in_type_instance_outputs :: HashMap [Tp] String = fn_in_type_instance_outputs ! ast
         say "\nin_type_instance_outputs:"
