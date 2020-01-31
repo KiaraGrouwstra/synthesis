@@ -13,7 +13,7 @@ import Data.Set (Set, insert)
 import qualified Data.Set
 import Types
 import FindHoles (findHolesExpr)
-import Hint (fnIoPairs, say)
+import Hint (fnIoPairs)
 import Utility (pick, pp, pickKeysSafe)
 import Ast (hasHoles, anyFn)
 import Data.Bifunctor (second)
