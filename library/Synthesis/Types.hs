@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase, DataKinds, TypeSynonymInstances, FlexibleInstances #-}
 
 -- | utility functions specifically related to types
-module Synthesis.Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, nubTypes) where
+module Synthesis.Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, hasFn, nubTypes) where
 
 import Language.Haskell.Exts.Syntax (Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..))
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parseWithMode, defaultParseMode )
@@ -339,6 +339,26 @@ isFn = \case
     TyFun _l _a _b -> True
     TyForall _l _maybeTyVarBinds _maybeContext tp -> isFn tp
     TyParen _l a -> isFn a
+    _ -> False
+
+-- | check if a type contains a function type
+hasFn :: Tp -> Bool
+hasFn typ = let f = hasFn in case typ of
+    TyFun _l _a _b -> True
+    TyForall _l _maybeTyVarBinds _maybeContext tp -> f tp
+    TyTuple _l _boxed tps -> or $ f <$> tps
+    TyUnboxedSum _l tps -> or $ f <$> tps
+    TyList _l a -> f a
+    TyParArray _l a -> f a
+    TyApp _l a b -> f a || f b
+    TyParen _l a -> f a
+    TyKind _l a kind -> f a || f kind
+    TyPromoted _l promoted -> case promoted of
+        PromotedList _l _bl tps -> or $ f <$> tps
+        PromotedTuple _l tps -> or $ f <$> tps
+        _ -> False
+    TyEquals _l a b -> f a || f b
+    TyBang _l _bangType _unpackedness a -> f a
     _ -> False
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...

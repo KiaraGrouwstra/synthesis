@@ -15,7 +15,7 @@ import Synthesis.Blocks (fnAsts, blockAsts, constants)
 import Synthesis.Hint (runInterpreterMain, say, genInputs, exprType)
 import Synthesis.Ast (letRes, genBlockVariants, numAstNodes)
 import Synthesis.Generation (fnOutputs, genFns, instantiateTypes, matchesType)
-import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, nubTypes)
+import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, hasFn, nubTypes)
 import Synthesis.Utility (groupByVal, flatten, pp, pp_, pickKeysSafe, fromKeys, fromKeysM, randomSplit)
 import Synthesis.Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
 
@@ -58,7 +58,7 @@ program = do
     -- split the input types for our programs into functions vs other -- then instantiate others.
     let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
     let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
-    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubTypes . mapRest) $ first nubTypes fns_rest
+    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubTypes . mapRest . filter (not . hasFn)) $ first nubTypes fns_rest
     say "\nparam_fn_types:"
     say $ pp_ param_fn_types
     say "\nrest_type_instantiations:"
