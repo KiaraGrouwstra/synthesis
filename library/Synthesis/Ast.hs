@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, genUncurry) where
+module Synthesis.Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, genUncurry) where
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..) )
 import Data.HashMap.Lazy (HashMap, (!), mapWithKey)
-import Types
-import FindHoles (findHolesExpr)
-import Configs (maxWildcardDepth)
+import Synthesis.Types
+import Synthesis.FindHoles (findHolesExpr)
+import Synthesis.Configs (maxWildcardDepth)
 import Util (nTimes)
 
 genBlockVariants :: HashMap String Tp -> [(String, Expr)]

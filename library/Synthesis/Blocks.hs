@@ -1,7 +1,7 @@
-module Blocks (blockAsts, fnAsts, constants) where
+module Synthesis.Blocks (blockAsts, fnAsts, constants) where
 
-import Types (Expr, parseExpr)
 import Data.HashMap.Lazy (HashMap, singleton, insert, union)
+import Synthesis.Types (Expr, parseExpr)
 
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants

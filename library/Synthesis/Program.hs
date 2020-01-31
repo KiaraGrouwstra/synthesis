@@ -1,23 +1,23 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, DataKinds, OverloadedStrings #-}
 
 -- | main logic
-module Program (main) where
+module Synthesis.Program (main) where
 
 import Language.Haskell.Interpreter (Interpreter, lift)
 import Data.List (partition, minimumBy)
 import Control.Monad (forM_, filterM)
-import Hint (runInterpreterMain, say, genInputs, exprType)
-import Ast (letRes, genBlockVariants, numAstNodes)
-import Generation (fnOutputs, genFns, instantiateTypes, matchesType)
-import Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, nubTypes)
-import Utility (groupByVal, flatten, pp, pp_, pickKeysSafe, fromKeys, fromKeysM, randomSplit)
-import Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
 import Data.HashMap.Lazy (HashMap, keys, elems, (!), mapWithKey, fromList, toList, union, filterWithKey)
-import Blocks (fnAsts, blockAsts, constants)
 -- import Debug.Dump (d)
 import Data.Bifunctor (first)
 import Util (secondM)
-import Orphanage ()
+import Synthesis.Orphanage ()
+import Synthesis.Blocks (fnAsts, blockAsts, constants)
+import Synthesis.Hint (runInterpreterMain, say, genInputs, exprType)
+import Synthesis.Ast (letRes, genBlockVariants, numAstNodes)
+import Synthesis.Generation (fnOutputs, genFns, instantiateTypes, matchesType)
+import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, nubTypes)
+import Synthesis.Utility (groupByVal, flatten, pp, pp_, pickKeysSafe, fromKeys, fromKeysM, randomSplit)
+import Synthesis.Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
 
 -- | main function, run program in our interpreter monad
 main :: IO ()

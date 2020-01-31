@@ -1,14 +1,14 @@
 -- | utility functions related to the Haskell Interpreter `hint`
-module Hint (runInterpreterMain, runInterpreter_, say, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
+module Synthesis.Hint (runInterpreterMain, runInterpreter_, say, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, ModuleImport(..), InterpreterError(..), GhcError(..), Extension(..), OptionVal(..), ModuleQualification(..), ImportList(..), setImportsF, runInterpreter, interpret, typeChecksWithDetails, as, lift, liftIO, typeOf, languageExtensions, set)
 import Language.Haskell.Exts.Syntax ( Pat(..), Type(..), Stmt(..), Boxed(..), Exp(..) )
-import Types
 import Data.List (intercalate)
-import Utility (pp)
-import Ast (genUncurry)
 import System.Log.Logger (getRootLogger, logL, Priority(..), warningM)
+import Synthesis.Types
+import Synthesis.Utility (pp)
+import Synthesis.Ast (genUncurry)
 
 -- | modules to be loaded in the interpreter
 _modules :: [String]

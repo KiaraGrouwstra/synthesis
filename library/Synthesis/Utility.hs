@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pp_, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
+module Synthesis.Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pp_, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)

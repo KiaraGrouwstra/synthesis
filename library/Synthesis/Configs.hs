@@ -1,4 +1,4 @@
-module Configs (nestLimit, maxInstances, numInputs, maxWildcardDepth, genMaxHoles, split) where
+module Synthesis.Configs (nestLimit, maxInstances, numInputs, maxWildcardDepth, genMaxHoles, split) where
 
 -- dataset generation
 

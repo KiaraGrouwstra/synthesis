@@ -24,9 +24,8 @@ install:
 
 script:
   - stack test --system-ghc --verbosity warn
-  - stack haddock --verbosity warn --no-haddock-deps synthesis
-  # - DOC_DIR=`stack haddock 2>&1 | tail -1 | sed -r -e 's/index.html//g'`
-  - DOC_DIR=./.stack-work/dist/x86_64-linux-tinfo6/Cabal-2.4.0.1/doc/html/synthesis/
+  - stack haddock --verbosity warn synthesis
+  - DOC_DIR=`stack haddock 2>&1 | grep ".stack-work" | head -1 | sed -r -e 's/index.html//g'`
   - echo $DOC_DIR
   - mkdir -p docs
   - cp -r $DOC_DIR/* ./docs

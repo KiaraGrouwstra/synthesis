@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | generate task functions and sample input/output pairs
-module Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints, matchesType, typeRelation) where
+module Synthesis.Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints, matchesType, typeRelation) where
 
 import Language.Haskell.Exts.Syntax (Type(..))
 import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
@@ -11,17 +11,17 @@ import Data.HashMap.Lazy (HashMap, empty, keys, fromList, toList, (!))
 import Data.Either (isLeft)
 import Data.Set (Set, insert)
 import qualified Data.Set
-import Types
-import FindHoles (findHolesExpr)
-import Hint (fnIoPairs)
-import Utility (pick, pp, pickKeysSafe)
-import Ast (hasHoles, anyFn)
 import Data.Bifunctor (second)
 import Util (fstOf3, thdOf3)
 import MonadUtils (allM)
 import Language.Haskell.Exts.Parser ( ParseResult, parse )
 import Data.Ord (Ordering(..))
-import Orphanage ()
+import Synthesis.Types
+import Synthesis.FindHoles (findHolesExpr)
+import Synthesis.Hint (fnIoPairs)
+import Synthesis.Utility (pick, pp, pickKeysSafe)
+import Synthesis.Ast (hasHoles, anyFn)
+import Synthesis.Orphanage ()
 
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr

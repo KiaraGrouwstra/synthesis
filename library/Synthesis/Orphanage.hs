@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | defined type class instances
-module Orphanage () where
+module Synthesis.Orphanage () where
 
 import Data.Hashable (Hashable(..))
 import Data.HashMap.Lazy (HashMap, toList)
@@ -9,36 +9,22 @@ import Data.Text.Prettyprint.Doc (Pretty(..), pretty, vcat, unsafeViaShow, colon
 import Language.Haskell.Exts.Pretty (prettyPrint)
 import Data.ByteString.Char8 (pack)
 import Language.Haskell.Exts.Syntax (
-    -- * Modules
     Module, ModuleHead, ExportSpecList, ExportSpec,
     ImportDecl, ImportSpecList, ImportSpec, Assoc, Namespace,
-    -- * Declarations
     Decl, DeclHead, InstRule, InstHead, IPBind, InjectivityInfo, ResultSig,
-    -- ** Type classes and instances
     ClassDecl, InstDecl, Deriving, DerivStrategy,
-    -- ** Data type declarations
     DataOrNew, ConDecl, FieldDecl, QualConDecl, GadtDecl, BangType, Unpackedness,
-    -- ** Function bindings
     Match, Rhs, GuardedRhs,
-    -- * Class Assertions and Contexts
     Context, FunDep, Asst,
-    -- * Types
     Type, TyVarBind, Promoted,
     TypeEqn ,
-    -- * Expressions
     Exp, Stmt, QualStmt, FieldUpdate, Alt, XAttr,
-    -- * Patterns
     Pat, PatField, PXAttr, RPat, RPatOp,
-    -- * Literals
     Literal,
-    -- * Variables, Constructors and Operators
     ModuleName, QName, Name, QOp, Op, SpecialCon,
     CName, IPName, XName, Role, MaybePromotedName,
-    -- * Template Haskell
     Bracket, Splice,
-    -- * FFI
     Safety, CallConv,
-    -- * Pragmas
     ModulePragma, Tool, Overlap,
     Rule, RuleVar, Activation,
     Annotation, BooleanFormula
