@@ -33,8 +33,6 @@ program = do
     say "\nprograms:"
     say $ pp_ programs
     let task_fns = programs
-    -- forM_ task_fns $ \task_fn ->
-    --     say $ pp $ letRes task_fn
 
     fn_types :: HashMap Expr Tp <- fromKeysM exprType task_fns
     say "\nfn_types:"
@@ -150,19 +148,9 @@ program = do
         let instantiations :: [[Tp]] = fn_in_type_instantiations ! ast
         say "\ninstantiations:"
         say $ pp_ instantiations
-        -- say "\ninstantiations:"
-        -- forM_ instantiations $ \tp -> do
-        --     say $ pp_ instantiations
-        -- forM_ instantiations $ \tps -> do
-        --     let io_pairs = in_type_instance_outputs ! tps
-        --     say $ pp_ tps ++ ": " ++ pp_ io_pairs
-        -- say $ show inst_io_pairs
         let inst_io_pairs :: HashMap [Tp] String = pickKeysSafe instantiations in_type_instance_outputs
         say "\ninst_io_pairs:"
         say $ pp_ inst_io_pairs
-        -- say "\ninst_io_pairs:"
-        -- forM_ (toList inst_io_pairs) $ \pair ->
-        --     say $ pp_ pair
 
         -- -- synthesize matching programs by brute force
         -- let inst_inputs :: HashMap String String = pickKeys instantiations rest_instantiation_inputs
