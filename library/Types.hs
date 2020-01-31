@@ -3,7 +3,7 @@
 -- | utility functions specifically related to types
 module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, nubTypes) where
 
-import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..) )
+import Language.Haskell.Exts.Syntax (Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..))
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parseWithMode, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
@@ -13,6 +13,7 @@ import Control.Monad (join, replicateM)
 import Data.HashMap.Lazy (HashMap, empty, fromListWith, toList, (!), unionWith, keys)
 import Data.Bifunctor (first)
 import Utility (Item(..), pick, pp, equating)
+import Orphanage ()
 
 -- these verbose types annoy me so let's alias them
 type L = SrcSpanInfo

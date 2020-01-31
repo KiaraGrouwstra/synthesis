@@ -44,6 +44,7 @@ library:
   - hslogger
   - dump
   - bytestring
+  - prettyprinter
   source-dirs: library
 
 executables:

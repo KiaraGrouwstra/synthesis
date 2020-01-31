@@ -1,13 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | utility functions
-module Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
+module Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pp_, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
 
 import Data.Hashable (Hashable)
 import System.Random (randomRIO)
 import Data.HashMap.Lazy (HashMap, fromList, toList, (!), lookup)
 import qualified Data.HashMap.Lazy as HM
-import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
+import Language.Haskell.Exts.Pretty (Pretty(..), prettyPrint)
+import qualified Data.Text.Prettyprint.Doc as PP -- (Pretty, pretty)
 import GHC.Exts (groupWith)
 import Data.Bifunctor (first)
 import Data.Bifoldable (biList)
@@ -102,9 +103,13 @@ while praed funktion x
         while praed funktion y
     | otherwise = return x
 
--- | shorthand for pretty-printing AST nodes, inspired by Ruby
+-- | shorthand for pretty-printing AST nodes, used for comparisons
 pp :: Pretty a => a -> String
 pp = prettyPrint
+
+-- | shorthand for pretty-printing AST nodes, used in my top-level module
+pp_ :: PP.Pretty a => a -> String
+pp_ = show . PP.pretty
 
 -- | `show` drop-in for HashMap with Pretty keys.
 ppMap :: (Pretty k, Show v) => HashMap k v -> String

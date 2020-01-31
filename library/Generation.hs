@@ -114,22 +114,22 @@ fnOutputs :: HashMap Tp [Expr]
           -> [[Tp]]                             -- ^ for each type instantiation, for each param, the input type as string
           -> Interpreter (HashMap [Tp] String)
 fnOutputs instantiation_inputs fn_ast in_instantiations = do
-        -- say $ "instantiation_inputs: " ++ ppMap (fmap pp <$> instantiation_inputs)
+        -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs
         -- say $ "fn_str: " ++ pp fn_ast
-        -- say $ "in_instantiations: " ++ show (fmap pp <$> in_instantiations)
+        -- say $ "in_instantiations: " ++ pp_ in_instantiations
         -- a list of samples for parameters for types
         let inputs :: [[[Expr]]] = fmap (instantiation_inputs !) <$> in_instantiations
-        -- say $ "inputs: " ++ show (fmap (fmap pp) <$> inputs)
+        -- say $ "inputs: " ++ pp_ inputs
         -- tuples of samples by param
         let param_combs :: [[[Expr]]] = sequence <$> inputs
-        -- say $ "param_combs: " ++ show (fmap (fmap pp) <$> param_combs)
+        -- say $ "param_combs: " ++ pp_ param_combs
         case head param_combs of
             [] -> return empty
             _ -> do
                 let n = length . head . head $ param_combs
                 -- say $ "n: " ++ show n
                 let ins :: [Expr] = list . fmap tuple <$> param_combs
-                -- say $ "ins: " ++ show (pp <$> ins)
+                -- say $ "ins: " ++ pp_ ins
                 fromList . zip in_instantiations <$> mapM (fnIoPairs n fn_ast) ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
