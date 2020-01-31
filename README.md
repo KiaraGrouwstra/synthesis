@@ -10,6 +10,8 @@
 
 ## Usage
 
+You can build and run this project using either [Stack](https://docs.haskellstack.org/) or [Docker](https://www.docker.com/).
+
 ``` sh
 # basic Stack commands
 stack build
