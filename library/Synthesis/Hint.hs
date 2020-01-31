@@ -1,11 +1,11 @@
 -- | utility functions related to the Haskell Interpreter `hint`
-module Synthesis.Hint (runInterpreterMain, runInterpreter_, say, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
+module Synthesis.Hint (runInterpreterMain, runInterpreter_, say, debug, info, notice, warning, err, critical, alert, emergency, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, ModuleImport(..), InterpreterError(..), GhcError(..), Extension(..), OptionVal(..), ModuleQualification(..), ImportList(..), setImportsF, runInterpreter, interpret, typeChecksWithDetails, as, lift, liftIO, typeOf, languageExtensions, set)
 import Language.Haskell.Exts.Syntax ( Pat(..), Type(..), Stmt(..), Boxed(..), Exp(..) )
 import Data.List (intercalate)
-import System.Log.Logger (getRootLogger, logL, Priority(..), warningM)
+import System.Log.Logger (getRootLogger, logL, Priority(..), debugM, infoM, noticeM, warningM, errorM, criticalM, alertM, emergencyM)
 import Synthesis.Types
 import Synthesis.Utility (pp)
 import Synthesis.Ast (genUncurry)
@@ -40,15 +40,41 @@ runInterpreter_ :: Interpreter a -> IO (Either InterpreterError a)
 runInterpreter_ fn =
     runInterpreter $ do
         set [languageExtensions := [PartialTypeSignatures, ScopedTypeVariables]]
-        -- setImports modules >>= const fn
-        -- setImportsQ qualified >>= const fn
-        setImportsF imports >>= const fn
+        -- setImports modules
+        -- setImportsQ qualified
+        setImportsF imports
+            >>= const fn
+
+logger :: String
+logger = "my_logger"
 
 -- | print in the Interpreter monad
 say :: String -> Interpreter ()
--- say = liftIO . putStrLn
--- say = liftIO . logL getRootLogger INFO
-say = liftIO . warningM "my_logger"
+say = warning
+
+debug :: String -> Interpreter ()
+debug = liftIO . debugM logger
+
+info :: String -> Interpreter ()
+info = liftIO . infoM logger
+
+notice :: String -> Interpreter ()
+notice = liftIO . noticeM logger
+
+warning :: String -> Interpreter ()
+warning = liftIO . warningM logger
+
+err :: String -> Interpreter ()
+err = liftIO . errorM logger
+
+critical :: String -> Interpreter ()
+critical = liftIO . criticalM logger
+
+alert :: String -> Interpreter ()
+alert = liftIO . alertM logger
+
+emergency :: String -> Interpreter ()
+emergency = liftIO . emergencyM logger
 
 -- | run-time Language.Haskell.Interpreter compilation error
 errorString :: InterpreterError -> String
