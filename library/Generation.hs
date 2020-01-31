@@ -5,23 +5,23 @@ module Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTyp
 
 import Language.Haskell.Exts.Syntax (Type(..))
 import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
-import Data.List (nub, delete, minimumBy, isInfixOf, partition)
+import Data.List (partition)
 import Control.Monad (filterM)
-import Data.HashMap.Lazy (HashMap, keys, fromList, toList, (!))
+import Data.HashMap.Lazy (HashMap, empty, keys, fromList, toList, (!))
 import Data.Either (isLeft)
-import Data.Set (Set, empty, insert)
+import Data.Set (Set, insert)
 import qualified Data.Set
 import Types
 import FindHoles (findHolesExpr)
-import Hint (say, showError, fnIoPairs, exprType)
-import Utility (pick, pp, pickKeys, flipOrder)
-import Ast (hasHoles, anyFn, numAstNodes)
+import Hint (fnIoPairs, say)
+import Utility (pick, pp, ppMap, pickKeys)
+import Ast (hasHoles, anyFn)
 import Data.Bifunctor (second)
 import Util (fstOf3, thdOf3)
 import MonadUtils (allM)
 import Language.Haskell.Exts.Parser ( ParseResult, parse )
 import Data.Ord (Ordering(..))
-import Control.Monad (forM, forM_)
+import Orphanage ()
 
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
@@ -36,7 +36,7 @@ genFn maxHoles expr_blocks block_asts = do
 -- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
 genFns :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter [Expr]
 genFns maxHoles expr_blocks block_asts =
-    fillHoles maxHoles block_asts empty expr_blocks anyFn
+    fillHoles maxHoles block_asts Data.Set.empty expr_blocks anyFn
 
 -- | generate potential programs filling any holes in a given expression using some building blocks 
 fillHoles :: Int -> HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter [Expr]
@@ -108,19 +108,28 @@ fitExpr expr = do
         return ok
 
 -- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
-fnOutputs :: HashMap String [Expr]
-          -> String
-          -> [[String]]                             -- ^ for each type instantiation, for each param, the input type as string
-          -> Interpreter (HashMap [String] String)
-fnOutputs instantiation_inputs fn_str str_in_instantiations =
-        fromList . zip str_in_instantiations <$> mapM (fnIoPairs n fn_str) in_strs
-        where
-            -- a list of samples for parameters for types
-            inputs :: [[[Expr]]] = fmap (instantiation_inputs !) <$> str_in_instantiations
-            -- tuples of samples by param
-            param_combs :: [[[Expr]]] = sequence <$> inputs
-            n = length . head . head $ param_combs
-            in_strs :: [String] = pp . list . fmap tuple <$> param_combs
+fnOutputs :: HashMap Tp [Expr]
+          -> Expr
+          -> [[Tp]]                             -- ^ for each type instantiation, for each param, the input type as string
+          -> Interpreter (HashMap [Tp] String)
+fnOutputs instantiation_inputs fn_ast in_instantiations = do
+        -- say $ "instantiation_inputs: " ++ ppMap (fmap pp <$> instantiation_inputs)
+        -- say $ "fn_str: " ++ pp fn_ast
+        -- say $ "in_instantiations: " ++ show (fmap pp <$> in_instantiations)
+        -- a list of samples for parameters for types
+        let inputs :: [[[Expr]]] = fmap (instantiation_inputs !) <$> in_instantiations
+        -- say $ "inputs: " ++ show (fmap (fmap pp) <$> inputs)
+        -- tuples of samples by param
+        let param_combs :: [[[Expr]]] = sequence <$> inputs
+        -- say $ "param_combs: " ++ show (fmap (fmap pp) <$> param_combs)
+        case head param_combs of
+            [] -> return empty
+            _ -> do
+                let n = length . head . head $ param_combs
+                -- say $ "n: " ++ show n
+                let ins :: [Expr] = list . fmap tuple <$> param_combs
+                -- say $ "ins: " ++ show (pp <$> ins)
+                fromList . zip in_instantiations <$> mapM (fnIoPairs n fn_ast) ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 -- | generate any combinations of a polymorphic type filled using a list of concrete types

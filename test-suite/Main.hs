@@ -9,8 +9,6 @@ import Test.HUnit.Base (Test(..))
 import Test.HUnit.Text (runTestTT)
 
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
-import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
-import Language.Haskell.Exts.Syntax ( Type(..) )
 import Language.Haskell.Interpreter (interpret, as)
 import Data.List (nub)
 import Data.Either (fromRight, isRight)
@@ -21,7 +19,6 @@ import Util (fstOf3)
 import Utility
 import Hint
 import Types
-import qualified Types
 import FindHoles
 import Ast
 import Generation
@@ -75,6 +72,18 @@ util = parallel $ do
     it "fromVals" $
         fromVals show [1 :: Int, 2] `shouldBe` insert "1" 1 (singleton "2" 2)
 
+    it "fromKeysM" $ do
+        x <- fromKeysM (pure . show) [1 :: Int, 2]
+        x `shouldBe` insert 1 "1" (singleton 2 "2")
+
+    it "fromValsM" $ do
+        x <- fromValsM (pure . show) [1 :: Int, 2]
+        x `shouldBe` insert "1" 1 (singleton "2" 2)
+
+    it "filterHmM" $ do
+        x <- filterHmM (pure . snd) $ insert "a" True $ singleton "b" False
+        x `shouldBe` singleton "a" True
+
     it "pickKeys" $ do
         let b = singleton "b" "B"
         pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
@@ -83,7 +92,7 @@ util = parallel $ do
     --     while ((< 5) . length) (\ls -> ((([head ls] :: String) ++ (ls :: String))) :: String) "ah" `shouldBe` "aaaah"
 
     it "randomSplit" $ do
-        let (train, validation, test) = randomSplit (0.5, 0.3, 0.2) [0 .. 9 :: Int]
+        let (train, _validation, _test) = randomSplit (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length train `shouldBe` 5
 
 hint :: Test
@@ -111,14 +120,19 @@ hint = let
         fromRight "" x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- runInterpreter_ (fnIoPairs 1 "not" "[True, False]")
+        x <- runInterpreter_ (fnIoPairs 1 (var "not") $ parseExpr "[True, False]")
         fromRight "" x @?= "[(True,Right False),(False,Right True)]"
-        x <- runInterpreter_ (fnIoPairs 2 "(+)" "[(1,2),(3,4)]")
-        fromRight "" x @?= "[((1,2),Right 3),((3,4),Right 7)]"
+        q <- runInterpreter_ (fnIoPairs 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
+        fromRight "" q @?= "[((1,2),Right 3),((3,4),Right 7)]"
 
     , TestLabel "genInputs" $ TestCase $ do
-        x <- runInterpreter_ (genInputs 10 "Bool")
+        -- Bool
+        x <- runInterpreter_ (genInputs 10 bl)
         pp <$> fromRight undefined x `shouldContain` ["True"]
+        -- -- id
+        -- let a = tyVar "a"
+        -- q <- runInterpreter_ (genInputs 10 $ tyFun a a)
+        -- isRight q `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
         x <- runInterpreter_ (exprType $ parseExpr "True")
@@ -130,7 +144,7 @@ types :: Spec
 types = parallel $ do
 
     let bl = tyCon "Bool"
-    let int = tyCon "Int"
+    let int_ = tyCon "Int"
     let str = tyCon "String"
 
     it "var" $
@@ -168,7 +182,7 @@ types = parallel $ do
 
     it "randomFnType" $ do
         tp <- randomFnType False False nestLimit empty 0
-        [tyFun bl bl, tyFun bl int, tyFun int bl, tyFun int int] `shouldContain` [tp]
+        [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
 
     it "genTypes" $ do
         tps <- nub . flatten <$> genTypes 0 10
@@ -176,20 +190,25 @@ types = parallel $ do
 
     fit "fillTypeVars" $ do
         let a = tyVar "a"
-        -- int -> a: a => Bool
-        pp (fillTypeVars (tyFun int a) (singleton "a" bl)) `shouldBe` pp (tyFun int bl)
+        -- int_ -> a: a => Bool
+        pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
         -- Ord a => [a] -> [a]
         let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a
         pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
 
     it "mergeTyVars" $
-        mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int, bl]) `shouldBe` singleton "a" [bl, str, int]
+        mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
     
     it "parseExpr" $
         pp (parseExpr "a") `shouldBe` "a"
 
     it "parseType" $
         pp (parseType "a") `shouldBe` "a"
+
+    it "isFn" $ do
+        isFn bl `shouldBe` False
+        isFn (tyVar "a") `shouldBe` False
+        isFn (tyFun bl int_) `shouldBe` True
 
 find :: Spec
 find = -- do
@@ -225,18 +244,13 @@ ast = do
         let expr = expTypeSig holeExpr $ tyCon "Int"
         hasHoles expr `shouldBe` True
 
-    it "filterTypeSigIoFns" $ do
-        let fn_asts = insert "not" (var "not") $ singleton "not_" $ var "not"
-        let hm = filterTypeSigIoFns fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
-        hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
-
     it "genUncurry" $
         pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
 
 gen :: Test
 gen = let 
         bl = tyCon "Bool"
-        int = tyCon "Int"
+        int_ = tyCon "Int"
         tp = tyFun bl bl
         maybeList = fmap $ \case
                     Right ls -> ls
@@ -246,17 +260,17 @@ gen = let
 
     [ TestLabel "fnOutputs" $ TestCase $ do
         -- not
-        io <- runInterpreter_ $ fnOutputs (singleton "Bool" [con "True", con "False"]) "not" [["Bool"]]
-        let hm = case io of
+        io1 <- runInterpreter_ $ fnOutputs (singleton bl [con "True", con "False"]) (var "not") [[bl]]
+        let hm1 = case io1 of
                     Right m -> m
                     Left _ -> empty
-        hm `shouldBe` singleton ["Bool"] "[(True,Right False),(False,Right True)]"
+        hm1 `shouldBe` singleton [bl] "[(True,Right False),(False,Right True)]"
         -- (+)
-        io <- runInterpreter_ $ fnOutputs (singleton "Int" $ Types.int <$> [1,2,3]) "(+)" [["Int","Int"]]
-        let hm = case io of
+        io2 <- runInterpreter_ $ fnOutputs (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
+        let hm2 = case io2 of
                     Right m -> m
                     Left _ -> empty
-        hm `shouldBe` singleton ["Int","Int"] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
+        hm2 `shouldBe` singleton [int_,int_] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
 
     , TestLabel "fillHole" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"
@@ -289,58 +303,58 @@ gen = let
     , TestLabel "instantiateTypes" $ TestCase $ do
         -- a => Set a
         let set_ s = tyApp (tyCon "Set") $ tyCon s
-        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyApp (tyCon "Set") $ tyVar "b")
-        (pp <$> lst) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
+        l1 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyApp (tyCon "Set") $ tyVar "b")
+        (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
-        (pp <$> lst) `shouldBe` (pp <$> [tyFun int $ tyFun int int])
+        l2 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
+        (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        lst <- maybeList . runInterpreter_ $ instantiateTypes [bl, int] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
-        (pp <$> lst) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int) $ tyList int])
+        l3 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
+        (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
         -- without type constraint
-        lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" []
-        lst `shouldBe` [singleton "a" bl, singleton "a" int]
+        l1 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" []
+        l1 `shouldBe` [singleton "a" bl, singleton "a" int_]
         -- with type constraint
-        lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" [tyCon "Num"]
-        lst `shouldBe` [singleton "a" int]
+        l2 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Num"]
+        l2 `shouldBe` [singleton "a" int_]
         -- Ord a => [a] -> [a]
-        lst <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int] $ singleton "a" [tyCon "Ord"]
-        lst `shouldBe` [singleton "a" bl, singleton "a" int]
+        l3 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Ord"]
+        l3 `shouldBe` [singleton "a" bl, singleton "a" int_]
 
     , TestLabel "typeRelation" $ TestCase $ do
         let a = tyVar "a"
         -- crap, I cannot test NEQ as it explodes, while LT/GT seem to imply constraints/forall...
-        x <- runInterpreter_ $ typeRelation int a
-        right x `shouldBe` EQ
-        x <- runInterpreter_ $ typeRelation a bl
-        right x `shouldBe` EQ
-        x <- runInterpreter_ $ typeRelation bl bl
-        right x `shouldBe` EQ
-        x <- runInterpreter_ $ typeRelation a a
-        right x `shouldBe` EQ
-        x <- runInterpreter_ $ typeRelation a $ tyVar "b"
-        right x `shouldBe` EQ
+        q <- runInterpreter_ $ typeRelation int_ a
+        right q `shouldBe` EQ
+        w <- runInterpreter_ $ typeRelation a bl
+        right w `shouldBe` EQ
+        e <- runInterpreter_ $ typeRelation bl bl
+        right e `shouldBe` EQ
+        r <- runInterpreter_ $ typeRelation a a
+        right r `shouldBe` EQ
+        t <- runInterpreter_ $ typeRelation a $ tyVar "b"
+        right t `shouldBe` EQ
 
     , TestLabel "matchesType" $ TestCase $ do
         let a = tyVar "a"
-        x <- runInterpreter_ $ matchesType int a
-        right x `shouldBe` True
-        x <- runInterpreter_ $ matchesType a bl
-        right x `shouldBe` True
-        x <- runInterpreter_ $ matchesType bl bl
-        right x `shouldBe` True
-        x <- runInterpreter_ $ matchesType bl int
-        right x `shouldBe` False
-        x <- runInterpreter_ $ matchesType a a
-        right x `shouldBe` True
-        x <- runInterpreter_ $ matchesType a $ tyVar "b"
-        right x `shouldBe` True
+        q <- runInterpreter_ $ matchesType int_ a
+        right q `shouldBe` True
+        w <- runInterpreter_ $ matchesType a bl
+        right w `shouldBe` True
+        e <- runInterpreter_ $ matchesType bl bl
+        right e `shouldBe` True
+        r <- runInterpreter_ $ matchesType bl int_
+        right r `shouldBe` False
+        t <- runInterpreter_ $ matchesType a a
+        right t `shouldBe` True
+        y <- runInterpreter_ $ matchesType a $ tyVar "b"
+        right y `shouldBe` True
 
     , TestLabel "matchesConstraints" $ TestCase $ do
-        x <- runInterpreter_ $ matchesConstraints int [tyCon "Enum"]
+        x <- runInterpreter_ $ matchesConstraints int_ [tyCon "Enum"]
         fromRight False x `shouldBe` True
 
     -- , TestLabel "filterTypeSigIoFnsM" $ TestCase $ do

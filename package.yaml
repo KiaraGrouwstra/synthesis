@@ -43,6 +43,7 @@ library:
   - split
   - hslogger
   - dump
+  - bytestring
   source-dirs: library
 
 executables:

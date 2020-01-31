@@ -1,18 +1,12 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, filterTypeSigIoFns, genUncurry) where
-
-import Language.Haskell.Exts.Syntax ( Type(..), Exp(..), QName(..), SpecialCon(..) )
-import Language.Haskell.Exts.Parser ( ParseResult, parse, fromParseResult )
-import Language.Haskell.Interpreter (Interpreter, lift, typeChecks)
-import Data.List (nub, delete, minimumBy, isInfixOf, partition)
-import Data.HashMap.Lazy (HashMap, fromList, toList, (!), elems, mapWithKey)
-import Data.Maybe (catMaybes)
+module Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, genUncurry) where
+import Language.Haskell.Exts.Syntax ( Type(..), Exp(..) )
+import Data.HashMap.Lazy (HashMap, (!), mapWithKey)
 import Types
-import FindHoles (strExpr, findHolesExpr)
-import Utility (pick, pp)
-import Configs (nestLimit, maxWildcardDepth)
+import FindHoles (findHolesExpr)
+import Configs (maxWildcardDepth)
 import Util (nTimes)
 
 genBlockVariants :: HashMap String Tp -> [(String, Expr)]
@@ -83,13 +77,6 @@ holeExpr = var "undefined"
 -- | make a typed hole for a type
 skeleton :: Tp -> Expr
 skeleton = ExpTypeSig l holeExpr
-
--- | find equivalent functions (by type and then input/output) and keep the shortest ones
-filterTypeSigIoFns :: HashMap String Expr -> HashMap String (HashMap String [String]) -> HashMap String (HashMap String String)
-filterTypeSigIoFns fn_asts type_sig_io_fns = fmap filterFns <$> type_sig_io_fns
-    where
-        minByMap fn = minimumBy $ \ a b -> compare (fn a) (fn b)
-        filterFns = minByMap (numAstNodes . (!) fn_asts)
 
 -- | generate an expression for an n-ary uncurry function, e.g. for n=2: `\ fn (a, b) -> fn a b`
 genUncurry :: Int -> Expr

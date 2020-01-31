@@ -1,18 +1,18 @@
-{-# LANGUAGE LambdaCase, DataKinds #-}
+{-# LANGUAGE LambdaCase, DataKinds, TypeSynonymInstances, FlexibleInstances #-}
 
 -- | utility functions specifically related to types
-module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList) where
+module Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, nubTypes) where
 
 import Language.Haskell.Exts.Syntax ( Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Type(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..) )
-import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parse, parseWithMode, fromParseResult, defaultParseMode )
+import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parseWithMode, defaultParseMode )
 import Language.Haskell.Exts.SrcLoc ( SrcSpan(..), SrcSpanInfo(..), srcInfoSpan, srcInfoPoints )
 import Language.Haskell.Exts.Extension ( Extension(..), KnownExtension(..) )
-import Data.List (replicate, nub)
+import Data.List (nubBy)
 import Data.Maybe (fromMaybe)
-import Control.Monad (join, replicateM, sequence, filterM)
-import Data.HashMap.Lazy (HashMap, empty, fromList, fromListWith, toList, (!), unionWith, keys, elems)
+import Control.Monad (join, replicateM)
+import Data.HashMap.Lazy (HashMap, empty, fromListWith, toList, (!), unionWith, keys)
 import Data.Bifunctor (first)
-import Utility (Item(..), pick, pp)
+import Utility (Item(..), pick, pp, equating)
 
 -- these verbose types annoy me so let's alias them
 type L = SrcSpanInfo
@@ -60,19 +60,28 @@ randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount = do
 
 -- merge two maps of type variables and their corresponding type constraints
 mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
-mergeTyVars = unionWith $ \a b -> nub $ a ++ b
+mergeTyVars = unionWith $ \a b -> nubTypes $ a ++ b
 
 -- | extract the input and output types from a function type
 -- TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
-    -- -- I shouldn't need TyForall, I'm only applying this on instantiated function types, while I'm not sure I can handle the constraints here in any sensible way...
-    -- TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-    --     TyFun _l a b -> fst (a :) $ fnTypeIO b
+    TyForall _l maybeTyVarBinds maybeContext tp -> case tp of
+        TyFun _l a b -> first (f a :) $ fnTypeIO $ f b
+        typ -> ([], typ)
+        where f = TyForall _l maybeTyVarBinds maybeContext
     TyFun _l a b -> first (a :) $ fnTypeIO b
-    -- tp -> (TyTuple l Boxed [], tp)
-    -- x -> fail $ "unexpected " ++ show x
-    typ -> ([], typ)
+    tp -> ([], tp)
+
+-- | extract the input types from a function type
+fnInputTypes :: Tp -> [Tp]
+fnInputTypes = \case
+    TyForall _l maybeTyVarBinds maybeContext typ -> case typ of
+        TyFun _l a b -> f a : fnInputTypes (f b)
+        _ -> []
+        where f = TyForall _l maybeTyVarBinds maybeContext
+    TyFun _l a b -> a : fnInputTypes b
+    _ -> []
 
 -- | this function takes an explicitly typed hole, returning its type
 -- TODO: Maybe
@@ -87,8 +96,7 @@ findTypeVars = fromListWith (++) . findTypeVars_
 -- | recursive `findTypeVars_` helper
 findTypeVars_ :: Tp -> [(String, [Tp])]
 findTypeVars_ tp = let f = findTypeVars_ in case tp of
-            TyForall _l maybeTyVarBinds maybeContext typ -> bindings ++ context ++ case typ of
-                TyFun _l a b -> f a ++ f b
+            TyForall _l maybeTyVarBinds maybeContext typ -> bindings ++ context ++ f typ
                 where
                     bindings = toList $ fromListWith (++) $ (\(KindedVar _l name kind) -> (pp name, [kind])) <$> fromMaybe [] maybeTyVarBinds
                     context = fromContext $ fromMaybe (CxEmpty l) maybeContext
@@ -98,7 +106,7 @@ findTypeVars_ tp = let f = findTypeVars_ in case tp of
                         CxEmpty _l -> []
                     unAsst = \case
                         -- ClassA (UnQual (Ident "Num")) [TyVar (Ident "a")]
-                        ClassA _l qname tps -> (\tp -> (pp tp, [TyCon l qname])) <$> tps
+                        ClassA _l qname tps -> (\tp_ -> (pp tp_, [TyCon l qname])) <$> tps
                         -- TypeA _l _tp -> error "unimplemented"
                         IParam _l _iPName _tp -> error "unimplemented"
                         ParenA _l asst -> unAsst asst
@@ -123,7 +131,7 @@ findTypeVars_ tp = let f = findTypeVars_ in case tp of
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
 fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case tp of
-    TyForall _l maybeTyVarBinds maybeContext a -> f a  -- if I'm filling type vars I guess type constraints can be stripped out
+    TyForall _l _maybeTyVarBinds _maybeContext a -> f a  -- if I'm filling type vars I guess type constraints can be stripped out
     TyFun _l a b -> tyFun (f a) $ f b
     TyTuple _l boxed tps -> TyTuple l boxed $ f <$> tps
     TyUnboxedSum _l tps -> TyUnboxedSum l $ f <$> tps
@@ -138,7 +146,7 @@ fillTypeVars tp substitutions = let f = flip fillTypeVars substitutions in case 
                 PromotedTuple _l tps -> PromotedTuple l $ f <$> tps
                 _ -> promoted
     TyEquals _l a b -> TyEquals l (f a) $ f b
-    TyBang l bangType unpackedness a -> TyBang l bangType unpackedness $ f a
+    TyBang _l bangType unpackedness a -> TyBang l bangType unpackedness $ f a
     _ -> tp
 
 -- | generate a number of concrete types to be used in type variable substitution
@@ -323,3 +331,15 @@ parseType :: String -> Tp
 parseType s = case unParseResult (parseWithMode parseMode s :: ParseResult Tp) of
             Right t -> t
             Left e -> error $ "failed to parse type " ++ s ++ ": " ++ e
+
+-- | check if a type is a function type
+isFn :: Tp -> Bool
+isFn = \case
+    TyFun _l _a _b -> True
+    TyForall _l _maybeTyVarBinds _maybeContext tp -> isFn tp
+    TyParen _l a -> isFn a
+    _ -> False
+
+-- | filter out duplicate types. note this dedupe will fail for type variable variations...
+nubTypes :: [Tp] -> [Tp]
+nubTypes = nubBy (equating pp)
