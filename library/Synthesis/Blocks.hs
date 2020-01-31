@@ -24,41 +24,41 @@ fnAsts = fnAstsTamandu
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm
 fnAstsTamandu :: HashMap String Expr
 fnAstsTamandu = fmap parseExpr $
-        --    insert "const" "const" $
+           insert "const" "const" $
            insert "flip" "flip" $
-         --   insert "not" "not" $
-         --   insert "isZero" "(== 0)" $
-        -- --    insert "foldNat" "\\f -> foldNatNat (const f)" $ -- test!
-        --    insert "foldNat" "\\ f acc i -> foldr (const f) acc [1..i]" $ -- test!
-        -- -- https://hackage.haskell.org/package/hmatrix-0.20.0.0/docs/src/Internal.Vector.html#local-6989586621679046393
-        -- -- foldLoop :: (Int -> t -> t) -> t -> Int -> t
-        -- --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
-        --    insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test!
-         --   insert "add" "(+)" $
-         --   insert "mul" "(*)" $
-         --   insert "div" "div" $ -- Int: for fractions use (/)
-         --   insert "max" "max" $
-        --    insert "eq" "(==)" $ -- Tamandu restricts this to Int
-        --    insert "neq" "(/=)" $ -- Tamandu restricts this to Int
-         --   insert "con" "(:)" $
-         --   insert "head" "head" $
-         --   insert "tail" "tail" $
-         --   insert "isNil" "null" $
-        --    insert "map" "map" $  -- list-specific, unlike fmap
-         --   insert "foldr" "foldr" $
-         --   insert "foldl" "foldl" $
-        --    insert "filter" "filter" $
-         --   insert "length" "length" $
-         --   insert "append" "(++)" $
-         --   insert "reverse" "reverse" $
-         --   insert "replicate" "replicate" $
-         --   insert "concat" "concat" $
-         --   insert "sum" "sum" $
-         --   insert "prod" "product" $
-         --   insert "maximum" "maximum" $
-         --   insert "member" "elem" $
-         --   insert "enumTo" "\\i -> [1..i]" $
-         --   insert "enumFromTo" "enumFromTo" $
+           insert "not" "not" $
+           insert "isZero" "(== 0)" $
+        --    insert "foldNat" "\\f -> foldNatNat (const f)" $ -- test!
+           insert "foldNat" "\\ f acc i -> foldr (const f) acc [1..i]" $ -- test!
+        -- https://hackage.haskell.org/package/hmatrix-0.20.0.0/docs/src/Internal.Vector.html#local-6989586621679046393
+        -- foldLoop :: (Int -> t -> t) -> t -> Int -> t
+        --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
+           insert "foldNatNat" "\\ f acc i -> foldr f acc [1..i]" $ -- test!
+           insert "add" "(+)" $
+           insert "mul" "(*)" $
+           insert "div" "div" $ -- Int: for fractions use (/)
+           insert "max" "max" $
+           insert "eq" "(==)" $ -- Tamandu restricts this to Int
+           insert "neq" "(/=)" $ -- Tamandu restricts this to Int
+           insert "con" "(:)" $
+           insert "head" "head" $
+           insert "tail" "tail" $
+           insert "isNil" "null" $
+           insert "map" "map" $  -- list-specific, unlike fmap
+           insert "foldr" "foldr" $
+           insert "foldl" "foldl" $
+           insert "filter" "filter" $
+           insert "length" "length" $
+           insert "append" "(++)" $
+           insert "reverse" "reverse" $
+           insert "replicate" "replicate" $
+           insert "concat" "concat" $
+           insert "sum" "sum" $
+           insert "prod" "product" $
+           insert "maximum" "maximum" $
+           insert "member" "elem" $
+           insert "enumTo" "\\i -> [1..i]" $
+           insert "enumFromTo" "enumFromTo" $
            singleton "succ" "succ"
 
 constants :: HashMap String Expr
