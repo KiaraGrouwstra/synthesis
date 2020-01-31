@@ -4,16 +4,16 @@
 module Orphanage () where
 
 import Data.Hashable (Hashable(..))
-import Data.HashMap.Lazy (HashMap, empty, toList)
-import Data.Text.Prettyprint.Doc (Pretty(..), pretty, (<+>), (<>), viaShow, unsafeViaShow, colon, punctuate)
+import Data.HashMap.Lazy (HashMap, toList)
+import Data.Text.Prettyprint.Doc (Pretty(..), pretty, vcat, unsafeViaShow, colon, punctuate, fillSep, indent)
 import Language.Haskell.Exts.Pretty (prettyPrint)
 import Data.ByteString.Char8 (pack)
 import Language.Haskell.Exts.Syntax (
     -- * Modules
-    Module, ModuleHead, WarningText, ExportSpecList, ExportSpec, EWildcard,
+    Module, ModuleHead, ExportSpecList, ExportSpec,
     ImportDecl, ImportSpecList, ImportSpec, Assoc, Namespace,
     -- * Declarations
-    Decl, DeclHead, InstRule, InstHead, Binds, IPBind, PatternSynDirection, InjectivityInfo, ResultSig,
+    Decl, DeclHead, InstRule, InstHead, IPBind, InjectivityInfo, ResultSig,
     -- ** Type classes and instances
     ClassDecl, InstDecl, Deriving, DerivStrategy,
     -- ** Data type declarations
@@ -23,14 +23,14 @@ import Language.Haskell.Exts.Syntax (
     -- * Class Assertions and Contexts
     Context, FunDep, Asst,
     -- * Types
-    Type, Boxed, TyVarBind, Promoted,
+    Type, TyVarBind, Promoted,
     TypeEqn ,
     -- * Expressions
     Exp, Stmt, QualStmt, FieldUpdate, Alt, XAttr,
     -- * Patterns
     Pat, PatField, PXAttr, RPat, RPatOp,
     -- * Literals
-    Literal, Sign,
+    Literal,
     -- * Variables, Constructors and Operators
     ModuleName, QName, Name, QOp, Op, SpecialCon,
     CName, IPName, XName, Role, MaybePromotedName,
@@ -127,4 +127,4 @@ instance Pretty (BooleanFormula l) where pretty = unsafeViaShow . prettyPrint
 
 -- | ensure I can print lists
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
-    pretty = viaShow . fmap (\(k,v) -> punctuate colon [pretty k, pretty v]) . toList
+    pretty = vcat . fmap (\(k,v) -> indent 2 $ fillSep $ punctuate colon [pretty k, indent 4 $ pretty v]) . toList
