@@ -16,13 +16,13 @@ import Data.Functor (void)
 import qualified Data.Set
 import Util (fstOf3)
 
-import Utility
-import Hint
-import Types
-import FindHoles
-import Ast
-import Generation
-import Configs
+import Synthesis.Utility
+import Synthesis.Hint
+import Synthesis.Types
+import Synthesis.FindHoles
+import Synthesis.Ast
+import Synthesis.Generation
+import Synthesis.Configs
 
 main :: IO ()
 main = do
