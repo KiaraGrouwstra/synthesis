@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase, DataKinds, TypeSynonymInstances, FlexibleInstances #-}
 
 -- | utility functions specifically related to types
-module Synthesis.Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, hasFn, nubTypes) where
+module Synthesis.Types (Tp, Expr, Hole, randomType, randomFnType, tyCon, tyApp, fnTypeIO, genTypes, holeType, var, tyVar, qName, l, findTypeVars, fillTypeVars, star, wildcard, expTypeSig, tyFun, letIn, app, parseExpr, parseType, undef, cxTuple, classA, tyForall, mergeTyVars, unParseResult, unit, symbol, pvar, ptuple, paren, infixApp, dollar, dot, list, tuple, int, string, con, lambda, tyList, fnInputTypes, isFn, hasFn, nubPp) where
 
 import Language.Haskell.Exts.Syntax (Exp(..), SpecialCon(..), Type(..), Name(..), QName(..), Boxed(..), Binds(..), Decl(..), Rhs(..), Pat(..), TyVarBind(..), Context(..), Asst(..), QOp(..), Literal(..), Promoted(..))
 import Language.Haskell.Exts.Parser ( ParseResult(..), ParseMode(..), parseWithMode, defaultParseMode )
@@ -14,6 +14,7 @@ import Data.HashMap.Lazy (HashMap, empty, fromListWith, toList, (!), unionWith, 
 import Data.Bifunctor (first)
 import Synthesis.Utility (Item(..), pick, pp, equating)
 import Synthesis.Orphanage ()
+import Language.Haskell.Exts.Pretty (Pretty)
 
 -- these verbose types annoy me so let's alias them
 type L = SrcSpanInfo
@@ -61,9 +62,10 @@ randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount = do
 
 -- merge two maps of type variables and their corresponding type constraints
 mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
-mergeTyVars = unionWith $ \a b -> nubTypes $ a ++ b
+mergeTyVars = unionWith $ \a b -> nubPp $ a ++ b
 
 -- | extract the input and output types from a function type
+-- | deprecated, not in use
 -- TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
@@ -85,6 +87,7 @@ fnInputTypes = \case
     _ -> []
 
 -- | this function takes an explicitly typed hole, returning its type
+-- | deprecated, not in use
 -- TODO: Maybe
 holeType :: Expr -> Tp
 holeType = \case
@@ -201,10 +204,12 @@ expTypeSig = ExpTypeSig l
 tyFun :: Tp -> Tp -> Tp
 tyFun = TyFun l
 
+-- | type constraint
 tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
 tyForall = TyForall l
 
 -- | star type node: *
+-- | deprecated, not in use
 star :: Tp
 star = TyStar l
 
@@ -216,26 +221,28 @@ wildcard = TyWildCard l Nothing
 unit :: Tp
 unit = TyCon l $ Special l $ UnitCon l
 
--- letIn :: Binds L -> Expr -> Expr
--- letIn = Let l
+-- | let-expression
 letIn :: HashMap String Expr -> Expr -> Expr
 letIn = Let l . binds
 
--- binds :: [Decl L] -> Binds L
--- binds = BDecls l
+-- | variable definitions in e.g. a let-expression
 binds :: HashMap String Expr -> Binds L
 binds = BDecls l . fmap (uncurry patBind) . toList
 
+-- | variable definition in e.g. a let-expression
 -- patBind :: Pat L -> Rhs L -> Maybe (Binds L) -> Decl L
 patBind :: String -> Expr -> Decl L
 patBind name expr = PatBind l (pvar name) (rhs expr) Nothing
 
+-- | right-hand side of an assignment
 rhs :: Expr -> Rhs L
 rhs = UnGuardedRhs l
 
+-- | variable name as used on the left-hand side of an assignment
 pvar :: String -> Pat L
 pvar = PVar l . ident
 
+-- | tuple pattern as used on the left-hand side of an assignment
 ptuple :: [Pat L] -> Pat L
 ptuple = PTuple l Boxed
 
@@ -299,11 +306,6 @@ lambda = Lambda l
 tyList :: Tp -> Tp
 tyList = TyList l
 
--- assertParseResult :: Either String a -> a
---         tp <- case exprType expr of
---             Right t -> t
---             Left e -> error $ "failed to type-parse expr " ++ pp expr ++ ": " + e
-
 -- unpack a ParseResult into an Either
 unParseResult :: ParseResult a -> Either String a
 unParseResult = \case
@@ -321,14 +323,12 @@ parseMode = defaultParseMode {
 
 -- | parse an expression from a string
 parseExpr :: String -> Expr
--- parseExpr = unParseResult . parse
 parseExpr s = case unParseResult (parseWithMode parseMode s :: ParseResult Expr) of
             Right t -> t
             Left e -> error $ "failed to parse expr " ++ s ++ ": " ++ e
 
 -- | parse a type from a string
 parseType :: String -> Tp
--- parseType = unParseResult . parse
 parseType s = case unParseResult (parseWithMode parseMode s :: ParseResult Tp) of
             Right t -> t
             Left e -> error $ "failed to parse type " ++ s ++ ": " ++ e
@@ -362,5 +362,5 @@ hasFn typ = let f = hasFn in case typ of
     _ -> False
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
-nubTypes :: [Tp] -> [Tp]
-nubTypes = nubBy (equating pp)
+nubPp :: Pretty a => [a] -> [a]
+nubPp = nubBy (equating pp)

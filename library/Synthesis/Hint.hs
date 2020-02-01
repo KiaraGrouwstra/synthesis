@@ -1,22 +1,19 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- | utility functions related to the Haskell Interpreter `hint`
-module Synthesis.Hint (runInterpreterMain, runInterpreter_, say, debug, info, notice, warning, err, critical, alert, emergency, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
+module Synthesis.Hint (runInterpreterMain, interpretUnsafe, interpretSafe, say, debug, info, notice, warning, err, critical, alert, emergency, errorString, showError, interpretIO, fnIoPairs, genInputs, exprType) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Language.Haskell.Interpreter (Interpreter, ModuleImport(..), InterpreterError(..), GhcError(..), Extension(..), OptionVal(..), ModuleQualification(..), ImportList(..), setImportsF, runInterpreter, interpret, typeChecksWithDetails, as, lift, liftIO, typeOf, languageExtensions, set)
 import Language.Haskell.Exts.Syntax ( Pat(..), Type(..), Stmt(..), Boxed(..), Exp(..) )
 import Data.List (intercalate)
-import System.Log.Logger (getRootLogger, logL, Priority(..), debugM, infoM, noticeM, warningM, errorM, criticalM, alertM, emergencyM)
+import System.Log.Logger (debugM, infoM, noticeM, warningM, errorM, criticalM, alertM, emergencyM)
 import Synthesis.Types
 import Synthesis.Utility (pp)
 import Synthesis.Ast (genUncurry)
-
--- | modules to be loaded in the interpreter
-_modules :: [String]
-_modules = ["Prelude", "Data.List", "Test.QuickCheck", "Control.Exception"]
-
--- | potentially qualified imports to be loaded in the interpreter
-_qualified :: [(String, Maybe String)]
-_qualified = [("Prelude", Nothing), ("Data.Vector", Just "V")]
+import Data.Maybe (fromMaybe)
+import Data.Functor ((<&>))
+import Control.Monad (join)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
 imports :: [ModuleImport]
@@ -27,24 +24,27 @@ imports = [ ModuleImport "Prelude" NotQualified NoImportList
           ]
 
 -- | run an interpreter monad, printing errors, ignoring values
+-- | deprecated, replace with `interpretUnsafe`
 runInterpreterMain :: Interpreter () -> IO ()
-runInterpreterMain fn = do
-    r <- runInterpreter_ fn
-    case r of
-        Left err -> putStrLn $ errorString err
-        Right _x -> return ()
+runInterpreterMain fn = join $ interpretSafe fn <&> \case
+    Left err_ -> putStrLn $ errorString err_
+    Right _x -> return ()
+
+-- | test an interpreter monad, printing errors, returning values
+interpretUnsafe :: Interpreter a -> IO a
+interpretUnsafe fn = join $ interpretSafe fn <&> \case
+    Left err_ -> error $ errorString err_
+    Right x -> return x
 
 -- TODO: check needed imports case-by-case for potential performance gains
 -- | run an interpreter monad with imports
-runInterpreter_ :: Interpreter a -> IO (Either InterpreterError a)
-runInterpreter_ fn =
-    runInterpreter $ do
-        set [languageExtensions := [PartialTypeSignatures, ScopedTypeVariables]]
-        -- setImports modules
-        -- setImportsQ qualified
-        setImportsF imports
-            >>= const fn
+interpretSafe :: Interpreter a -> IO (Either InterpreterError a)
+interpretSafe fn = runInterpreter $ do
+    set [languageExtensions := [PartialTypeSignatures, ScopedTypeVariables]]
+    setImportsF imports
+        >>= const fn
 
+-- | arbitrary logger name
 logger :: String
 logger = "my_logger"
 
@@ -52,27 +52,42 @@ logger = "my_logger"
 say :: String -> Interpreter ()
 say = warning
 
+-- | log: debug
+-- | deprecated, not in use
 debug :: String -> Interpreter ()
 debug = liftIO . debugM logger
 
+-- | log: info
+-- | deprecated, not in use
 info :: String -> Interpreter ()
 info = liftIO . infoM logger
 
+-- | log: notice
+-- | deprecated, not in use
 notice :: String -> Interpreter ()
 notice = liftIO . noticeM logger
 
+-- | log: warning
 warning :: String -> Interpreter ()
 warning = liftIO . warningM logger
 
+-- | log: error
 err :: String -> Interpreter ()
+-- | deprecated, not in use
 err = liftIO . errorM logger
 
+-- | log: critical
+-- | deprecated, not in use
 critical :: String -> Interpreter ()
 critical = liftIO . criticalM logger
 
+-- | log: alert
+-- | deprecated, not in use
 alert :: String -> Interpreter ()
 alert = liftIO . alertM logger
 
+-- | log: emergency
+-- | deprecated, not in use
 emergency :: String -> Interpreter ()
 emergency = liftIO . emergencyM logger
 
@@ -95,7 +110,8 @@ interpretIO cmd = do
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
--- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings.
+-- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings,
+-- | meaning I also only know the types at run-time (which is when my programs are constructed).
 fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
 fnIoPairs n fn_ast ins = do
     -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"

@@ -61,13 +61,11 @@ fnAstsTamandu = fmap parseExpr $
            insert "enumFromTo" "enumFromTo" $
            singleton "succ" "succ"
 
+-- | non-function blocks
 constants :: HashMap String Expr
 constants = constantsTamandu
 
-_constantsTest :: HashMap String Expr
-_constantsTest = parseExpr <$>
-                singleton "true" "True"
-
+-- | non-function blocks provided in the Tamandu dataset
 constantsTamandu :: HashMap String Expr
 constantsTamandu = fmap parseExpr $
            insert "nil" "[]" $
@@ -79,10 +77,13 @@ constantsTamandu = fmap parseExpr $
 -- | the point here is to ensure I'd put these in the test set, while deduping any equivalent functions out of my training set.
 -- | I'm now leaning toward instead comparing to other papers by running them on my dataset instead of me running on theirs though.
 -- | in that case I should no longer need this anymore.
+-- | deprecated, not in use
 _tasks :: HashMap String String
 _tasks = tasksTamandu
 
+-- | benchmark tasks provided by the Tamandu dataset.
 -- | functionality implemented from: https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/benchmark.ml
+-- | deprecated, not in use
 tasksTamandu :: HashMap String String
 tasksTamandu = 
         insert "drop" "drop" $

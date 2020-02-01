@@ -18,8 +18,8 @@ import Language.Haskell.Exts.Parser ( ParseResult, parse )
 import Data.Ord (Ordering(..))
 import Synthesis.Types
 import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Hint (fnIoPairs)
-import Synthesis.Utility (pick, pp, pickKeysSafe)
+import Synthesis.Hint (fnIoPairs, say)
+import Synthesis.Utility (pick, pp, pp_, pickKeysSafe)
 import Synthesis.Ast (hasHoles, anyFn)
 import Synthesis.Orphanage ()
 
@@ -72,11 +72,6 @@ fillHole block_asts used_blocks expr_blocks expr = do
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
 filterByCompile :: [(Expr, Set String, Expr)] -> Interpreter [(Expr, Set String, Expr)]
 filterByCompile = filterM (fitExpr . thdOf3)
--- unhole . 
-
--- -- | replace any holes in an expression with undefined, for type-checking purposes
--- unhole :: Expr -> Expr
--- unhole expr = ?
 
 -- TODO: switch to `matchesType`?
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
@@ -149,6 +144,7 @@ instantiateTypeVars tps vars = do
 
 -- TODO: defined `Ord` on `Tp` then use `compare :: a -> a -> Ordering`?
 -- | find how two types relate
+-- | deprecated, not in use
 typeRelation :: Tp -> Tp -> Interpreter Ordering
 typeRelation a b = do
     sub   <- a `matchesType` b

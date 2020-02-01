@@ -10,9 +10,10 @@ import Test.HUnit.Text (runTestTT)
 
 import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
 import Language.Haskell.Interpreter (interpret, as)
+import Data.Functor ((<&>), void)
 import Data.List (nub)
-import Data.Either (fromRight, isRight)
-import Data.Functor (void)
+import Data.Either (fromRight)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set
 import Util (fstOf3)
 
@@ -100,43 +101,42 @@ hint = let
         bl = tyCon "Bool"
     in TestList
 
-    [ TestLabel "runInterpreter_" $ TestCase $ do
-        x <- runInterpreter_ $ interpret "\"foo\"" (as :: String)
+    [ TestLabel "interpretSafe" $ TestCase $ do
+        x <- interpretSafe $ interpret "\"foo\"" (as :: String)
         fromRight "" x @?= "foo"
 
     , TestLabel "say" $ TestCase $ do
-        x <- runInterpreter_ $ return ()
-        fromRight () x @?= ()
+        x <- interpretUnsafe $ return ()
+        x @?= ()
 
     , TestLabel "errorString" $ TestCase $ do
-        r <- runInterpreter_ $ interpret "foo" (as :: String)
-        let s = case r of
-                Left err -> errorString err
-                _ -> ""
+        s <- interpretSafe (interpret "foo" (as :: String)) <&> \case
+            Left err_ -> errorString err_
+            _ -> ""
         not (null s) @?= True
 
     , TestLabel "interpretIO" $ TestCase $ do
-        x <- runInterpreter_ (interpretIO "return \"foo\"")
-        fromRight "" x @?= "foo"
+        x <- interpretUnsafe (interpretIO "return \"foo\"")
+        x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- runInterpreter_ (fnIoPairs 1 (var "not") $ parseExpr "[True, False]")
-        fromRight "" x @?= "[(True,Right False),(False,Right True)]"
-        q <- runInterpreter_ (fnIoPairs 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
-        fromRight "" q @?= "[((1,2),Right 3),((3,4),Right 7)]"
+        x <- interpretUnsafe (fnIoPairs 1 (var "not") $ parseExpr "[True, False]")
+        x @?= "[(True,Right False),(False,Right True)]"
+        q <- interpretUnsafe (fnIoPairs 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
+        q @?= "[((1,2),Right 3),((3,4),Right 7)]"
 
     , TestLabel "genInputs" $ TestCase $ do
         -- Bool
-        x <- runInterpreter_ (genInputs 10 bl)
-        pp <$> fromRight undefined x `shouldContain` ["True"]
+        x <- interpretUnsafe (genInputs 10 bl)
+        pp <$> x `shouldContain` ["True"]
         -- -- id
         -- let a = tyVar "a"
-        -- q <- runInterpreter_ (genInputs 10 $ tyFun a a)
+        -- q <- interpretUnsafe (genInputs 10 $ tyFun a a)
         -- isRight q `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
-        x <- runInterpreter_ (exprType $ parseExpr "True")
-        pp (fromRight undefined x) `shouldBe` "Bool"
+        x <- interpretUnsafe (exprType $ parseExpr "True")
+        pp x `shouldBe` "Bool"
 
     ]
 
@@ -252,110 +252,95 @@ gen = let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
         tp = tyFun bl bl
-        maybeList = fmap $ \case
-                    Right ls -> ls
-                    Left _ -> []
-        right = fromRight undefined
     in TestList
 
     [ TestLabel "fnOutputs" $ TestCase $ do
         -- not
-        io1 <- runInterpreter_ $ fnOutputs (singleton bl [con "True", con "False"]) (var "not") [[bl]]
-        let hm1 = case io1 of
-                    Right m -> m
-                    Left _ -> empty
+        hm1 <- interpretUnsafe $ fnOutputs (singleton bl [con "True", con "False"]) (var "not") [[bl]]
         hm1 `shouldBe` singleton [bl] "[(True,Right False),(False,Right True)]"
         -- (+)
-        io2 <- runInterpreter_ $ fnOutputs (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
-        let hm2 = case io2 of
-                    Right m -> m
-                    Left _ -> empty
+        hm2 <- interpretUnsafe $ fnOutputs (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
         hm2 `shouldBe` singleton [int_,int_] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
 
     , TestLabel "fillHole" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"
         let expr = letIn blockAsts $ expTypeSig holeExpr tp
-        filled <- runInterpreter_ $ fillHole blockAsts Data.Set.empty [("not_", var "not_")] expr
-        -- print $ case filled of
-        --         Right _ -> ""
-        --         Left e -> errorString e
-        let lst = case filled of
-                    Right (_partial, candidates) -> candidates
-                    Left _ -> []
+        lst <- interpretUnsafe (fillHole blockAsts Data.Set.empty [("not_", var "not_")] expr) <&> snd
         (gtrExpr . fstOf3 <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "fillHoles" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"
         let expr = expTypeSig holeExpr tp
-        lst <- maybeList . runInterpreter_ $ fillHoles 0 blockAsts Data.Set.empty [("not_", var "not_")] expr
+        lst <- interpretUnsafe $ fillHoles 0 blockAsts Data.Set.empty [("not_", var "not_")] expr
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "genFn" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"
-        filled <- runInterpreter_ $ genFn 0 [("not_", var "not_")] blockAsts
-        isRight filled `shouldBe` True
+        fn <- interpretUnsafe $ genFn 0 [("not_", var "not_")] blockAsts
+        is_fn <- interpretUnsafe $ isFn <$> exprType fn
+        is_fn `shouldBe` True
 
     , TestLabel "genFns" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"
-        lst <- maybeList . runInterpreter_ $ genFns 0 [("not_", var "not_")] blockAsts
+        lst <- interpretUnsafe $ genFns 0 [("not_", var "not_")] blockAsts
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "instantiateTypes" $ TestCase $ do
         -- a => Set a
         let set_ s = tyApp (tyCon "Set") $ tyCon s
-        l1 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyApp (tyCon "Set") $ tyVar "b")
+        l1 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyApp (tyCon "Set") $ tyVar "b")
         (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        l2 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
+        l2 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
         (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        l3 <- maybeList . runInterpreter_ $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
+        l3 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
         (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
         -- without type constraint
-        l1 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" []
+        l1 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" []
         l1 `shouldBe` [singleton "a" bl, singleton "a" int_]
         -- with type constraint
-        l2 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Num"]
+        l2 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Num"]
         l2 `shouldBe` [singleton "a" int_]
         -- Ord a => [a] -> [a]
-        l3 <- maybeList . runInterpreter_ $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Ord"]
+        l3 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Ord"]
         l3 `shouldBe` [singleton "a" bl, singleton "a" int_]
 
     , TestLabel "typeRelation" $ TestCase $ do
         let a = tyVar "a"
         -- crap, I cannot test NEQ as it explodes, while LT/GT seem to imply constraints/forall...
-        q <- runInterpreter_ $ typeRelation int_ a
-        right q `shouldBe` EQ
-        w <- runInterpreter_ $ typeRelation a bl
-        right w `shouldBe` EQ
-        e <- runInterpreter_ $ typeRelation bl bl
-        right e `shouldBe` EQ
-        r <- runInterpreter_ $ typeRelation a a
-        right r `shouldBe` EQ
-        t <- runInterpreter_ $ typeRelation a $ tyVar "b"
-        right t `shouldBe` EQ
+        q <- interpretUnsafe $ typeRelation int_ a
+        q `shouldBe` EQ
+        w <- interpretUnsafe $ typeRelation a bl
+        w `shouldBe` EQ
+        e <- interpretUnsafe $ typeRelation bl bl
+        e `shouldBe` EQ
+        r <- interpretUnsafe $ typeRelation a a
+        r `shouldBe` EQ
+        t <- interpretUnsafe $ typeRelation a $ tyVar "b"
+        t `shouldBe` EQ
 
     , TestLabel "matchesType" $ TestCase $ do
         let a = tyVar "a"
-        q <- runInterpreter_ $ matchesType int_ a
-        right q `shouldBe` True
-        w <- runInterpreter_ $ matchesType a bl
-        right w `shouldBe` True
-        e <- runInterpreter_ $ matchesType bl bl
-        right e `shouldBe` True
-        r <- runInterpreter_ $ matchesType bl int_
-        right r `shouldBe` False
-        t <- runInterpreter_ $ matchesType a a
-        right t `shouldBe` True
-        y <- runInterpreter_ $ matchesType a $ tyVar "b"
-        right y `shouldBe` True
+        q <- interpretUnsafe $ matchesType int_ a
+        q `shouldBe` True
+        w <- interpretUnsafe $ matchesType a bl
+        w `shouldBe` True
+        e <- interpretUnsafe $ matchesType bl bl
+        e `shouldBe` True
+        r <- interpretUnsafe $ matchesType bl int_
+        r `shouldBe` False
+        t <- interpretUnsafe $ matchesType a a
+        t `shouldBe` True
+        y <- interpretUnsafe $ matchesType a $ tyVar "b"
+        y `shouldBe` True
 
     , TestLabel "matchesConstraints" $ TestCase $ do
-        x <- runInterpreter_ $ matchesConstraints int_ [tyCon "Enum"]
-        fromRight False x `shouldBe` True
+        x <- interpretUnsafe $ matchesConstraints int_ [tyCon "Enum"]
+        x `shouldBe` True
 
     -- , TestLabel "filterTypeSigIoFnsM" $ TestCase $ do
     --     let fn_asts = insert "not" (var "not") $ singleton "not_" $ app (var "id") $ var "not"

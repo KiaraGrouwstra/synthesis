@@ -15,7 +15,7 @@ import Synthesis.Blocks (fnAsts, blockAsts, constants)
 import Synthesis.Hint (runInterpreterMain, say, genInputs, exprType)
 import Synthesis.Ast (letRes, genBlockVariants, numAstNodes)
 import Synthesis.Generation (fnOutputs, genFns, instantiateTypes, matchesType)
-import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, hasFn, nubTypes)
+import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, hasFn, nubPp)
 import Synthesis.Utility (groupByVal, flatten, pp, pp_, pickKeysSafe, fromKeys, fromKeysM, randomSplit)
 import Synthesis.Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
 
@@ -43,7 +43,7 @@ program = do
     say $ pp_ task_types
 
     -- generated types we will use for instantiating type variables
-    fill_types :: [Tp] <- nubTypes . flatten <$> lift (genTypes nestLimit maxInstances)
+    fill_types :: [Tp] <- nubPp . flatten <$> lift (genTypes nestLimit maxInstances)
     say "\nfill_types:"
     say $ pp_ fill_types
 
@@ -51,14 +51,14 @@ program = do
     say "\nfn_input_types:"
     say $ pp_ fn_input_types
 
-    let input_types :: [Tp] = nubTypes . concat . elems $ fn_input_types
+    let input_types :: [Tp] = nubPp . concat . elems $ fn_input_types
     say "\ninput_types:"
     say $ pp_ input_types
 
     -- split the input types for our programs into functions vs other -- then instantiate others.
     let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
     let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
-    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubTypes . mapRest . filter (not . hasFn)) $ first nubTypes fns_rest
+    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest . filter (not . hasFn)) $ first nubPp fns_rest
     say "\nparam_fn_types:"
     say $ pp_ param_fn_types
     say "\nrest_type_instantiations:"
@@ -74,7 +74,7 @@ program = do
     say "\ntype_in_type_instantiations:"
     say $ pp_ type_in_type_instantiations
 
-    let in_type_instantiations :: [Tp] = nubTypes . concat . concat . elems $ type_in_type_instantiations
+    let in_type_instantiations :: [Tp] = nubPp . concat . concat . elems $ type_in_type_instantiations
     say "\nin_type_instantiations:"
     say $ pp_ in_type_instantiations
 

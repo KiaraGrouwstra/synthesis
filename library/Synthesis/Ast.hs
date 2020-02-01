@@ -1,18 +1,18 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
 
 -- | ast manipulation
-module Synthesis.Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, genUncurry) where
+module Synthesis.Ast (skeleton, hasHoles, holeExpr, numAstNodes, letRes, genBlockVariants, anyFn, genUncurry, genFnType, genFnInType) where
 import Language.Haskell.Exts.Syntax ( Type(..), Exp(..) )
-import Data.HashMap.Lazy (HashMap, (!), mapWithKey)
+import Data.HashMap.Lazy (HashMap, mapWithKey, empty)
 import Synthesis.Types
 import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Configs (maxWildcardDepth)
+import Synthesis.Configs (maxWildcardDepth, nestLimit)
 import Util (nTimes)
 
+-- | generate applied variants of a function, e.g. [`id`, `id _`]
 genBlockVariants :: HashMap String Tp -> [(String, Expr)]
 genBlockVariants block_types = let
-        together :: HashMap String Tp = block_types
-        generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) together
+        generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) block_types
         -- under currying we will allow any level of application
     in
         concat $ (\ k vs -> (\v -> (k, v)) <$> vs) `mapWithKey` generated
@@ -29,27 +29,24 @@ genHoledVariants_ maxDepth tp expr =
     in expr : case tp of
     TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
         TyFun _l a b -> genHoledVariants_ maxDepth b $ holed a
+        _ -> []
     TyFun _l a b -> genHoledVariants_ maxDepth b $ holed a
     TyWildCard _l _maybeName -> case maxDepth of
                 0 -> []
                 _ -> genHoledVariants_ (maxDepth - 1) tp $ holed wildcard
     _ -> []
 
--- Interpreter.typeOf top expression
--- for each App node:
---      -- get the type signature by Interpreter.typeOf on the function
---      -- using the expected type for the expression, compare with the function signature to potentially fill in (part of) its type variables
---      for the function's parameter slot, assign the substituted input type for the ExprTypeSig
+-- | generate a function type, to then generate functions matching this type
+-- | deprecated, not in use
+genFnType :: IO Tp -- TyFun
+genFnType = randomFnType True True nestLimit empty tyVarCount
+    where tyVarCount :: Int = 0 -- TODO: is this okay?
 
--- -- | generate a function type, to then generate functions matching this type
--- genFnType :: IO Tp -- TyFun
--- genFnType = randomFnType True True nestLimit [] tyVarCount
---     where tyVarCount :: Int = 0 -- TODO: is this okay?
-
--- -- | generate a parameter type, to then generate functions taking this input
--- genFnInType :: IO Tp -- TyFun
--- genFnInType = randomType True True nestLimit [] tyVarCount
---     where tyVarCount :: Int = 0 -- TODO: is this okay?
+-- | generate a parameter type, to then generate functions taking this input
+-- | deprecated, not in use
+genFnInType :: IO Tp -- TyFun
+genFnInType = randomType True True nestLimit empty tyVarCount
+    where tyVarCount :: Int = 0 -- TODO: is this okay?
 
 -- | _ :: (_ -> _)
 anyFn :: Expr
