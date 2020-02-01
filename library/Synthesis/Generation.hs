@@ -7,7 +7,7 @@ import Language.Haskell.Exts.Syntax (Type(..))
 import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
 import Data.List (partition)
 import Control.Monad (filterM)
-import Data.HashMap.Lazy (HashMap, empty, keys, fromList, toList, (!))
+import Data.HashMap.Lazy (HashMap, empty, keys, fromList, toList, (!), lookupDefault)
 import Data.Either (isLeft)
 import Data.Set (Set, insert)
 import qualified Data.Set
@@ -108,24 +108,28 @@ fnOutputs :: HashMap Tp [Expr]
           -> Expr
           -> [[Tp]]                             -- ^ for each type instantiation, for each param, the input type as string
           -> Interpreter (HashMap [Tp] String)
-fnOutputs instantiation_inputs fn_ast in_instantiations = do
+fnOutputs instantiation_inputs fn_ast in_instantiations = -- do
         -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs
         -- say $ "fn_str: " ++ pp fn_ast
         -- say $ "in_instantiations: " ++ pp_ in_instantiations
-        -- a list of samples for parameters for types
-        let inputs :: [[[Expr]]] = fmap (instantiation_inputs !) <$> in_instantiations
-        -- say $ "inputs: " ++ pp_ inputs
-        -- tuples of samples by param
-        let param_combs :: [[[Expr]]] = sequence <$> inputs
-        -- say $ "param_combs: " ++ pp_ param_combs
-        case head param_combs of
+        case in_instantiations of
             [] -> return empty
             _ -> do
-                let n = length . head . head $ param_combs
-                -- say $ "n: " ++ show n
-                let ins :: [Expr] = list . fmap tuple <$> param_combs
-                -- say $ "ins: " ++ pp_ ins
-                fromList . zip in_instantiations <$> mapM (fnIoPairs n fn_ast) ins
+                -- a list of samples for parameters for types
+                let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_instantiations
+                -- say $ "inputs: " ++ pp_ inputs
+                -- tuples of samples by param
+                let param_combs :: [[[Expr]]] = sequence <$> inputs
+                -- say $ "param_combs: " ++ pp_ param_combs
+                -- if we weren't able to generate valid parameters, return an empty hashmap
+                case head param_combs of
+                        [] -> return empty
+                        _ -> do
+                            let n = length . head . head $ param_combs
+                            -- say $ "n: " ++ show n
+                            let ins :: [Expr] = list . fmap tuple <$> param_combs
+                            -- say $ "ins: " ++ pp_ ins
+                            fromList . zip in_instantiations <$> mapM (fnIoPairs n fn_ast) ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 -- | generate any combinations of a polymorphic type filled using a list of concrete types

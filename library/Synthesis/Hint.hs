@@ -11,8 +11,9 @@ import System.Log.Logger (debugM, infoM, noticeM, warningM, errorM, criticalM, a
 import Synthesis.Types
 import Synthesis.Utility (pp)
 import Synthesis.Ast (genUncurry)
-import Data.Maybe (fromMaybe)
+import Data.Either (fromRight)
 import Data.Functor ((<&>))
+import Data.Bifunctor (bimap)
 import Control.Monad (join)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
@@ -103,10 +104,16 @@ showError :: GhcError -> String
 showError (GhcError e) = e
 
 -- | interpret a stringified IO command
-interpretIO :: String -> Interpreter String
+interpretIO :: String -> Interpreter (Either String String)
 interpretIO cmd = do
-    io <- interpret cmd (as :: IO String)
-    lift io
+    res <- typeChecksWithDetails cmd
+    sequence . bimap
+        (show . fmap showError)
+        (\_s -> do
+            io <- interpret cmd (as :: IO String)
+            lift io
+        ) $ res
+    -- say e
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
@@ -131,20 +138,21 @@ fnIoPairs n fn_ast ins = do
             , Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
     -- say cmd
-    checksWithDetails <- typeChecksWithDetails $ show cmd
-    case checksWithDetails of
-        Right _s -> interpretIO cmd
-        Left errors -> return $ show $ showError <$> errors
+    fromRight "[]" <$> interpretIO cmd
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?
 -- | generate examples given a concrete type
 -- | the reason this function needs to be run through the interpreter is Gen wants to know its type at compile-time.
 genInputs :: Int -> Tp -> Interpreter [Expr]
-genInputs n in_tp = unList . parseExpr <$> interpretIO cmd
+genInputs n in_tp = interpretIO cmd <&> \case
+        Left _e -> []
+        Right str -> unList $ parseExpr str 
     where
         cmd = "let seed = 0 in show <$> nub <$> sample' (resize " ++ show n ++ " $ variant seed arbitrary :: Gen (" ++ pp in_tp ++ "))"
-        unList (List _l exps) = exps
+        unList = \case
+            (List _l exps) -> exps
+            _ -> error "expected list"
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp

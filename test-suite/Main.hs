@@ -116,7 +116,7 @@ hint = let
         not (null s) @?= True
 
     , TestLabel "interpretIO" $ TestCase $ do
-        x <- interpretUnsafe (interpretIO "return \"foo\"")
+        x <- interpretUnsafe (fromRight "" <$> interpretIO "return \"foo\"")
         x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
