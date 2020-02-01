@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP               #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase        #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><a name="line-4"></a><span>
+</span><a name="line-5"></a><span class="hs-cpp">#include &quot;version-compatibility-macros.h&quot;
+</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- | Render an unannotated 'SimpleDocStream' as plain 'Text'.</span><span>
+</span><a name="line-8"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Prettyprint.Doc.Render.Text</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-9"></a><span>    </span><span class="hs-comment">-- * Conversion to plain 'Text'</span><span>
+</span><a name="line-10"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderLazy"><span class="hs-identifier hs-var">renderLazy</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderStrict"><span class="hs-identifier hs-var">renderStrict</span></a><span class="hs-special">,</span><span>
+</span><a name="line-11"></a><span>
+</span><a name="line-12"></a><span>    </span><span class="hs-comment">-- * Render to a 'Handle'</span><span>
+</span><a name="line-13"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderIO"><span class="hs-identifier hs-var">renderIO</span></a><span class="hs-special">,</span><span>
+</span><a name="line-14"></a><span>
+</span><a name="line-15"></a><span>    </span><span class="hs-comment">-- ** Convenience functions</span><span>
+</span><a name="line-16"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#putDoc"><span class="hs-identifier hs-var">putDoc</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#hPutDoc"><span class="hs-identifier hs-var">hPutDoc</span></a><span>
+</span><a name="line-17"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-18"></a><span>
+</span><a name="line-19"></a><span>
+</span><a name="line-20"></a><span>
+</span><a name="line-21"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Text</span><span>              </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Text</span><span class="hs-special">)</span><span>
+</span><a name="line-22"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text</span><span>              </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">T</span><span>
+</span><a name="line-23"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text.IO</span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">T</span><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text.Lazy</span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TL</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text.Lazy.Builder</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TLB</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.IO</span><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc</span></a><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Util.Panic.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Render.Util.Panic</span></a><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Util.StackMachine.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Render.Util.StackMachine</span></a><span>
+</span><a name="line-31"></a><span>
+</span><a name="line-32"></a><span class="hs-cpp">#if !(SEMIGROUP_IN_BASE)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Semigroup</span><span>
+</span><a name="line-34"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-36"></a><span class="hs-cpp">#if !(APPLICATIVE_MONAD)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span>
+</span><a name="line-38"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-40"></a><span class="hs-comment">-- $setup</span><span>
+</span><a name="line-41"></a><span class="hs-comment">--</span><span>
+</span><a name="line-42"></a><span class="hs-comment">-- (Definitions for the doctests)</span><span>
+</span><a name="line-43"></a><span class="hs-comment">--</span><span>
+</span><a name="line-44"></a><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedStrings</span><span>
+</span><a name="line-45"></a><span class="hs-comment">-- &gt;&gt;&gt; import qualified Data.Text.IO as T</span><span>
+</span><a name="line-46"></a><span class="hs-comment">-- &gt;&gt;&gt; import qualified Data.Text.Lazy.IO as TL</span><span>
+</span><a name="line-47"></a><span>
+</span><a name="line-48"></a><span>
+</span><a name="line-49"></a><span>
+</span><a name="line-50"></a><span class="hs-comment">-- | @('renderLazy' sdoc)@ takes the output @sdoc@ from a rendering function</span><span>
+</span><a name="line-51"></a><span class="hs-comment">-- and transforms it to lazy text.</span><span>
+</span><a name="line-52"></a><span class="hs-comment">--</span><span>
+</span><a name="line-53"></a><span class="hs-comment">-- &gt;&gt;&gt; let render = TL.putStrLn . renderLazy . layoutPretty defaultLayoutOptions</span><span>
+</span><a name="line-54"></a><span class="hs-comment">-- &gt;&gt;&gt; let doc = &quot;lorem&quot; &lt;+&gt; align (vsep [&quot;ipsum dolor&quot;, parens &quot;foo bar&quot;, &quot;sit amet&quot;])</span><span>
+</span><a name="line-55"></a><span class="hs-comment">-- &gt;&gt;&gt; render doc</span><span>
+</span><a name="line-56"></a><span class="hs-comment">-- lorem ipsum dolor</span><span>
+</span><a name="line-57"></a><span class="hs-comment">--       (foo bar)</span><span>
+</span><a name="line-58"></a><span class="hs-comment">--       sit amet</span><span>
+</span><a name="line-59"></a><span class="hs-identifier">renderLazy</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SimpleDocStream"><span class="hs-identifier hs-type">SimpleDocStream</span></a><span> </span><a href="#local-6989586621679066343"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">TL.Text</span><span>
+</span><a name="line-60"></a><a name="renderLazy"><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderLazy"><span class="hs-identifier">renderLazy</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">TLB.toLazyText</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Util.StackMachine.html#renderSimplyDecorated"><span class="hs-identifier hs-var">renderSimplyDecorated</span></a><span> </span><span class="hs-identifier hs-var">TLB.fromText</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">pure</span><span> </span><span class="hs-identifier hs-var">mempty</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">pure</span><span> </span><span class="hs-identifier hs-var">mempty</span><span class="hs-special">)</span><span>
+</span><a name="line-61"></a><span>
+</span><a name="line-62"></a><span class="hs-comment">-- | @('renderStrict' sdoc)@ takes the output @sdoc@ from a rendering function</span><span>
+</span><a name="line-63"></a><span class="hs-comment">-- and transforms it to strict text.</span><span>
+</span><a name="line-64"></a><span class="hs-identifier">renderStrict</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SimpleDocStream"><span class="hs-identifier hs-type">SimpleDocStream</span></a><span> </span><a href="#local-6989586621679066342"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Text</span><span>
+</span><a name="line-65"></a><a name="renderStrict"><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderStrict"><span class="hs-identifier">renderStrict</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">TL.toStrict</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderLazy"><span class="hs-identifier hs-var">renderLazy</span></a><span>
+</span><a name="line-66"></a><span>
+</span><a name="line-67"></a><span>
+</span><a name="line-68"></a><span>
+</span><a name="line-69"></a><span class="hs-comment">-- | @('renderIO' h sdoc)@ writes @sdoc@ to the file @h@.</span><span>
+</span><a name="line-70"></a><span class="hs-comment">--</span><span>
+</span><a name="line-71"></a><span class="hs-comment">-- &gt;&gt;&gt; renderIO System.IO.stdout (layoutPretty defaultLayoutOptions &quot;hello\nworld&quot;)</span><span>
+</span><a name="line-72"></a><span class="hs-comment">-- hello</span><span>
+</span><a name="line-73"></a><span class="hs-comment">-- world</span><span>
+</span><a name="line-74"></a><span class="hs-comment">--</span><span>
+</span><a name="line-75"></a><span class="hs-comment">-- This function is more efficient than @'T.hPutStr' h ('renderStrict' sdoc)@,</span><span>
+</span><a name="line-76"></a><span class="hs-comment">-- since it writes to the handle directly, skipping the intermediate 'Text'</span><span>
+</span><a name="line-77"></a><span class="hs-comment">-- representation.</span><span>
+</span><a name="line-78"></a><span class="hs-identifier">renderIO</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Handle</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SimpleDocStream"><span class="hs-identifier hs-type">SimpleDocStream</span></a><span> </span><a href="#local-6989586621679066341"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-79"></a><a name="renderIO"><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderIO"><span class="hs-identifier">renderIO</span></a></a><span> </span><a name="local-6989586621679066344"><a href="#local-6989586621679066344"><span class="hs-identifier">h</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span>
+</span><a name="line-80"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-81"></a><span>    </span><span class="hs-identifier">go</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SimpleDocStream"><span class="hs-identifier hs-type">SimpleDocStream</span></a><span> </span><a href="#local-6989586621679066346"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-82"></a><span>    </span><a name="local-6989586621679066345"><a href="#local-6989586621679066345"><span class="hs-identifier">go</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><a name="line-83"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SFail"><span class="hs-identifier hs-var">SFail</span></a><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Util.Panic.html#panicUncaughtFail"><span class="hs-identifier hs-var">panicUncaughtFail</span></a><span>
+</span><a name="line-84"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SEmpty"><span class="hs-identifier hs-var">SEmpty</span></a><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-var">pure</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-85"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SChar"><span class="hs-identifier hs-var">SChar</span></a><span> </span><a name="local-6989586621679066347"><a href="#local-6989586621679066347"><span class="hs-identifier">c</span></a></a><span> </span><a name="local-6989586621679066348"><a href="#local-6989586621679066348"><span class="hs-identifier">rest</span></a></a><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier hs-var">hPutChar</span><span> </span><a href="#local-6989586621679066344"><span class="hs-identifier hs-var">h</span></a><span> </span><a href="#local-6989586621679066347"><span class="hs-identifier hs-var">c</span></a><span>
+</span><a name="line-86"></a><span>                                 </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679066348"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-87"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SText"><span class="hs-identifier hs-var">SText</span></a><span> </span><span class="hs-identifier">_</span><span> </span><a name="local-6989586621679066494"><a href="#local-6989586621679066494"><span class="hs-identifier">t</span></a></a><span> </span><a name="local-6989586621679066495"><a href="#local-6989586621679066495"><span class="hs-identifier">rest</span></a></a><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier hs-var">T.hPutStr</span><span> </span><a href="#local-6989586621679066344"><span class="hs-identifier hs-var">h</span></a><span> </span><a href="#local-6989586621679066494"><span class="hs-identifier hs-var">t</span></a><span>
+</span><a name="line-88"></a><span>                                 </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679066495"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-89"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SLine"><span class="hs-identifier hs-var">SLine</span></a><span> </span><a name="local-6989586621679066496"><a href="#local-6989586621679066496"><span class="hs-identifier">n</span></a></a><span> </span><a name="local-6989586621679066497"><a href="#local-6989586621679066497"><span class="hs-identifier">rest</span></a></a><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier hs-var">hPutChar</span><span> </span><a href="#local-6989586621679066344"><span class="hs-identifier hs-var">h</span></a><span> </span><span class="hs-char">'\n'</span><span>
+</span><a name="line-90"></a><span>                                 </span><span class="hs-identifier hs-var">T.hPutStr</span><span> </span><a href="#local-6989586621679066344"><span class="hs-identifier hs-var">h</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">T.replicate</span><span> </span><a href="#local-6989586621679066496"><span class="hs-identifier hs-var">n</span></a><span> </span><span class="hs-string">&quot; &quot;</span><span class="hs-special">)</span><span>
+</span><a name="line-91"></a><span>                                 </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679066497"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-92"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SAnnPush"><span class="hs-identifier hs-var">SAnnPush</span></a><span> </span><a name="local-6989586621679066498"><a href="#local-6989586621679066498"><span class="hs-identifier">_ann</span></a></a><span> </span><a name="local-6989586621679066499"><a href="#local-6989586621679066499"><span class="hs-identifier">rest</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679066499"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-93"></a><span>        </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SAnnPop"><span class="hs-identifier hs-var">SAnnPop</span></a><span> </span><a name="local-6989586621679066500"><a href="#local-6989586621679066500"><span class="hs-identifier">rest</span></a></a><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679066345"><span class="hs-identifier hs-var">go</span></a><span> </span><a href="#local-6989586621679066500"><span class="hs-identifier hs-var">rest</span></a><span>
+</span><a name="line-94"></a><span>
+</span><a name="line-95"></a><span class="hs-comment">-- | @('putDoc' doc)@ prettyprints document @doc@ to standard output. Uses the</span><span>
+</span><a name="line-96"></a><span class="hs-comment">-- 'defaultLayoutOptions'.</span><span>
+</span><a name="line-97"></a><span class="hs-comment">--</span><span>
+</span><a name="line-98"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (&quot;hello&quot; &lt;+&gt; &quot;world&quot;)</span><span>
+</span><a name="line-99"></a><span class="hs-comment">-- hello world</span><span>
+</span><a name="line-100"></a><span class="hs-comment">--</span><span>
+</span><a name="line-101"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-102"></a><span class="hs-comment">-- 'putDoc' = 'hPutDoc' 'stdout'</span><span>
+</span><a name="line-103"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-104"></a><span class="hs-identifier">putDoc</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066340"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-105"></a><a name="putDoc"><a href="Data.Text.Prettyprint.Doc.Render.Text.html#putDoc"><span class="hs-identifier">putDoc</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#hPutDoc"><span class="hs-identifier hs-var">hPutDoc</span></a><span> </span><span class="hs-identifier hs-var">stdout</span><span>
+</span><a name="line-106"></a><span>
+</span><a name="line-107"></a><span class="hs-comment">-- | Like 'putDoc', but instead of using 'stdout', print to a user-provided</span><span>
+</span><a name="line-108"></a><span class="hs-comment">-- handle, e.g. a file or a socket. Uses the 'defaultLayoutOptions'.</span><span>
+</span><a name="line-109"></a><span class="hs-comment">--</span><span>
+</span><a name="line-110"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-111"></a><span class="hs-comment">-- main = 'withFile' filename (\h -&gt; 'hPutDoc' h doc)</span><span>
+</span><a name="line-112"></a><span class="hs-comment">--   where</span><span>
+</span><a name="line-113"></a><span class="hs-comment">--     doc = 'vcat' [&quot;vertical&quot;, &quot;text&quot;]</span><span>
+</span><a name="line-114"></a><span class="hs-comment">--     filename = &quot;someFile.txt&quot;</span><span>
+</span><a name="line-115"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-116"></a><span class="hs-comment">--</span><span>
+</span><a name="line-117"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-118"></a><span class="hs-comment">-- 'hPutDoc' h doc = 'renderIO' h ('layoutPretty' 'defaultLayoutOptions' doc)</span><span>
+</span><a name="line-119"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-120"></a><span class="hs-identifier">hPutDoc</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Handle</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679065843"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-121"></a><a name="hPutDoc"><a href="Data.Text.Prettyprint.Doc.Render.Text.html#hPutDoc"><span class="hs-identifier">hPutDoc</span></a></a><span> </span><a name="local-6989586621679066587"><a href="#local-6989586621679066587"><span class="hs-identifier">h</span></a></a><span> </span><a name="local-6989586621679066588"><a href="#local-6989586621679066588"><span class="hs-identifier">doc</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderIO"><span class="hs-identifier hs-var">renderIO</span></a><span> </span><a href="#local-6989586621679066587"><span class="hs-identifier hs-var">h</span></a><span> </span><span class="hs-special">(</span><a href="Data.Text.Prettyprint.Doc.Internal.html#layoutPretty"><span class="hs-identifier hs-var">layoutPretty</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#defaultLayoutOptions"><span class="hs-identifier hs-var">defaultLayoutOptions</span></a><span> </span><a href="#local-6989586621679066588"><span class="hs-identifier hs-var">doc</span></a><span class="hs-special">)</span><span>
+</span><a name="line-122"></a></pre></body></html>

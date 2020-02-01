@@ -1,0 +1,66 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Frequently useful definitions for working with general prettyprinters.</span><span>
+</span><a name="line-2"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Prettyprint.Doc.Util</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-3"></a><span>    </span><span class="hs-keyword">module</span><span> </span><a href="Data.Text.Prettyprint.Doc.Util.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Util</span></a><span>
+</span><a name="line-4"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-5"></a><span>
+</span><a name="line-6"></a><span>
+</span><a name="line-7"></a><span>
+</span><a name="line-8"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Text</span><span>                             </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Text</span><span class="hs-special">)</span><span>
+</span><a name="line-9"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text</span><span>                             </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">T</span><span>
+</span><a name="line-10"></a><span class="hs-keyword">import</span><span>           </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Render.Text</span></a><span>
+</span><a name="line-11"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Prelude</span><span>                               </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-var">words</span><span class="hs-special">)</span><span>
+</span><a name="line-12"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.IO</span><span>
+</span><a name="line-13"></a><span>
+</span><a name="line-14"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc</span></a><span>
+</span><a name="line-15"></a><span>
+</span><a name="line-16"></a><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span class="hs-comment">-- | Split an input into word-sized 'Doc's.</span><span>
+</span><a name="line-19"></a><span class="hs-comment">--</span><span>
+</span><a name="line-20"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (tupled (words &quot;Lorem ipsum dolor&quot;))</span><span>
+</span><a name="line-21"></a><span class="hs-comment">-- (Lorem, ipsum, dolor)</span><span>
+</span><a name="line-22"></a><span class="hs-identifier">words</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Text</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679067270"><span class="hs-identifier hs-type">ann</span></a><span class="hs-special">]</span><span>
+</span><a name="line-23"></a><a name="words"><a href="Data.Text.Prettyprint.Doc.Util.html#words"><span class="hs-identifier">words</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">map</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#pretty"><span class="hs-identifier hs-var">pretty</span></a><span> </span><span class="hs-operator hs-var">.</span><span> </span><span class="hs-identifier hs-var">T.words</span><span>
+</span><a name="line-24"></a><span>
+</span><a name="line-25"></a><span class="hs-comment">-- | Insert soft linebreaks between words, so that text is broken into multiple</span><span>
+</span><a name="line-26"></a><span class="hs-comment">-- lines when it exceeds the available width.</span><span>
+</span><a name="line-27"></a><span class="hs-comment">--</span><span>
+</span><a name="line-28"></a><span class="hs-comment">-- &gt;&gt;&gt; putDocW 32 (reflow &quot;Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.&quot;)</span><span>
+</span><a name="line-29"></a><span class="hs-comment">-- Lorem ipsum dolor sit amet,</span><span>
+</span><a name="line-30"></a><span class="hs-comment">-- consectetur adipisicing elit,</span><span>
+</span><a name="line-31"></a><span class="hs-comment">-- sed do eiusmod tempor incididunt</span><span>
+</span><a name="line-32"></a><span class="hs-comment">-- ut labore et dolore magna</span><span>
+</span><a name="line-33"></a><span class="hs-comment">-- aliqua.</span><span>
+</span><a name="line-34"></a><span class="hs-comment">--</span><span>
+</span><a name="line-35"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-36"></a><span class="hs-comment">-- 'reflow' = 'fillSep' . 'words'</span><span>
+</span><a name="line-37"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-38"></a><span class="hs-identifier">reflow</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Text</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679067269"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-39"></a><a name="reflow"><a href="Data.Text.Prettyprint.Doc.Util.html#reflow"><span class="hs-identifier">reflow</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fillSep"><span class="hs-identifier hs-var">fillSep</span></a><span> </span><span class="hs-operator hs-var">.</span><span> </span><a href="Data.Text.Prettyprint.Doc.Util.html#words"><span class="hs-identifier hs-var">words</span></a><span>
+</span><a name="line-40"></a><span>
+</span><a name="line-41"></a><span class="hs-comment">-- | Render a document with a certain width. Useful for quick-and-dirty testing</span><span>
+</span><a name="line-42"></a><span class="hs-comment">-- of layout behaviour. Used heavily in the doctests of this package, for</span><span>
+</span><a name="line-43"></a><span class="hs-comment">-- example.</span><span>
+</span><a name="line-44"></a><span class="hs-comment">--</span><span>
+</span><a name="line-45"></a><span class="hs-comment">-- &gt;&gt;&gt; let doc = reflow &quot;Lorem ipsum dolor sit amet, consectetur adipisicing elit&quot;</span><span>
+</span><a name="line-46"></a><span class="hs-comment">-- &gt;&gt;&gt; putDocW 20 doc</span><span>
+</span><a name="line-47"></a><span class="hs-comment">-- Lorem ipsum dolor</span><span>
+</span><a name="line-48"></a><span class="hs-comment">-- sit amet,</span><span>
+</span><a name="line-49"></a><span class="hs-comment">-- consectetur</span><span>
+</span><a name="line-50"></a><span class="hs-comment">-- adipisicing elit</span><span>
+</span><a name="line-51"></a><span class="hs-comment">-- &gt;&gt;&gt; putDocW 30 doc</span><span>
+</span><a name="line-52"></a><span class="hs-comment">-- Lorem ipsum dolor sit amet,</span><span>
+</span><a name="line-53"></a><span class="hs-comment">-- consectetur adipisicing elit</span><span>
+</span><a name="line-54"></a><span class="hs-identifier">putDocW</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Int</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679067268"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><a name="line-55"></a><a name="putDocW"><a href="Data.Text.Prettyprint.Doc.Util.html#putDocW"><span class="hs-identifier">putDocW</span></a></a><span> </span><a name="local-6989586621679067271"><a href="#local-6989586621679067271"><span class="hs-identifier">w</span></a></a><span> </span><a name="local-6989586621679067272"><a href="#local-6989586621679067272"><span class="hs-identifier">doc</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Render.Text.html#renderIO"><span class="hs-identifier hs-var">renderIO</span></a><span> </span><span class="hs-identifier hs-var">System.IO.stdout</span><span> </span><span class="hs-special">(</span><a href="Data.Text.Prettyprint.Doc.Internal.html#layoutPretty"><span class="hs-identifier hs-var">layoutPretty</span></a><span> </span><a href="#local-6989586621679067273"><span class="hs-identifier hs-var">layoutOptions</span></a><span> </span><span class="hs-special">(</span><a href="Data.Text.Prettyprint.Doc.Internal.html#unAnnotate"><span class="hs-identifier hs-var">unAnnotate</span></a><span> </span><a href="#local-6989586621679067272"><span class="hs-identifier hs-var">doc</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><a name="line-56"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-57"></a><span>    </span><a name="local-6989586621679067273"><a href="#local-6989586621679067273"><span class="hs-identifier">layoutOptions</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#LayoutOptions"><span class="hs-identifier hs-var">LayoutOptions</span></a><span> </span><span class="hs-special">{</span><span> </span><span class="hs-identifier">layoutPageWidth</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#AvailablePerLine"><span class="hs-identifier hs-var">AvailablePerLine</span></a><span> </span><a href="#local-6989586621679067271"><span class="hs-identifier hs-var">w</span></a><span> </span><span class="hs-number">1</span><span> </span><span class="hs-special">}</span><span>
+</span><a name="line-58"></a><span>
+</span><a name="line-59"></a><span>
+</span><a name="line-60"></a><span>
+</span><a name="line-61"></a><span class="hs-comment">-- $setup</span><span>
+</span><a name="line-62"></a><span class="hs-comment">--</span><span>
+</span><a name="line-63"></a><span class="hs-comment">-- (Definitions for the doctests)</span><span>
+</span><a name="line-64"></a><span class="hs-comment">--</span><span>
+</span><a name="line-65"></a><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedStrings</span><span>
+</span><a name="line-66"></a></pre></body></html>

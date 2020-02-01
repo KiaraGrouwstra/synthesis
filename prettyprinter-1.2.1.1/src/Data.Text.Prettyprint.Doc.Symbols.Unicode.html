@@ -1,0 +1,213 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><a name="line-2"></a><span>
+</span><a name="line-3"></a><span class="hs-comment">-- | A collection of predefined Unicode values outside of ASCII range. For</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- ASCII, see &quot;Data.Text.Prettyprint.Doc.Symbols.Ascii&quot;.</span><span>
+</span><a name="line-5"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Prettyprint.Doc.Symbols.Unicode</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-6"></a><span>    </span><span class="hs-comment">-- * Quotes</span><span>
+</span><a name="line-7"></a><span>
+</span><a name="line-8"></a><span>    </span><span class="hs-comment">-- ** Enclosing</span><span>
+</span><a name="line-9"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#d9966quotes"><span class="hs-identifier hs-var">d9966quotes</span></a><span class="hs-special">,</span><span>
+</span><a name="line-10"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#d6699quotes"><span class="hs-identifier hs-var">d6699quotes</span></a><span class="hs-special">,</span><span>
+</span><a name="line-11"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#s96quotes"><span class="hs-identifier hs-var">s96quotes</span></a><span class="hs-special">,</span><span>
+</span><a name="line-12"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#s69quotes"><span class="hs-identifier hs-var">s69quotes</span></a><span class="hs-special">,</span><span>
+</span><a name="line-13"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#dGuillemetsOut"><span class="hs-identifier hs-var">dGuillemetsOut</span></a><span class="hs-special">,</span><span>
+</span><a name="line-14"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#dGuillemetsIn"><span class="hs-identifier hs-var">dGuillemetsIn</span></a><span class="hs-special">,</span><span>
+</span><a name="line-15"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#sGuillemetsOut"><span class="hs-identifier hs-var">sGuillemetsOut</span></a><span class="hs-special">,</span><span>
+</span><a name="line-16"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#sGuillemetsIn"><span class="hs-identifier hs-var">sGuillemetsIn</span></a><span class="hs-special">,</span><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span>    </span><span class="hs-comment">-- ** Standalone</span><span>
+</span><a name="line-19"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b99dquote"><span class="hs-identifier hs-var">b99dquote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-20"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t66dquote"><span class="hs-identifier hs-var">t66dquote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-21"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t99dquote"><span class="hs-identifier hs-var">t99dquote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-22"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b9quote"><span class="hs-identifier hs-var">b9quote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-23"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t6quote"><span class="hs-identifier hs-var">t6quote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-24"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t9quote"><span class="hs-identifier hs-var">t9quote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-25"></a><span>
+</span><a name="line-26"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rdGuillemet"><span class="hs-identifier hs-var">rdGuillemet</span></a><span class="hs-special">,</span><span>
+</span><a name="line-27"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#ldGuillemet"><span class="hs-identifier hs-var">ldGuillemet</span></a><span class="hs-special">,</span><span>
+</span><a name="line-28"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rsGuillemet"><span class="hs-identifier hs-var">rsGuillemet</span></a><span class="hs-special">,</span><span>
+</span><a name="line-29"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#lsGuillemet"><span class="hs-identifier hs-var">lsGuillemet</span></a><span class="hs-special">,</span><span>
+</span><a name="line-30"></a><span>
+</span><a name="line-31"></a><span>    </span><span class="hs-comment">-- * Various typographical symbols</span><span>
+</span><a name="line-32"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#bullet"><span class="hs-identifier hs-var">bullet</span></a><span class="hs-special">,</span><span>
+</span><a name="line-33"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#endash"><span class="hs-identifier hs-var">endash</span></a><span class="hs-special">,</span><span>
+</span><a name="line-34"></a><span>
+</span><a name="line-35"></a><span>    </span><span class="hs-comment">-- * Currencies</span><span>
+</span><a name="line-36"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#euro"><span class="hs-identifier hs-var">euro</span></a><span class="hs-special">,</span><span>
+</span><a name="line-37"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#cent"><span class="hs-identifier hs-var">cent</span></a><span class="hs-special">,</span><span>
+</span><a name="line-38"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#yen"><span class="hs-identifier hs-var">yen</span></a><span class="hs-special">,</span><span>
+</span><a name="line-39"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#pound"><span class="hs-identifier hs-var">pound</span></a><span class="hs-special">,</span><span>
+</span><a name="line-40"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-41"></a><span>
+</span><a name="line-42"></a><span>
+</span><a name="line-43"></a><span>
+</span><a name="line-44"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc</span></a><span>
+</span><a name="line-45"></a><span>
+</span><a name="line-46"></a><span>
+</span><a name="line-47"></a><span>
+</span><a name="line-48"></a><span class="hs-comment">-- | Double &#8222;99-66&#8220; quotes, as used in German typography.</span><span>
+</span><a name="line-49"></a><span class="hs-comment">--</span><span>
+</span><a name="line-50"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (d9966quotes &quot;&#183;&quot;)</span><span>
+</span><a name="line-51"></a><span class="hs-comment">-- &#8222;&#183;&#8220;</span><span>
+</span><a name="line-52"></a><span class="hs-identifier">d9966quotes</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066813"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066813"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-53"></a><a name="d9966quotes"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#d9966quotes"><span class="hs-identifier">d9966quotes</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b99dquote"><span class="hs-identifier hs-var">b99dquote</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t66dquote"><span class="hs-identifier hs-var">t66dquote</span></a><span>
+</span><a name="line-54"></a><span>
+</span><a name="line-55"></a><span class="hs-comment">-- | Double &#8220;66-99&#8221; quotes, as used in English typography.</span><span>
+</span><a name="line-56"></a><span class="hs-comment">--</span><span>
+</span><a name="line-57"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (d6699quotes &quot;&#183;&quot;)</span><span>
+</span><a name="line-58"></a><span class="hs-comment">-- &#8220;&#183;&#8221;</span><span>
+</span><a name="line-59"></a><span class="hs-identifier">d6699quotes</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066812"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066812"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-60"></a><a name="d6699quotes"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#d6699quotes"><span class="hs-identifier">d6699quotes</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t66dquote"><span class="hs-identifier hs-var">t66dquote</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t99dquote"><span class="hs-identifier hs-var">t99dquote</span></a><span>
+</span><a name="line-61"></a><span>
+</span><a name="line-62"></a><span class="hs-comment">-- | Single &#8218;9-6&#8216; quotes, as used in German typography.</span><span>
+</span><a name="line-63"></a><span class="hs-comment">--</span><span>
+</span><a name="line-64"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (s96quotes &quot;&#183;&quot;)</span><span>
+</span><a name="line-65"></a><span class="hs-comment">-- &#8218;&#183;&#8216;</span><span>
+</span><a name="line-66"></a><span class="hs-identifier">s96quotes</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066811"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066811"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-67"></a><a name="s96quotes"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#s96quotes"><span class="hs-identifier">s96quotes</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b9quote"><span class="hs-identifier hs-var">b9quote</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t6quote"><span class="hs-identifier hs-var">t6quote</span></a><span>
+</span><a name="line-68"></a><span>
+</span><a name="line-69"></a><span class="hs-comment">-- | Single &#8216;6-9&#8217; quotes, as used in English typography.</span><span>
+</span><a name="line-70"></a><span class="hs-comment">--</span><span>
+</span><a name="line-71"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (s69quotes &quot;&#183;&quot;)</span><span>
+</span><a name="line-72"></a><span class="hs-comment">-- &#8216;&#183;&#8217;</span><span>
+</span><a name="line-73"></a><span class="hs-identifier">s69quotes</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066810"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066810"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-74"></a><a name="s69quotes"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#s69quotes"><span class="hs-identifier">s69quotes</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t6quote"><span class="hs-identifier hs-var">t6quote</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t9quote"><span class="hs-identifier hs-var">t9quote</span></a><span>
+</span><a name="line-75"></a><span>
+</span><a name="line-76"></a><span class="hs-comment">-- | Double &#171;guillemets&#187;, pointing outwards (without adding any spacing).</span><span>
+</span><a name="line-77"></a><span class="hs-comment">--</span><span>
+</span><a name="line-78"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (dGuillemetsOut &quot;&#183;&quot;)</span><span>
+</span><a name="line-79"></a><span class="hs-comment">-- &#171;&#183;&#187;</span><span>
+</span><a name="line-80"></a><span class="hs-identifier">dGuillemetsOut</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066809"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066809"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-81"></a><a name="dGuillemetsOut"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#dGuillemetsOut"><span class="hs-identifier">dGuillemetsOut</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#ldGuillemet"><span class="hs-identifier hs-var">ldGuillemet</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rdGuillemet"><span class="hs-identifier hs-var">rdGuillemet</span></a><span>
+</span><a name="line-82"></a><span>
+</span><a name="line-83"></a><span class="hs-comment">-- | Double &#187;guillemets&#171;, pointing inwards (without adding any spacing).</span><span>
+</span><a name="line-84"></a><span class="hs-comment">--</span><span>
+</span><a name="line-85"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (dGuillemetsIn &quot;&#183;&quot;)</span><span>
+</span><a name="line-86"></a><span class="hs-comment">-- &#187;&#183;&#171;</span><span>
+</span><a name="line-87"></a><span class="hs-identifier">dGuillemetsIn</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066808"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066808"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-88"></a><a name="dGuillemetsIn"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#dGuillemetsIn"><span class="hs-identifier">dGuillemetsIn</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rdGuillemet"><span class="hs-identifier hs-var">rdGuillemet</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#ldGuillemet"><span class="hs-identifier hs-var">ldGuillemet</span></a><span>
+</span><a name="line-89"></a><span>
+</span><a name="line-90"></a><span class="hs-comment">-- | Single &#8249;guillemets&#8250;, pointing outwards (without adding any spacing).</span><span>
+</span><a name="line-91"></a><span class="hs-comment">--</span><span>
+</span><a name="line-92"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (sGuillemetsOut &quot;&#183;&quot;)</span><span>
+</span><a name="line-93"></a><span class="hs-comment">-- &#8249;&#183;&#8250;</span><span>
+</span><a name="line-94"></a><span class="hs-identifier">sGuillemetsOut</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066807"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066807"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-95"></a><a name="sGuillemetsOut"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#sGuillemetsOut"><span class="hs-identifier">sGuillemetsOut</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#lsGuillemet"><span class="hs-identifier hs-var">lsGuillemet</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rsGuillemet"><span class="hs-identifier hs-var">rsGuillemet</span></a><span>
+</span><a name="line-96"></a><span>
+</span><a name="line-97"></a><span class="hs-comment">-- | Single &#8250;guillemets&#8249;, pointing inwards (without adding any spacing).</span><span>
+</span><a name="line-98"></a><span class="hs-comment">--</span><span>
+</span><a name="line-99"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc (sGuillemetsIn &quot;&#183;&quot;)</span><span>
+</span><a name="line-100"></a><span class="hs-comment">-- &#8250;&#183;&#8249;</span><span>
+</span><a name="line-101"></a><span class="hs-identifier">sGuillemetsIn</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066806"><span class="hs-identifier hs-type">ann</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066806"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-102"></a><a name="sGuillemetsIn"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#sGuillemetsIn"><span class="hs-identifier">sGuillemetsIn</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rsGuillemet"><span class="hs-identifier hs-var">rsGuillemet</span></a><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#lsGuillemet"><span class="hs-identifier hs-var">lsGuillemet</span></a><span>
+</span><a name="line-103"></a><span>
+</span><a name="line-104"></a><span class="hs-comment">-- | Bottom &#8222;99&#8220; style double quotes.</span><span>
+</span><a name="line-105"></a><span class="hs-comment">--</span><span>
+</span><a name="line-106"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc b99dquote</span><span>
+</span><a name="line-107"></a><span class="hs-comment">-- &#8222;</span><span>
+</span><a name="line-108"></a><span class="hs-identifier">b99dquote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066805"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-109"></a><a name="b99dquote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b99dquote"><span class="hs-identifier">b99dquote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8222;&quot;</span><span>
+</span><a name="line-110"></a><span>
+</span><a name="line-111"></a><span class="hs-comment">-- | Top &#8220;66&#8221; style double quotes.</span><span>
+</span><a name="line-112"></a><span class="hs-comment">--</span><span>
+</span><a name="line-113"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc t66dquote</span><span>
+</span><a name="line-114"></a><span class="hs-comment">-- &#8220;</span><span>
+</span><a name="line-115"></a><span class="hs-identifier">t66dquote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066804"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-116"></a><a name="t66dquote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t66dquote"><span class="hs-identifier">t66dquote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8220;&quot;</span><span>
+</span><a name="line-117"></a><span>
+</span><a name="line-118"></a><span class="hs-comment">-- | Top &#8220;99&#8221; style double quotes.</span><span>
+</span><a name="line-119"></a><span class="hs-comment">--</span><span>
+</span><a name="line-120"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc t99dquote</span><span>
+</span><a name="line-121"></a><span class="hs-comment">-- &#8221;</span><span>
+</span><a name="line-122"></a><span class="hs-identifier">t99dquote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066803"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-123"></a><a name="t99dquote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t99dquote"><span class="hs-identifier">t99dquote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8221;&quot;</span><span>
+</span><a name="line-124"></a><span>
+</span><a name="line-125"></a><span class="hs-comment">-- | Bottom &#8218;9&#8216; style single quote.</span><span>
+</span><a name="line-126"></a><span class="hs-comment">--</span><span>
+</span><a name="line-127"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc b9quote</span><span>
+</span><a name="line-128"></a><span class="hs-comment">-- &#8218;</span><span>
+</span><a name="line-129"></a><span class="hs-identifier">b9quote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066802"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-130"></a><a name="b9quote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#b9quote"><span class="hs-identifier">b9quote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8218;&quot;</span><span>
+</span><a name="line-131"></a><span>
+</span><a name="line-132"></a><span class="hs-comment">-- | Top &#8216;66&#8217; style single quote.</span><span>
+</span><a name="line-133"></a><span class="hs-comment">--</span><span>
+</span><a name="line-134"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc t6quote</span><span>
+</span><a name="line-135"></a><span class="hs-comment">-- &#8216;</span><span>
+</span><a name="line-136"></a><span class="hs-identifier">t6quote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066801"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-137"></a><a name="t6quote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t6quote"><span class="hs-identifier">t6quote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8216;&quot;</span><span>
+</span><a name="line-138"></a><span>
+</span><a name="line-139"></a><span class="hs-comment">-- | Top &#8216;9&#8217; style single quote.</span><span>
+</span><a name="line-140"></a><span class="hs-comment">--</span><span>
+</span><a name="line-141"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc t9quote</span><span>
+</span><a name="line-142"></a><span class="hs-comment">-- &#8217;</span><span>
+</span><a name="line-143"></a><span class="hs-identifier">t9quote</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066800"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-144"></a><a name="t9quote"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#t9quote"><span class="hs-identifier">t9quote</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8217;&quot;</span><span>
+</span><a name="line-145"></a><span>
+</span><a name="line-146"></a><span class="hs-comment">-- | Right-pointing double guillemets</span><span>
+</span><a name="line-147"></a><span class="hs-comment">--</span><span>
+</span><a name="line-148"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc rdGuillemet</span><span>
+</span><a name="line-149"></a><span class="hs-comment">-- &#187;</span><span>
+</span><a name="line-150"></a><span class="hs-identifier">rdGuillemet</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066799"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-151"></a><a name="rdGuillemet"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rdGuillemet"><span class="hs-identifier">rdGuillemet</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#187;&quot;</span><span>
+</span><a name="line-152"></a><span>
+</span><a name="line-153"></a><span class="hs-comment">-- | Left-pointing double guillemets</span><span>
+</span><a name="line-154"></a><span class="hs-comment">--</span><span>
+</span><a name="line-155"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc ldGuillemet</span><span>
+</span><a name="line-156"></a><span class="hs-comment">-- &#171;</span><span>
+</span><a name="line-157"></a><span class="hs-identifier">ldGuillemet</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066798"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-158"></a><a name="ldGuillemet"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#ldGuillemet"><span class="hs-identifier">ldGuillemet</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#171;&quot;</span><span>
+</span><a name="line-159"></a><span>
+</span><a name="line-160"></a><span class="hs-comment">-- | Right-pointing single guillemets</span><span>
+</span><a name="line-161"></a><span class="hs-comment">--</span><span>
+</span><a name="line-162"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc rsGuillemet</span><span>
+</span><a name="line-163"></a><span class="hs-comment">-- &#8250;</span><span>
+</span><a name="line-164"></a><span class="hs-identifier">rsGuillemet</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066797"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-165"></a><a name="rsGuillemet"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#rsGuillemet"><span class="hs-identifier">rsGuillemet</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8250;&quot;</span><span>
+</span><a name="line-166"></a><span>
+</span><a name="line-167"></a><span class="hs-comment">-- | Left-pointing single guillemets</span><span>
+</span><a name="line-168"></a><span class="hs-comment">--</span><span>
+</span><a name="line-169"></a><span class="hs-comment">-- &gt;&gt;&gt; putDoc lsGuillemet</span><span>
+</span><a name="line-170"></a><span class="hs-comment">-- &#8249;</span><span>
+</span><a name="line-171"></a><span class="hs-identifier">lsGuillemet</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066796"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-172"></a><a name="lsGuillemet"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#lsGuillemet"><span class="hs-identifier">lsGuillemet</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8249;&quot;</span><span>
+</span><a name="line-173"></a><span>
+</span><a name="line-174"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc bullet</span><span>
+</span><a name="line-175"></a><span class="hs-comment">-- &#8226;</span><span>
+</span><a name="line-176"></a><span class="hs-identifier">bullet</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066795"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-177"></a><a name="bullet"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#bullet"><span class="hs-identifier">bullet</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8226;&quot;</span><span>
+</span><a name="line-178"></a><span>
+</span><a name="line-179"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc endash</span><span>
+</span><a name="line-180"></a><span class="hs-comment">-- &#8211;</span><span>
+</span><a name="line-181"></a><span class="hs-identifier">endash</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066794"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-182"></a><a name="endash"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#endash"><span class="hs-identifier">endash</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8211;&quot;</span><span>
+</span><a name="line-183"></a><span>
+</span><a name="line-184"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc euro</span><span>
+</span><a name="line-185"></a><span class="hs-comment">-- &#8364;</span><span>
+</span><a name="line-186"></a><span class="hs-identifier">euro</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066793"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-187"></a><a name="euro"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#euro"><span class="hs-identifier">euro</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#8364;&quot;</span><span>
+</span><a name="line-188"></a><span>
+</span><a name="line-189"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc cent</span><span>
+</span><a name="line-190"></a><span class="hs-comment">-- &#162;</span><span>
+</span><a name="line-191"></a><span class="hs-identifier">cent</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066792"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-192"></a><a name="cent"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#cent"><span class="hs-identifier">cent</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#162;&quot;</span><span>
+</span><a name="line-193"></a><span>
+</span><a name="line-194"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc yen</span><span>
+</span><a name="line-195"></a><span class="hs-comment">-- &#165;</span><span>
+</span><a name="line-196"></a><span class="hs-identifier">yen</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066791"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-197"></a><a name="yen"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#yen"><span class="hs-identifier">yen</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#165;&quot;</span><span>
+</span><a name="line-198"></a><span>
+</span><a name="line-199"></a><span class="hs-comment">-- | &gt;&gt;&gt; putDoc pound</span><span>
+</span><a name="line-200"></a><span class="hs-comment">-- &#163;</span><span>
+</span><a name="line-201"></a><span class="hs-identifier">pound</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span> </span><a href="#local-6989586621679066790"><span class="hs-identifier hs-type">ann</span></a><span>
+</span><a name="line-202"></a><a name="pound"><a href="Data.Text.Prettyprint.Doc.Symbols.Unicode.html#pound"><span class="hs-identifier">pound</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&#163;&quot;</span><span>
+</span><a name="line-203"></a><span>
+</span><a name="line-204"></a><span>
+</span><a name="line-205"></a><span>
+</span><a name="line-206"></a><span class="hs-comment">-- $setup</span><span>
+</span><a name="line-207"></a><span class="hs-comment">--</span><span>
+</span><a name="line-208"></a><span class="hs-comment">-- (Definitions for the doctests)</span><span>
+</span><a name="line-209"></a><span class="hs-comment">--</span><span>
+</span><a name="line-210"></a><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedStrings</span><span>
+</span><a name="line-211"></a><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text.Prettyprint.Doc.Render.Text</span><span>
+</span><a name="line-212"></a><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text.Prettyprint.Doc.Util</span><span>
+</span><a name="line-213"></a></pre></body></html>

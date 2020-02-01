@@ -1,0 +1,334 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-- Module      :  Data.Text.Prettyprint.Doc</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- Copyright   :  Daan Leijen (c) 2000, http://www.cs.uu.nl/~daan</span><span>
+</span><a name="line-4"></a><span class="hs-comment">--                Max Bolingbroke (c) 2008, http://blog.omega-prime.co.uk</span><span>
+</span><a name="line-5"></a><span class="hs-comment">--                David Luposchainsky (c) 2016, http://github.com/quchen</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE.md)</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- Maintainer  :  David Luposchainsky &lt;dluposchainsky (&#955;) google&gt;</span><span>
+</span><a name="line-8"></a><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- Portability :  portable</span><span>
+</span><a name="line-10"></a><span class="hs-comment">--</span><span>
+</span><a name="line-11"></a><span class="hs-comment">-- = Overview</span><span>
+</span><a name="line-12"></a><span class="hs-comment">--</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- This module defines a prettyprinter to format text in a flexible and</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- convenient way. The idea is to combine a 'Doc'ument out of many small</span><span>
+</span><a name="line-15"></a><span class="hs-comment">-- components, then using a layouter to convert it to an easily renderable</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- 'SimpleDocStream', which can then be rendered to a variety of formats, for</span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- example plain 'Text'.</span><span>
+</span><a name="line-18"></a><span class="hs-comment">--</span><span>
+</span><a name="line-19"></a><span class="hs-comment">-- The documentation consists of several parts:</span><span>
+</span><a name="line-20"></a><span class="hs-comment">--</span><span>
+</span><a name="line-21"></a><span class="hs-comment">--   1. Just below is some general information about the library.</span><span>
+</span><a name="line-22"></a><span class="hs-comment">--   2. The actual library with extensive documentation and examples</span><span>
+</span><a name="line-23"></a><span class="hs-comment">--   3. Migration guide for users familiar with (ansi-)wl-pprint</span><span>
+</span><a name="line-24"></a><span class="hs-comment">--</span><span>
+</span><a name="line-25"></a><span class="hs-comment">-- == Starting out</span><span>
+</span><a name="line-26"></a><span class="hs-comment">--</span><span>
+</span><a name="line-27"></a><span class="hs-comment">-- As a reading list for starters, some of the most commonly used functions in</span><span>
+</span><a name="line-28"></a><span class="hs-comment">-- this module include '&lt;&gt;', 'hsep', '&lt;+&gt;', 'vsep', 'align', 'hang'. These cover</span><span>
+</span><a name="line-29"></a><span class="hs-comment">-- many use cases already, and many other functions are variations or</span><span>
+</span><a name="line-30"></a><span class="hs-comment">-- combinations of these.</span><span>
+</span><a name="line-31"></a><span class="hs-comment">--</span><span>
+</span><a name="line-32"></a><span class="hs-comment">-- = Simple example</span><span>
+</span><a name="line-33"></a><span class="hs-comment">--</span><span>
+</span><a name="line-34"></a><span class="hs-comment">-- Let&#8217;s prettyprint a simple Haskell type definition. First, intersperse @-&gt;@</span><span>
+</span><a name="line-35"></a><span class="hs-comment">-- and add a leading @::@,</span><span>
+</span><a name="line-36"></a><span class="hs-comment">--</span><span>
+</span><a name="line-37"></a><span class="hs-comment">-- &gt;&gt;&gt; let prettyType = align . sep . zipWith (&lt;+&gt;) (&quot;::&quot; : repeat &quot;-&gt;&quot;)</span><span>
+</span><a name="line-38"></a><span class="hs-comment">--</span><span>
+</span><a name="line-39"></a><span class="hs-comment">-- The 'sep' function is one way of concatenating documents, there are multiple</span><span>
+</span><a name="line-40"></a><span class="hs-comment">-- others, e.g. 'vsep', 'cat' and 'fillSep'. In our case, 'sep' space-separates</span><span>
+</span><a name="line-41"></a><span class="hs-comment">-- all entries if there is space, and newlines if the remaining line is too</span><span>
+</span><a name="line-42"></a><span class="hs-comment">-- short.</span><span>
+</span><a name="line-43"></a><span class="hs-comment">--</span><span>
+</span><a name="line-44"></a><span class="hs-comment">-- Second, prepend the name to the type,</span><span>
+</span><a name="line-45"></a><span class="hs-comment">--</span><span>
+</span><a name="line-46"></a><span class="hs-comment">-- &gt;&gt;&gt; let prettyDecl n tys = pretty n &lt;+&gt; prettyType tys</span><span>
+</span><a name="line-47"></a><span class="hs-comment">--</span><span>
+</span><a name="line-48"></a><span class="hs-comment">-- Now we can define a document that contains some type signature:</span><span>
+</span><a name="line-49"></a><span class="hs-comment">--</span><span>
+</span><a name="line-50"></a><span class="hs-comment">-- &gt;&gt;&gt; let doc = prettyDecl &quot;example&quot; [&quot;Int&quot;, &quot;Bool&quot;, &quot;Char&quot;, &quot;IO ()&quot;]</span><span>
+</span><a name="line-51"></a><span class="hs-comment">--</span><span>
+</span><a name="line-52"></a><span class="hs-comment">-- This document can now be printed, and it automatically adapts to available</span><span>
+</span><a name="line-53"></a><span class="hs-comment">-- space. If the page is wide enough (80 characters in this case), the</span><span>
+</span><a name="line-54"></a><span class="hs-comment">-- definitions are space-separated,</span><span>
+</span><a name="line-55"></a><span class="hs-comment">--</span><span>
+</span><a name="line-56"></a><span class="hs-comment">-- &gt;&gt;&gt; putDocW 80 doc</span><span>
+</span><a name="line-57"></a><span class="hs-comment">-- example :: Int -&gt; Bool -&gt; Char -&gt; IO ()</span><span>
+</span><a name="line-58"></a><span class="hs-comment">--</span><span>
+</span><a name="line-59"></a><span class="hs-comment">-- If we narrow the page width to only 20 characters, the /same document/</span><span>
+</span><a name="line-60"></a><span class="hs-comment">-- renders vertically aligned:</span><span>
+</span><a name="line-61"></a><span class="hs-comment">--</span><span>
+</span><a name="line-62"></a><span class="hs-comment">-- &gt;&gt;&gt; putDocW 20 doc</span><span>
+</span><a name="line-63"></a><span class="hs-comment">-- example :: Int</span><span>
+</span><a name="line-64"></a><span class="hs-comment">--         -&gt; Bool</span><span>
+</span><a name="line-65"></a><span class="hs-comment">--         -&gt; Char</span><span>
+</span><a name="line-66"></a><span class="hs-comment">--         -&gt; IO ()</span><span>
+</span><a name="line-67"></a><span class="hs-comment">--</span><span>
+</span><a name="line-68"></a><span class="hs-comment">-- Speaking of alignment, had we not used 'align', the @-&gt;@ would be at the</span><span>
+</span><a name="line-69"></a><span class="hs-comment">-- beginning of each line, and not beneath the @::@.</span><span>
+</span><a name="line-70"></a><span class="hs-comment">--</span><span>
+</span><a name="line-71"></a><span class="hs-comment">-- = General workflow</span><span>
+</span><a name="line-72"></a><span class="hs-comment">--</span><span>
+</span><a name="line-73"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-74"></a><span class="hs-comment">-- &#9556;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</span><span>
+</span><a name="line-75"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-76"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9474; 'vsep', 'pretty', '&lt;+&gt;', &#9474;</span><span>
+</span><a name="line-77"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9474; 'nest', 'align', &#8230;     &#9474;</span><span>
+</span><a name="line-78"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;</span><span>
+</span><a name="line-79"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;</span><span>
+</span><a name="line-80"></a><span class="hs-comment">-- &#9553;  Create  &#9553;                                   &#9474;</span><span>
+</span><a name="line-81"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;</span><span>
+</span><a name="line-82"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9661;</span><span>
+</span><a name="line-83"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-84"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9474;        'Doc'        &#9474;</span><span>
+</span><a name="line-85"></a><span class="hs-comment">-- &#9568;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9571;                         &#9474;  (rich document)  &#9474;</span><span>
+</span><a name="line-86"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;</span><span>
+</span><a name="line-87"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;</span><span>
+</span><a name="line-88"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474; Layout algorithms</span><span>
+</span><a name="line-89"></a><span class="hs-comment">-- &#9553;  Layout  &#9553;                                   &#9474; e.g. 'layoutPretty'</span><span>
+</span><a name="line-90"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9661;</span><span>
+</span><a name="line-91"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-92"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9474;  'SimpleDocStream'  &#9474;</span><span>
+</span><a name="line-93"></a><span class="hs-comment">-- &#9568;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9571;                         &#9474; (simple document) &#9474;</span><span>
+</span><a name="line-94"></a><span class="hs-comment">-- &#9553;          &#9553;                         &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;</span><span>
+</span><a name="line-95"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;</span><span>
+</span><a name="line-96"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-97"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;                             &#9474; 'Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree.treeForm'</span><span>
+</span><a name="line-98"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;                             &#9661;</span><span>
+</span><a name="line-99"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;                     &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-100"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;                     &#9474; 'Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree.SimpleDocTree' &#9474;</span><span>
+</span><a name="line-101"></a><span class="hs-comment">-- &#9553;  Render  &#9553;                                   &#9474;                     &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;</span><span>
+</span><a name="line-102"></a><span class="hs-comment">-- &#9553;          &#9553;                                   &#9474;                             &#9474;</span><span>
+</span><a name="line-103"></a><span class="hs-comment">-- &#9553;          &#9553;               &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;  &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-104"></a><span class="hs-comment">-- &#9553;          &#9553;               &#9474;                   &#9474;                 &#9474;  &#9474;                 &#9474;</span><span>
+</span><a name="line-105"></a><span class="hs-comment">-- &#9553;          &#9553;               &#9661;                   &#9661;                 &#9661;  &#9661;                 &#9661;</span><span>
+</span><a name="line-106"></a><span class="hs-comment">-- &#9553;          &#9553;       &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;   &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;   &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;   &#9581;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9582;</span><span>
+</span><a name="line-107"></a><span class="hs-comment">-- &#9553;          &#9553;       &#9474; ANSI terminal &#9474;   &#9474;  Plain 'Text'   &#9474;   &#9474; other/custom  &#9474;   &#9474;     HTML      &#9474;</span><span>
+</span><a name="line-108"></a><span class="hs-comment">-- &#9553;          &#9553;       &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;   &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;   &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;   &#9584;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9583;</span><span>
+</span><a name="line-109"></a><span class="hs-comment">-- &#9553;          &#9553;</span><span>
+</span><a name="line-110"></a><span class="hs-comment">-- &#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;</span><span>
+</span><a name="line-111"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-112"></a><span class="hs-comment">--</span><span>
+</span><a name="line-113"></a><span class="hs-comment">-- = How the layout works</span><span>
+</span><a name="line-114"></a><span class="hs-comment">--</span><span>
+</span><a name="line-115"></a><span class="hs-comment">-- There are two key concepts to laying a document out: the available width, and</span><span>
+</span><a name="line-116"></a><span class="hs-comment">-- 'group'ing.</span><span>
+</span><a name="line-117"></a><span class="hs-comment">--</span><span>
+</span><a name="line-118"></a><span class="hs-comment">-- == Available width</span><span>
+</span><a name="line-119"></a><span class="hs-comment">--</span><span>
+</span><a name="line-120"></a><span class="hs-comment">-- The page has a certain maximum width, which the layouter tries to not exceed,</span><span>
+</span><a name="line-121"></a><span class="hs-comment">-- by inserting line breaks where possible. The functions given in this module</span><span>
+</span><a name="line-122"></a><span class="hs-comment">-- make it fairly straightforward to specify where, and under what</span><span>
+</span><a name="line-123"></a><span class="hs-comment">-- circumstances, such a line break may be inserted by the layouter, for example</span><span>
+</span><a name="line-124"></a><span class="hs-comment">-- via the 'sep' function.</span><span>
+</span><a name="line-125"></a><span class="hs-comment">--</span><span>
+</span><a name="line-126"></a><span class="hs-comment">-- There is also the concept of /ribbon width/. The ribbon is the part of a line</span><span>
+</span><a name="line-127"></a><span class="hs-comment">-- that is printed, i.e. the line length without the leading indentation. The</span><span>
+</span><a name="line-128"></a><span class="hs-comment">-- layouters take a ribbon fraction argument, which specifies how much of a line</span><span>
+</span><a name="line-129"></a><span class="hs-comment">-- should be filled before trying to break it up. A ribbon width of 0.5 in a</span><span>
+</span><a name="line-130"></a><span class="hs-comment">-- document of width 80 will result in the layouter to try to not exceed @0.5*80 =</span><span>
+</span><a name="line-131"></a><span class="hs-comment">-- 40@ (ignoring current indentation depth).</span><span>
+</span><a name="line-132"></a><span class="hs-comment">--</span><span>
+</span><a name="line-133"></a><span class="hs-comment">-- == Grouping</span><span>
+</span><a name="line-134"></a><span class="hs-comment">--</span><span>
+</span><a name="line-135"></a><span class="hs-comment">-- A document can be 'group'ed, which tells the layouter that it should attempt</span><span>
+</span><a name="line-136"></a><span class="hs-comment">-- to collapse it to a single line. If the result does not fit within the</span><span>
+</span><a name="line-137"></a><span class="hs-comment">-- constraints (given by page and ribbon widths), the document is rendered</span><span>
+</span><a name="line-138"></a><span class="hs-comment">-- unaltered. This allows fallback definitions, so that we get nice results even</span><span>
+</span><a name="line-139"></a><span class="hs-comment">-- when the original document would exceed the layout constraints.</span><span>
+</span><a name="line-140"></a><span class="hs-comment">--</span><span>
+</span><a name="line-141"></a><span class="hs-comment">-- = Things the prettyprinter /cannot/ do</span><span>
+</span><a name="line-142"></a><span class="hs-comment">--</span><span>
+</span><a name="line-143"></a><span class="hs-comment">-- Due to how the Wadler/Leijen algorithm is designed, a couple of things are</span><span>
+</span><a name="line-144"></a><span class="hs-comment">-- unsupported right now, with a high possibility of having no sensible</span><span>
+</span><a name="line-145"></a><span class="hs-comment">-- implementation without significantly changing the layout algorithm. In</span><span>
+</span><a name="line-146"></a><span class="hs-comment">-- particular, this includes</span><span>
+</span><a name="line-147"></a><span class="hs-comment">--</span><span>
+</span><a name="line-148"></a><span class="hs-comment">--   * Leading symbols instead of just spaces for indentation, as used by the</span><span>
+</span><a name="line-149"></a><span class="hs-comment">--     Linux @tree@ tool for example</span><span>
+</span><a name="line-150"></a><span class="hs-comment">--   * Multi-column layouts, in particular tables with multiple cells of equal</span><span>
+</span><a name="line-151"></a><span class="hs-comment">--     width adjacent to each other</span><span>
+</span><a name="line-152"></a><span class="hs-comment">--</span><span>
+</span><a name="line-153"></a><span class="hs-comment">-- = Some helpful tips</span><span>
+</span><a name="line-154"></a><span class="hs-comment">--</span><span>
+</span><a name="line-155"></a><span class="hs-comment">-- == Which kind of annotation should I use?</span><span>
+</span><a name="line-156"></a><span class="hs-comment">--</span><span>
+</span><a name="line-157"></a><span class="hs-comment">-- __Summary:__ Use semantic annotations for @'Doc'@, and after layouting map to</span><span>
+</span><a name="line-158"></a><span class="hs-comment">-- backend-specific ones.</span><span>
+</span><a name="line-159"></a><span class="hs-comment">--</span><span>
+</span><a name="line-160"></a><span class="hs-comment">-- For example, suppose you want to prettyprint some programming language code.</span><span>
+</span><a name="line-161"></a><span class="hs-comment">-- If you want keywords to be red, you should annotate the @'Doc'@ with a type</span><span>
+</span><a name="line-162"></a><span class="hs-comment">-- that has a 'Keyword' field (without any notion of color), and then after</span><span>
+</span><a name="line-163"></a><span class="hs-comment">-- layouting convert the annotations to map @'Keyword'@ to e.g. @'Red'@ (using</span><span>
+</span><a name="line-164"></a><span class="hs-comment">-- @'reAnnotateS'@). The alternative that I /do not/ recommend is directly</span><span>
+</span><a name="line-165"></a><span class="hs-comment">-- annotating the @'Doc'@ with 'Red'.</span><span>
+</span><a name="line-166"></a><span class="hs-comment">--</span><span>
+</span><a name="line-167"></a><span class="hs-comment">-- While both versions would superficially work equally well and would create</span><span>
+</span><a name="line-168"></a><span class="hs-comment">-- identical output, the recommended way has two significant advantages:</span><span>
+</span><a name="line-169"></a><span class="hs-comment">-- modularity and extensibility.</span><span>
+</span><a name="line-170"></a><span class="hs-comment">--</span><span>
+</span><a name="line-171"></a><span class="hs-comment">-- /Modularity:/ To change the color of keywords later, you have to touch one</span><span>
+</span><a name="line-172"></a><span class="hs-comment">-- point, namely the mapping in @'reAnnotateS'@, where @'Keyword'@ is mapped to</span><span>
+</span><a name="line-173"></a><span class="hs-comment">-- 'Red'. If you have @'annotate Red &#8230;'@ everywher, you&#8217;ll have to do a full</span><span>
+</span><a name="line-174"></a><span class="hs-comment">-- text replacement, producing a large diff and touching lots of places for a</span><span>
+</span><a name="line-175"></a><span class="hs-comment">-- very small change.</span><span>
+</span><a name="line-176"></a><span class="hs-comment">--</span><span>
+</span><a name="line-177"></a><span class="hs-comment">-- /Extensibility:/ Adding a different backend in the recommended version is</span><span>
+</span><a name="line-178"></a><span class="hs-comment">-- simply adding another @'reAnnotateS'@ to convert the @'Doc'@ annotation to</span><span>
+</span><a name="line-179"></a><span class="hs-comment">-- something else. On the other hand, if you have @'Red'@ as an annotation in</span><span>
+</span><a name="line-180"></a><span class="hs-comment">-- the @'Doc'@ already and the other backend does not support anything red</span><span>
+</span><a name="line-181"></a><span class="hs-comment">-- (think of plain text or a website where red doesn&#8217;t work well with the rest</span><span>
+</span><a name="line-182"></a><span class="hs-comment">-- of the style), you&#8217;ll have to worry about what to map &#187;redness&#171; to, which has</span><span>
+</span><a name="line-183"></a><span class="hs-comment">-- no canonical answer. Should it be omitted? What does &#187;red&#171; mean anyway &#8211;</span><span>
+</span><a name="line-184"></a><span class="hs-comment">-- maybe keywords and variables are red, and you want to change only the color</span><span>
+</span><a name="line-185"></a><span class="hs-comment">-- of variables?</span><span>
+</span><a name="line-186"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Prettyprint.Doc</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-187"></a><span>    </span><span class="hs-comment">-- * Documents</span><span>
+</span><a name="line-188"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Doc"><span class="hs-identifier hs-type">Doc</span></a><span class="hs-special">,</span><span>
+</span><a name="line-189"></a><span>
+</span><a name="line-190"></a><span>    </span><span class="hs-comment">-- * Basic functionality</span><span>
+</span><a name="line-191"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-192"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#viaShow"><span class="hs-identifier hs-var">viaShow</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#unsafeViaShow"><span class="hs-identifier hs-var">unsafeViaShow</span></a><span class="hs-special">,</span><span>
+</span><a name="line-193"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#emptyDoc"><span class="hs-identifier hs-var">emptyDoc</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#nest"><span class="hs-identifier hs-var">nest</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#line"><span class="hs-identifier hs-var">line</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#line%27"><span class="hs-identifier hs-var">line'</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#softline"><span class="hs-identifier hs-var">softline</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#softline%27"><span class="hs-identifier hs-var">softline'</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#hardline"><span class="hs-identifier hs-var">hardline</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#group"><span class="hs-identifier hs-var">group</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#flatAlt"><span class="hs-identifier hs-var">flatAlt</span></a><span class="hs-special">,</span><span>
+</span><a name="line-194"></a><span>
+</span><a name="line-195"></a><span>    </span><span class="hs-comment">-- * Alignment functions</span><span>
+</span><a name="line-196"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-197"></a><span>    </span><span class="hs-comment">-- | The functions in this section cannot be described by Wadler's original</span><span>
+</span><a name="line-198"></a><span>    </span><span class="hs-comment">-- functions. They align their output relative to the current output</span><span>
+</span><a name="line-199"></a><span>    </span><span class="hs-comment">-- position - in contrast to @'nest'@ which always aligns to the current</span><span>
+</span><a name="line-200"></a><span>    </span><span class="hs-comment">-- nesting level. This deprives these functions from being \'optimal\'. In</span><span>
+</span><a name="line-201"></a><span>    </span><span class="hs-comment">-- practice however they prove to be very useful. The functions in this</span><span>
+</span><a name="line-202"></a><span>    </span><span class="hs-comment">-- section should be used with care, since they are more expensive than the</span><span>
+</span><a name="line-203"></a><span>    </span><span class="hs-comment">-- other functions. For example, @'align'@ shouldn't be used to pretty print</span><span>
+</span><a name="line-204"></a><span>    </span><span class="hs-comment">-- all top-level declarations of a language, but using @'hang'@ for let</span><span>
+</span><a name="line-205"></a><span>    </span><span class="hs-comment">-- expressions is fine.</span><span>
+</span><a name="line-206"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#align"><span class="hs-identifier hs-var">align</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#hang"><span class="hs-identifier hs-var">hang</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#indent"><span class="hs-identifier hs-var">indent</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#encloseSep"><span class="hs-identifier hs-var">encloseSep</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#list"><span class="hs-identifier hs-var">list</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#tupled"><span class="hs-identifier hs-var">tupled</span></a><span class="hs-special">,</span><span>
+</span><a name="line-207"></a><span>
+</span><a name="line-208"></a><span>    </span><span class="hs-comment">-- * Binary functions</span><span>
+</span><a name="line-209"></a><span>    </span><span class="hs-special">(</span><span class="hs-operator hs-var">&lt;&gt;</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="Data.Text.Prettyprint.Doc.Internal.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-210"></a><span>
+</span><a name="line-211"></a><span>    </span><span class="hs-comment">-- * List functions</span><span>
+</span><a name="line-212"></a><span>
+</span><a name="line-213"></a><span>    </span><span class="hs-comment">-- | The 'sep' and 'cat' functions differ in one detail: when 'group'ed, the</span><span>
+</span><a name="line-214"></a><span>    </span><span class="hs-comment">-- 'sep's replace newlines wich 'space's, while the 'cat's simply remove</span><span>
+</span><a name="line-215"></a><span>    </span><span class="hs-comment">-- them. If you're not sure what you want, start with the 'sep's.</span><span>
+</span><a name="line-216"></a><span>
+</span><a name="line-217"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#concatWith"><span class="hs-identifier hs-var">concatWith</span></a><span class="hs-special">,</span><span>
+</span><a name="line-218"></a><span>
+</span><a name="line-219"></a><span>    </span><span class="hs-comment">-- ** 'sep' family</span><span>
+</span><a name="line-220"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-221"></a><span>    </span><span class="hs-comment">-- | When 'group'ed, these will replace newlines with spaces.</span><span>
+</span><a name="line-222"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#hsep"><span class="hs-identifier hs-var">hsep</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#vsep"><span class="hs-identifier hs-var">vsep</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fillSep"><span class="hs-identifier hs-var">fillSep</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#sep"><span class="hs-identifier hs-var">sep</span></a><span class="hs-special">,</span><span>
+</span><a name="line-223"></a><span>    </span><span class="hs-comment">-- ** 'cat' family</span><span>
+</span><a name="line-224"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-225"></a><span>    </span><span class="hs-comment">-- | When 'group'ed, these will remove newlines.</span><span>
+</span><a name="line-226"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#hcat"><span class="hs-identifier hs-var">hcat</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#vcat"><span class="hs-identifier hs-var">vcat</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fillCat"><span class="hs-identifier hs-var">fillCat</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#cat"><span class="hs-identifier hs-var">cat</span></a><span class="hs-special">,</span><span>
+</span><a name="line-227"></a><span>    </span><span class="hs-comment">-- ** Others</span><span>
+</span><a name="line-228"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#punctuate"><span class="hs-identifier hs-var">punctuate</span></a><span class="hs-special">,</span><span>
+</span><a name="line-229"></a><span>
+</span><a name="line-230"></a><span>    </span><span class="hs-comment">-- * Reactive/conditional layouts</span><span>
+</span><a name="line-231"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-232"></a><span>    </span><span class="hs-comment">-- | Lay documents out differently based on current position and the page</span><span>
+</span><a name="line-233"></a><span>    </span><span class="hs-comment">-- layout.</span><span>
+</span><a name="line-234"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#column"><span class="hs-identifier hs-var">column</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#nesting"><span class="hs-identifier hs-var">nesting</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#width"><span class="hs-identifier hs-var">width</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#pageWidth"><span class="hs-identifier hs-var">pageWidth</span></a><span class="hs-special">,</span><span>
+</span><a name="line-235"></a><span>
+</span><a name="line-236"></a><span>    </span><span class="hs-comment">-- * Filler functions</span><span>
+</span><a name="line-237"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-238"></a><span>    </span><span class="hs-comment">-- | Fill up available space</span><span>
+</span><a name="line-239"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fill"><span class="hs-identifier hs-var">fill</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fillBreak"><span class="hs-identifier hs-var">fillBreak</span></a><span class="hs-special">,</span><span>
+</span><a name="line-240"></a><span>
+</span><a name="line-241"></a><span>    </span><span class="hs-comment">-- * General convenience</span><span>
+</span><a name="line-242"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-243"></a><span>    </span><span class="hs-comment">-- | Useful helper functions.</span><span>
+</span><a name="line-244"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#plural"><span class="hs-identifier hs-var">plural</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#enclose"><span class="hs-identifier hs-var">enclose</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#surround"><span class="hs-identifier hs-var">surround</span></a><span class="hs-special">,</span><span>
+</span><a name="line-245"></a><span>
+</span><a name="line-246"></a><span>    </span><span class="hs-comment">-- * Bracketing functions</span><span>
+</span><a name="line-247"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-248"></a><span>    </span><span class="hs-comment">-- | Enclose documents in common ways.</span><span>
+</span><a name="line-249"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#squotes"><span class="hs-identifier hs-var">squotes</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#dquotes"><span class="hs-identifier hs-var">dquotes</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#parens"><span class="hs-identifier hs-var">parens</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#angles"><span class="hs-identifier hs-var">angles</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#brackets"><span class="hs-identifier hs-var">brackets</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#braces"><span class="hs-identifier hs-var">braces</span></a><span class="hs-special">,</span><span>
+</span><a name="line-250"></a><span>
+</span><a name="line-251"></a><span>    </span><span class="hs-comment">-- * Named characters</span><span>
+</span><a name="line-252"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-253"></a><span>    </span><span class="hs-comment">-- | Convenience definitions for common characters</span><span>
+</span><a name="line-254"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#lparen"><span class="hs-identifier hs-var">lparen</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#rparen"><span class="hs-identifier hs-var">rparen</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#langle"><span class="hs-identifier hs-var">langle</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#rangle"><span class="hs-identifier hs-var">rangle</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#lbrace"><span class="hs-identifier hs-var">lbrace</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#rbrace"><span class="hs-identifier hs-var">rbrace</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#lbracket"><span class="hs-identifier hs-var">lbracket</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#rbracket"><span class="hs-identifier hs-var">rbracket</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#squote"><span class="hs-identifier hs-var">squote</span></a><span class="hs-special">,</span><span>
+</span><a name="line-255"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#dquote"><span class="hs-identifier hs-var">dquote</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#semi"><span class="hs-identifier hs-var">semi</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#colon"><span class="hs-identifier hs-var">colon</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#comma"><span class="hs-identifier hs-var">comma</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#space"><span class="hs-identifier hs-var">space</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#dot"><span class="hs-identifier hs-var">dot</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#slash"><span class="hs-identifier hs-var">slash</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#backslash"><span class="hs-identifier hs-var">backslash</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#equals"><span class="hs-identifier hs-var">equals</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html#pipe"><span class="hs-identifier hs-var">pipe</span></a><span class="hs-special">,</span><span>
+</span><a name="line-256"></a><span>
+</span><a name="line-257"></a><span>    </span><span class="hs-comment">-- ** Annotations</span><span>
+</span><a name="line-258"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#annotate"><span class="hs-identifier hs-var">annotate</span></a><span class="hs-special">,</span><span>
+</span><a name="line-259"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#unAnnotate"><span class="hs-identifier hs-var">unAnnotate</span></a><span class="hs-special">,</span><span>
+</span><a name="line-260"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#reAnnotate"><span class="hs-identifier hs-var">reAnnotate</span></a><span class="hs-special">,</span><span>
+</span><a name="line-261"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#alterAnnotations"><span class="hs-identifier hs-var">alterAnnotations</span></a><span class="hs-special">,</span><span>
+</span><a name="line-262"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#unAnnotateS"><span class="hs-identifier hs-var">unAnnotateS</span></a><span class="hs-special">,</span><span>
+</span><a name="line-263"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#reAnnotateS"><span class="hs-identifier hs-var">reAnnotateS</span></a><span class="hs-special">,</span><span>
+</span><a name="line-264"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#alterAnnotationsS"><span class="hs-identifier hs-var">alterAnnotationsS</span></a><span class="hs-special">,</span><span>
+</span><a name="line-265"></a><span>
+</span><a name="line-266"></a><span>    </span><span class="hs-comment">-- * Optimization</span><span>
+</span><a name="line-267"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-268"></a><span>    </span><span class="hs-comment">-- Render documents faster</span><span>
+</span><a name="line-269"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#fuse"><span class="hs-identifier hs-var">fuse</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#FusionDepth"><span class="hs-identifier hs-type">FusionDepth</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-270"></a><span>
+</span><a name="line-271"></a><span>    </span><span class="hs-comment">-- * Layout</span><span>
+</span><a name="line-272"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-273"></a><span>    </span><span class="hs-comment">-- | Laying a 'Doc'ument out produces a straightforward 'SimpleDocStream'</span><span>
+</span><a name="line-274"></a><span>    </span><span class="hs-comment">-- based on parameters such as page width and ribbon size, by evaluating how</span><span>
+</span><a name="line-275"></a><span>    </span><span class="hs-comment">-- a 'Doc' fits these constraints the best. There are various ways to render</span><span>
+</span><a name="line-276"></a><span>    </span><span class="hs-comment">-- a 'SimpleDocStream'. For the common case of rendering a 'SimpleDocStream'</span><span>
+</span><a name="line-277"></a><span>    </span><span class="hs-comment">-- as plain 'Text' take a look at &quot;Data.Text.Prettyprint.Doc.Render.Text&quot;.</span><span>
+</span><a name="line-278"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#SimpleDocStream"><span class="hs-identifier hs-type">SimpleDocStream</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-279"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#PageWidth"><span class="hs-identifier hs-type">PageWidth</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#LayoutOptions"><span class="hs-identifier hs-type">LayoutOptions</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#defaultLayoutOptions"><span class="hs-identifier hs-var">defaultLayoutOptions</span></a><span class="hs-special">,</span><span>
+</span><a name="line-280"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#layoutPretty"><span class="hs-identifier hs-var">layoutPretty</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#layoutCompact"><span class="hs-identifier hs-var">layoutCompact</span></a><span class="hs-special">,</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html#layoutSmart"><span class="hs-identifier hs-var">layoutSmart</span></a><span class="hs-special">,</span><span>
+</span><a name="line-281"></a><span>    </span><a href="Data.Text.Prettyprint.Doc.Internal.html#removeTrailingWhitespace"><span class="hs-identifier hs-var">removeTrailingWhitespace</span></a><span class="hs-special">,</span><span>
+</span><a name="line-282"></a><span>
+</span><a name="line-283"></a><span>    </span><span class="hs-comment">-- * Migration guide</span><span>
+</span><a name="line-284"></a><span>    </span><span class="hs-comment">--</span><span>
+</span><a name="line-285"></a><span>    </span><span class="hs-comment">-- $migration</span><span>
+</span><a name="line-286"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-287"></a><span>
+</span><a name="line-288"></a><span>
+</span><a name="line-289"></a><span>
+</span><a name="line-290"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Semigroup</span><span>
+</span><a name="line-291"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.Internal.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Internal</span></a><span>
+</span><a name="line-292"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Text.Prettyprint.Doc.Symbols.Ascii.html"><span class="hs-identifier">Data.Text.Prettyprint.Doc.Symbols.Ascii</span></a><span>
+</span><a name="line-293"></a><span>
+</span><a name="line-294"></a><span class="hs-comment">-- $setup</span><span>
+</span><a name="line-295"></a><span class="hs-comment">--</span><span>
+</span><a name="line-296"></a><span class="hs-comment">-- (Definitions for the doctests)</span><span>
+</span><a name="line-297"></a><span class="hs-comment">--</span><span>
+</span><a name="line-298"></a><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedStrings</span><span>
+</span><a name="line-299"></a><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text.Prettyprint.Doc.Render.Text</span><span>
+</span><a name="line-300"></a><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text.Prettyprint.Doc.Util</span><span>
+</span><a name="line-301"></a><span>
+</span><a name="line-302"></a><span>
+</span><a name="line-303"></a><span>
+</span><a name="line-304"></a><span class="hs-comment">-- $migration</span><span>
+</span><a name="line-305"></a><span class="hs-comment">--</span><span>
+</span><a name="line-306"></a><span class="hs-comment">-- There are 3 main ways to migrate:</span><span>
+</span><a name="line-307"></a><span class="hs-comment">--</span><span>
+</span><a name="line-308"></a><span class="hs-comment">--   1. Direct: just replace the previous package and fix the errors</span><span>
+</span><a name="line-309"></a><span class="hs-comment">--   2. Using a drop-in replacement mimicing the API of the former module, see</span><span>
+</span><a name="line-310"></a><span class="hs-comment">--      the @prettyprinter-compat-&lt;former package&gt;@ packages</span><span>
+</span><a name="line-311"></a><span class="hs-comment">--   3. Using a converter from the old @Doc@ type to the new one, see the</span><span>
+</span><a name="line-312"></a><span class="hs-comment">--      @prettyprinter-convert-&lt;former package&gt;@ packages</span><span>
+</span><a name="line-313"></a><span class="hs-comment">--</span><span>
+</span><a name="line-314"></a><span class="hs-comment">-- If you're already familiar with (ansi-)wl-pprint, you'll recognize many</span><span>
+</span><a name="line-315"></a><span class="hs-comment">-- functions in this module, and they work just the same way. However, a couple</span><span>
+</span><a name="line-316"></a><span class="hs-comment">-- of definitions are missing:</span><span>
+</span><a name="line-317"></a><span class="hs-comment">--</span><span>
+</span><a name="line-318"></a><span class="hs-comment">--   - @char@, @string@, @double@, &#8230; &#8211; these are all special cases of the</span><span>
+</span><a name="line-319"></a><span class="hs-comment">--     overloaded @'pretty'@ function.</span><span>
+</span><a name="line-320"></a><span class="hs-comment">--   - @\&lt;$&gt;@, @\&lt;$$&gt;@, @\&lt;/&gt;@, @\&lt;//&gt;@ are special cases of</span><span>
+</span><a name="line-321"></a><span class="hs-comment">--     @'vsep'@, @'vcat'@, @'fillSep'@, @'fillCat'@ with only two documents.</span><span>
+</span><a name="line-322"></a><span class="hs-comment">--   - If you need 'String' output, use the backends in the</span><span>
+</span><a name="line-323"></a><span class="hs-comment">--     &quot;Data.Text.Prettyprint.Doc.Render.String&quot; module.</span><span>
+</span><a name="line-324"></a><span class="hs-comment">--   - The /display/ functions are moved to the rendering submodules, for</span><span>
+</span><a name="line-325"></a><span class="hs-comment">--     example conversion to plain 'Text' is in the</span><span>
+</span><a name="line-326"></a><span class="hs-comment">--     &quot;Data.Text.Prettyprint.Doc.Render.Text&quot; module.</span><span>
+</span><a name="line-327"></a><span class="hs-comment">--   - The /render/ functions are called /layout/ functions.</span><span>
+</span><a name="line-328"></a><span class="hs-comment">--   - @SimpleDoc@ was renamed to @'SimpleDocStream'@, in order to make it</span><span>
+</span><a name="line-329"></a><span class="hs-comment">--     clearer in the presence of @SimpleDocTree@.</span><span>
+</span><a name="line-330"></a><span class="hs-comment">--   - Instead of providing an own colorization function for each</span><span>
+</span><a name="line-331"></a><span class="hs-comment">--     color\/intensity\/layer combination, they have been combined in 'color',</span><span>
+</span><a name="line-332"></a><span class="hs-comment">--     'colorDull', 'bgColor', and 'bgColorDull' functions, which can be found</span><span>
+</span><a name="line-333"></a><span class="hs-comment">--     in the ANSI terminal specific @prettyprinter-ansi-terminal@ package.</span><span>
+</span><a name="line-334"></a></pre></body></html>
