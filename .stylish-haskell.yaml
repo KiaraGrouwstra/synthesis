@@ -17,7 +17,7 @@ steps:
 
   # Align the right hand side of some elements.  This is quite conservative
   # and only applies to statements where each element occupies a single
-  # line.
+  # line. All default to true.
   - simple_align:
       cases: true
       top_level_patterns: true
@@ -55,6 +55,18 @@ steps:
       #
       #   > import qualified Data.List      as List (concat, foldl, foldr, head,
       #   >                                 init, last, length)
+      #
+      # - with_module_name: Import list is aligned `list_padding` spaces after
+      #   the module name.
+      #
+      #   > import qualified Data.List      as List (concat, foldl, foldr, head,
+      #                          init, last, length)
+      #
+      #   This is mainly intended for use with `pad_module_names: false`.
+      #
+      #   > import qualified Data.List as List (concat, foldl, foldr, head,
+      #                          init, last, length, scanl, scanr, take, drop,
+      #                          sort, nub)
       #
       # - new_line: Import list starts always on new line.
       #
@@ -126,6 +138,8 @@ steps:
       #
       # - module_name: align under start of module name.
       #   Useful for 'file' and 'group' align settings.
+      #
+      # Default: 4
       list_padding: 4
 
       # Separate lists option affects formatting of import list for type
@@ -227,3 +241,9 @@ newline: native
 # language_extensions:
   # - TemplateHaskell
   # - QuasiQuotes
+
+# Attempt to find the cabal file in ancestors of the current directory, and
+# parse options (currently only language extensions) from that.
+#
+# Default: true
+cabal: true
