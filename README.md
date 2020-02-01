@@ -32,6 +32,10 @@ stack haddock
 # Run
 stack exec -- synthesis
 
+# Profile
+stack build --profile
+stack exec -- synthesis +RTS -p -RTS
+
 # Docker: install deps from base image; rebuild top image on code changes.
 # this still sucks but Stack hates volume mounting. :(
 docker build -t synthesis -f ./docker/base/Dockerfile .
