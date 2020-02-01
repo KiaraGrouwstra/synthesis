@@ -133,7 +133,7 @@ flatten :: Item a -> [a]
 -- | randomly pick an item from a list
 pick :: [a] -> IO a
 
--- | map over the keys of a hashmap
+-- | map over the keys of a hashmap | deprecated, not in use
 mapKeys :: (Hashable k, Eq k, Hashable k_, Eq k_) => (k -> k_) -> HashMap k v -> HashMap k_ v
 
 -- | group a list of k/v pairs by values, essentially inverting the
@@ -143,13 +143,14 @@ groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
 -- | create a HashMap by mapping over a list of keys
 fromKeys :: (Hashable k, Eq k) => (k -> v) -> [k] -> HashMap k v
 
--- | create a HashMap by mapping over a list of values
+-- | create a HashMap by mapping over a list of values | deprecated, not in
+--   use
 fromVals :: (Hashable k, Eq k) => (v -> k) -> [v] -> HashMap k v
 
--- | flatten a nested tuple
+-- | flatten a nested tuple | deprecated, not in use
 flattenTuple :: NestedTuple a -> [a]
 
--- | map over both elements of a tuple
+-- | map over both elements of a tuple | deprecated, not in use
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 
 -- | map over of a 3-element tuple
@@ -160,6 +161,9 @@ tuplify3 :: [a] -> (a, a, a)
 
 -- | unpack a tuple into a list
 untuple3 :: (a, a, a) -> [a]
+
+-- | while a predicate holds, perform a monadic operation starting from an
+--   initial value | deprecated, not in use
 while :: Monad m => (a -> Bool) -> (a -> m a) -> a -> m a
 
 -- | shorthand for pretty-printing AST nodes, used for comparisons
@@ -179,7 +183,7 @@ composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
 --   ratio
 randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
 
--- | flip an Ordering
+-- | flip an Ordering | deprecated, not in use
 flipOrder :: Ordering -> Ordering
 
 -- | mapped equality check
@@ -191,8 +195,11 @@ fromKeysM :: (Monad m, Hashable k, Eq k) => (k -> m v) -> [k] -> m (HashMap k v)
 -- | create a monadic HashMap by mapping over a list of values
 fromValsM :: (Monad m, Hashable k, Eq k) => (v -> m k) -> [v] -> m (HashMap k v)
 
--- | <a>show</a> drop-in for HashMap with Pretty keys.
+-- | <a>show</a> drop-in for HashMap with Pretty keys. | deprecated, not in
+--   use
 ppMap :: (Pretty k, Show v) => HashMap k v -> String
+
+-- | deprecated, not in use
 filterHmM :: (Monad m, Hashable k, Eq k) => ((k, v) -> m Bool) -> HashMap k v -> m (HashMap k v)
 
 -- | pick some keys from a hashmap
@@ -218,15 +225,16 @@ tyCon :: String -> Tp
 -- | create a polymorphic type node
 tyApp :: Tp -> Tp -> Tp
 
--- | extract the input and output types from a function type TODO: Maybe
+-- | extract the input and output types from a function type | deprecated,
+--   not in use TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 
 -- | generate a number of concrete types to be used in type variable
 --   substitution TODO: move the flatten/nub in
 genTypes :: Int -> Int -> IO (Item Tp)
 
--- | this function takes an explicitly typed hole, returning its type TODO:
---   Maybe
+-- | this function takes an explicitly typed hole, returning its type |
+--   deprecated, not in use TODO: Maybe
 holeType :: Expr -> Tp
 
 -- | create a variable node
@@ -247,7 +255,7 @@ findTypeVars :: Tp -> HashMap String [Tp]
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
 
--- | star type node: *
+-- | star type node: * | deprecated, not in use
 star :: Tp
 
 -- | wildcard type node: _
@@ -258,6 +266,8 @@ expTypeSig :: Expr -> Tp -> Expr
 
 -- | type for a function
 tyFun :: Tp -> Tp -> Tp
+
+-- | let-expression
 letIn :: HashMap String Expr -> Expr -> Expr
 
 -- | function application
@@ -277,6 +287,8 @@ cxTuple :: [Asst L] -> Context L
 
 -- | type constraint assertion
 classA :: QName L -> [Tp] -> Asst L
+
+-- | type constraint
 tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
 mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
 unParseResult :: ParseResult a -> Either String a
@@ -286,7 +298,11 @@ unit :: Tp
 
 -- | symbol for use in infix expressions
 symbol :: String -> QOp L
+
+-- | variable name as used on the left-hand side of an assignment
 pvar :: String -> Pat L
+
+-- | tuple pattern as used on the left-hand side of an assignment
 ptuple :: [Pat L] -> Pat L
 
 -- | parenthesized expression
@@ -333,13 +349,15 @@ hasFn :: Tp -> Bool
 
 -- | filter out duplicate types. note this dedupe will fail for type
 --   variable variations...
-nubTypes :: [Tp] -> [Tp]
+nubPp :: Pretty a => [a] -> [a]
 
 module Synthesis.Blocks
 blockAsts :: HashMap String Expr
 
 -- | building blocks
 fnAsts :: HashMap String Expr
+
+-- | non-function blocks
 constants :: HashMap String Expr
 
 
@@ -379,6 +397,8 @@ numAstNodes :: Expr -> Int
 
 -- | get the body of a let-in expression
 letRes :: Expr -> Expr
+
+-- | generate applied variants of a function, e.g. [<a>id</a>, `id _`]
 genBlockVariants :: HashMap String Tp -> [(String, Expr)]
 
 -- | _ :: (_ -&gt; _)
@@ -388,25 +408,55 @@ anyFn :: Expr
 --   fn (a, b) -&gt; fn a b`
 genUncurry :: Int -> Expr
 
+-- | generate a function type, to then generate functions matching this
+--   type | deprecated, not in use
+genFnType :: IO Tp
+
+-- | generate a parameter type, to then generate functions taking this
+--   input | deprecated, not in use
+genFnInType :: IO Tp
+
 
 -- | utility functions related to the Haskell Interpreter <tt>hint</tt>
 module Synthesis.Hint
 
--- | run an interpreter monad, printing errors, ignoring values
+-- | run an interpreter monad, printing errors, ignoring values |
+--   deprecated, replace with <a>interpretUnsafe</a>
 runInterpreterMain :: Interpreter () -> IO ()
 
+-- | test an interpreter monad, printing errors, returning values
+interpretUnsafe :: Interpreter a -> IO a
+
 -- | run an interpreter monad with imports
-runInterpreter_ :: Interpreter a -> IO (Either InterpreterError a)
+interpretSafe :: Interpreter a -> IO (Either InterpreterError a)
 
 -- | print in the Interpreter monad
 say :: String -> Interpreter ()
+
+-- | log: debug | deprecated, not in use
 debug :: String -> Interpreter ()
+
+-- | log: info | deprecated, not in use
 info :: String -> Interpreter ()
+
+-- | log: notice | deprecated, not in use
 notice :: String -> Interpreter ()
+
+-- | log: warning
 warning :: String -> Interpreter ()
+
+-- | deprecated, not in use
+--   
+--   log: error
 err :: String -> Interpreter ()
+
+-- | log: critical | deprecated, not in use
 critical :: String -> Interpreter ()
+
+-- | log: alert | deprecated, not in use
 alert :: String -> Interpreter ()
+
+-- | log: emergency | deprecated, not in use
 emergency :: String -> Interpreter ()
 
 -- | run-time Language.Haskell.Interpreter compilation error
@@ -423,7 +473,8 @@ interpretIO :: String -> Interpreter String
 --   trough try-evaluate so as to Either-wrap potential run-time errors for
 --   partial functions. | the reason this function needs to be run through
 --   the interpreter is I only have the function<i>inputs as
---   AST</i>strings.
+--   AST</i>strings, | meaning I also only know the types at run-time
+--   (which is when my programs are constructed).
 fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
 
 -- | generate examples given a concrete type | the reason this function
@@ -476,7 +527,7 @@ matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
 --   =&gt;` constraints type variables will always match.
 matchesType :: Tp -> Tp -> Interpreter Bool
 
--- | find how two types relate
+-- | find how two types relate | deprecated, not in use
 typeRelation :: Tp -> Tp -> Interpreter Ordering
 
 
