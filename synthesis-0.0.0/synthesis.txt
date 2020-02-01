@@ -466,7 +466,7 @@ errorString :: InterpreterError -> String
 showError :: GhcError -> String
 
 -- | interpret a stringified IO command
-interpretIO :: String -> Interpreter String
+interpretIO :: String -> Interpreter (Either String String)
 
 -- | get input-output pairs for a function given the inputs (for one
 --   concrete input type instantiation). | function application is run
