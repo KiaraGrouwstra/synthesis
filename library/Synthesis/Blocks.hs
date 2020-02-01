@@ -1,13 +1,14 @@
+{-# LANGUAGE UnicodeSyntax #-}
 module Synthesis.Blocks (blockAsts, fnAsts, constants) where
 
-import Data.HashMap.Lazy (HashMap, singleton, insert, union)
-import Synthesis.Types (Expr, parseExpr)
+import           Data.HashMap.Lazy (HashMap, insert, singleton, union)
+import           Synthesis.Types   (Expr, parseExpr)
 
-blockAsts :: HashMap String Expr
+blockAsts ∷ HashMap String Expr
 blockAsts = fnAsts `union` constants
 
 -- | building blocks
-fnAsts :: HashMap String Expr
+fnAsts ∷ HashMap String Expr
 
 -- -- | functions used for testing
 -- fnAsts = insert "not_" "\\b -> not b" $
@@ -22,7 +23,7 @@ fnAsts = fnAstsTamandu
 
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/builtin.ml
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm
-fnAstsTamandu :: HashMap String Expr
+fnAstsTamandu ∷ HashMap String Expr
 fnAstsTamandu = fmap parseExpr $
            insert "const" "const" $
            insert "flip" "flip" $
@@ -62,11 +63,11 @@ fnAstsTamandu = fmap parseExpr $
            singleton "succ" "succ"
 
 -- | non-function blocks
-constants :: HashMap String Expr
+constants ∷ HashMap String Expr
 constants = constantsTamandu
 
 -- | non-function blocks provided in the Tamandu dataset
-constantsTamandu :: HashMap String Expr
+constantsTamandu ∷ HashMap String Expr
 constantsTamandu = fmap parseExpr $
            insert "nil" "[]" $
            insert "true" "True" $
@@ -78,14 +79,14 @@ constantsTamandu = fmap parseExpr $
 -- | I'm now leaning toward instead comparing to other papers by running them on my dataset instead of me running on theirs though.
 -- | in that case I should no longer need this anymore.
 -- | deprecated, not in use
-_tasks :: HashMap String String
+_tasks ∷ HashMap String String
 _tasks = tasksTamandu
 
 -- | benchmark tasks provided by the Tamandu dataset.
 -- | functionality implemented from: https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/benchmark.ml
 -- | deprecated, not in use
-tasksTamandu :: HashMap String String
-tasksTamandu = 
+tasksTamandu ∷ HashMap String String
+tasksTamandu =
         insert "drop" "drop" $
         insert "droplast" "init" $
         insert "dropmax" "\\xs -> filter (maximum xs /=) xs" $

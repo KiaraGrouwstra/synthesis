@@ -1,31 +1,34 @@
-{-# LANGUAGE PackageImports, LambdaCase #-}
+{-# LANGUAGE LambdaCase     #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE UnicodeSyntax  #-}
 
 -- Tasty: <http://documentup.com/feuerbach/tasty>
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 -- Hspec: <https://hspec.github.io>
-import Test.Tasty.Hspec
-import Test.Tasty.HUnit ((@?=))
-import Test.HUnit.Base (Test(..))
-import Test.HUnit.Text (runTestTT)
+import           Test.HUnit.Base              (Test (..))
+import           Test.HUnit.Text              (runTestTT)
+import           Test.Tasty.Hspec
+import           Test.Tasty.HUnit             ((@?=))
 
-import Data.HashMap.Lazy (HashMap, empty, insert, singleton)
-import Language.Haskell.Interpreter (interpret, as)
-import Data.Functor ((<&>), void)
-import Data.List (nub)
-import Data.Either (fromRight)
-import Data.Maybe (fromMaybe)
+import           Data.Either                  (fromRight)
+import           Data.Functor                 (void, (<&>))
+import           Data.HashMap.Lazy            (HashMap, empty, insert,
+                                               singleton)
+import           Data.List                    (nub)
+import           Data.Maybe                   (fromMaybe)
 import qualified Data.Set
-import Util (fstOf3)
+import           Language.Haskell.Interpreter (as, interpret)
+import           Util                         (fstOf3)
 
-import Synthesis.Utility
-import Synthesis.Hint
-import Synthesis.Types
-import Synthesis.FindHoles
-import Synthesis.Ast
-import Synthesis.Generation
-import Synthesis.Configs
+import           Synthesis.Ast
+import           Synthesis.Configs
+import           Synthesis.FindHoles
+import           Synthesis.Generation
+import           Synthesis.Hint
+import           Synthesis.Types
+import           Synthesis.Utility
 
-main :: IO ()
+main ∷ IO ()
 main = do
     -- unlike Tasy, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
@@ -39,7 +42,7 @@ main = do
     let tree :: TestTree = testGroup "synthesis" [util_, types_, find_, ast_]
     defaultMain tree
 
-util :: Spec
+util ∷ Spec
 util = parallel $ do
 
     it "mapTuple" $
@@ -96,7 +99,7 @@ util = parallel $ do
         let (train, _validation, _test) = randomSplit (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length train `shouldBe` 5
 
-hint :: Test
+hint ∷ Test
 hint = let
         bl = tyCon "Bool"
     in TestList
@@ -140,7 +143,7 @@ hint = let
 
     ]
 
-types :: Spec
+types ∷ Spec
 types = parallel $ do
 
     let bl = tyCon "Bool"
@@ -198,7 +201,7 @@ types = parallel $ do
 
     it "mergeTyVars" $
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
-    
+
     it "parseExpr" $
         pp (parseExpr "a") `shouldBe` "a"
 
@@ -210,7 +213,7 @@ types = parallel $ do
         isFn (tyVar "a") `shouldBe` False
         isFn (tyFun bl int_) `shouldBe` True
 
-find :: Spec
+find ∷ Spec
 find = -- do
 
     it "findHolesExpr" $ do
@@ -228,7 +231,7 @@ find = -- do
         -- pp xpr `shouldBe` "(_)"
         pp xpr `shouldBe` "(undefined)"
 
-ast :: Spec
+ast ∷ Spec
 ast = do
 
     it "skeleton" $ do
@@ -247,8 +250,8 @@ ast = do
     it "genUncurry" $
         pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
 
-gen :: Test
-gen = let 
+gen ∷ Test
+gen = let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
         tp = tyFun bl bl

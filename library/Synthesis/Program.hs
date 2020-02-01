@@ -1,30 +1,44 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, ScopedTypeVariables, DataKinds, OverloadedStrings #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE UnicodeSyntax       #-}
 
 -- | main logic
 module Synthesis.Program (main) where
 
-import Language.Haskell.Interpreter (Interpreter, lift)
-import Data.List (partition, minimumBy)
-import Control.Monad (forM_, filterM)
-import Data.HashMap.Lazy (HashMap, keys, elems, (!), mapWithKey, fromList, toList, union, filterWithKey)
--- import Debug.Dump (d)
-import Data.Bifunctor (first)
-import Util (secondM)
-import Synthesis.Orphanage ()
-import Synthesis.Blocks (fnAsts, blockAsts, constants)
-import Synthesis.Hint (runInterpreterMain, say, genInputs, exprType)
-import Synthesis.Ast (letRes, genBlockVariants, numAstNodes)
-import Synthesis.Generation (fnOutputs, genFns, instantiateTypes, matchesType)
-import Synthesis.Types (Tp, Expr, genTypes, expTypeSig, parseExpr, fnInputTypes, isFn, hasFn, nubPp)
-import Synthesis.Utility (groupByVal, flatten, pp, pp_, pickKeysSafe, fromKeys, fromKeysM, randomSplit)
-import Synthesis.Configs (nestLimit, maxInstances, numInputs, genMaxHoles, split)
+import           Control.Monad                (filterM, forM_)
+import           Data.HashMap.Lazy            (HashMap, elems, filterWithKey,
+                                               fromList, keys, mapWithKey,
+                                               toList, union, (!))
+import           Data.List                    (minimumBy, partition)
+import           Language.Haskell.Interpreter (Interpreter, lift)
+import           Data.Bifunctor               (first)
+import           Synthesis.Ast                (genBlockVariants, letRes,
+                                               numAstNodes)
+import           Synthesis.Blocks             (blockAsts, constants, fnAsts)
+import           Synthesis.Configs            (genMaxHoles, maxInstances,
+                                               nestLimit, numInputs, split)
+import           Synthesis.Generation         (fnOutputs, genFns,
+                                               instantiateTypes, matchesType)
+import           Synthesis.Hint               (exprType, genInputs,
+                                               runInterpreterMain, say)
+import           Synthesis.Orphanage          ()
+import           Synthesis.Types              (Expr, Tp, expTypeSig,
+                                               fnInputTypes, genTypes, hasFn,
+                                               isFn, nubPp, parseExpr)
+import           Synthesis.Utility            (flatten, fromKeys, fromKeysM,
+                                               groupByVal, pickKeysSafe, pp,
+                                               pp_, randomSplit)
+import           Util                         (secondM)
 
 -- | main function, run program in our interpreter monad
-main :: IO ()
+main ∷ IO ()
 main = runInterpreterMain program
 
 -- | run our program in the interpreter
-program :: Interpreter ()
+program ∷ Interpreter ()
 program = do
     say "generating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType fnAsts
@@ -57,7 +71,7 @@ program = do
 
     -- split the input types for our programs into functions vs other -- then instantiate others.
     let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
-    let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
+    let mapRest :: [Tp] → Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
     (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest . filter (not . hasFn)) $ first nubPp fns_rest
     say "\nparam_fn_types:"
     say $ pp_ param_fn_types
@@ -90,8 +104,8 @@ program = do
     say $ pp_ rest_instantiation_inputs
 
     -- map each parameter function to a filtered map of generated programs matching its type
-    let functionMatches :: Tp -> Expr -> Interpreter Bool = \ fn_type program_ast -> matchesType (fn_types ! program_ast) fn_type
-    let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) task_fns
+    let functionMatches :: Tp → Expr → Interpreter Bool = \ fn_type program_ast -> matchesType (fn_types ! program_ast) fn_type
+    let filterFns :: Tp → Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) task_fns
     -- fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns param_fn_types
     -- say $ "fn_options: " ++ pp_ fn_options
     instantiated_fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns in_type_instantiations

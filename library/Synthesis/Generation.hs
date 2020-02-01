@@ -1,30 +1,38 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase, ImpredicativeTypes, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ImpredicativeTypes  #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE UnicodeSyntax       #-}
 
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation (fnOutputs, fillHoles, fillHole, genFn, genFns, instantiateTypes, instantiateTypeVars, matchesConstraints, matchesType, typeRelation) where
 
-import Language.Haskell.Exts.Syntax (Type(..))
-import Language.Haskell.Interpreter (Interpreter, lift, typeChecks, typeChecksWithDetails, typeOf)
-import Data.List (partition)
-import Control.Monad (filterM)
-import Data.HashMap.Lazy (HashMap, empty, keys, fromList, toList, (!), lookupDefault)
-import Data.Either (isLeft)
-import Data.Set (Set, insert)
+import           Control.Monad                (filterM)
+import           Data.Bifunctor               (second)
+import           Data.Either                  (isLeft)
+import           Data.HashMap.Lazy            (HashMap, empty, fromList, keys,
+                                               lookupDefault, toList, (!))
+import           Data.List                    (partition)
+import           Data.Ord                     (Ordering (..))
+import           Data.Set                     (Set, insert)
 import qualified Data.Set
-import Data.Bifunctor (second)
-import Util (fstOf3, thdOf3)
-import MonadUtils (allM)
-import Language.Haskell.Exts.Parser ( ParseResult, parse )
-import Data.Ord (Ordering(..))
-import Synthesis.Types
-import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Hint (fnIoPairs, say)
-import Synthesis.Utility (pick, pp, pp_, pickKeysSafe)
-import Synthesis.Ast (hasHoles, anyFn)
-import Synthesis.Orphanage ()
+import           Language.Haskell.Exts.Parser (ParseResult, parse)
+import           Language.Haskell.Exts.Syntax (Type (..))
+import           Language.Haskell.Interpreter (Interpreter, lift, typeChecks,
+                                               typeChecksWithDetails, typeOf)
+import           MonadUtils                   (allM)
+import           Synthesis.Ast                (anyFn, hasHoles)
+import           Synthesis.FindHoles          (findHolesExpr)
+import           Synthesis.Hint               (fnIoPairs, say)
+import           Synthesis.Orphanage          ()
+import           Synthesis.Types
+import           Synthesis.Utility            (pick, pickKeysSafe, pp, pp_)
+import           Util                         (fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.
-genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
+genFn ∷ Int → [(String, Expr)] → HashMap String Expr → Interpreter Expr
 genFn maxHoles expr_blocks block_asts = do
     -- -- TODO: save duplicate effort of finding holes
     -- while hasHoles (genFn_ fn_types) expr
@@ -34,12 +42,12 @@ genFn maxHoles expr_blocks block_asts = do
 
 -- | just directly generate any functions in batch, and see what types end up coming out.
 -- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
-genFns :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter [Expr]
+genFns ∷ Int → [(String, Expr)] → HashMap String Expr → Interpreter [Expr]
 genFns maxHoles expr_blocks block_asts =
     fillHoles maxHoles block_asts Data.Set.empty expr_blocks anyFn
 
--- | generate potential programs filling any holes in a given expression using some building blocks 
-fillHoles :: Int -> HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter [Expr]
+-- | generate potential programs filling any holes in a given expression using some building blocks
+fillHoles ∷ Int → HashMap String Expr → Set String → [(String, Expr)] → Expr → Interpreter [Expr]
 fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
     (partial, candidates) <- fillHole block_asts used_blocks expr_blocks expr
     rest <- case maxHoles of
@@ -48,7 +56,7 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
     return $ (thdOf3 <$> candidates) ++ concat rest
 
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
-fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
+fillHole ∷ HashMap String Expr → Set String → [(String, Expr)] → Expr → Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
     partial_ <- filterByCompile partial
     complete_ <- filterByCompile complete
@@ -58,8 +66,8 @@ fillHole block_asts used_blocks expr_blocks expr = do
         hole_lenses = findHolesExpr expr
         -- TODO: let a learner pick a hole
         hole_lens = head hole_lenses
-        hole_setter :: Expr -> Expr -> Expr = snd hole_lens
-        buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \pair -> let
+        hole_setter :: Expr → Expr → Expr = snd hole_lens
+        buildExpr :: (String, Expr) → (Expr, Set String, Expr) = \pair -> let
                 (block_name, inserted) = pair
                 used :: Set String = insert block_name used_blocks
                 defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) block_asts
@@ -70,13 +78,13 @@ fillHole block_asts used_blocks expr_blocks expr = do
         (partial, complete) :: ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)]) = partition (hasHoles . fstOf3) triplets
 
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
-filterByCompile :: [(Expr, Set String, Expr)] -> Interpreter [(Expr, Set String, Expr)]
+filterByCompile ∷ [(Expr, Set String, Expr)] → Interpreter [(Expr, Set String, Expr)]
 filterByCompile = filterM (fitExpr . thdOf3)
 
 -- TODO: switch to `matchesType`?
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
-fitExpr :: Expr -> Interpreter Bool
+fitExpr ∷ Expr → Interpreter Bool
 fitExpr expr = do
 
     checks <- typeChecksWithDetails $ pp expr
@@ -95,7 +103,7 @@ fitExpr expr = do
                     -- say $ "tp: " ++ pp tp
                     TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
                         TyFun _l _a _b -> True
-                        _ -> False
+                        _              -> False
                     TyFun _l _a _b -> True
                     _ -> False
                 Left _e -> False
@@ -104,10 +112,10 @@ fitExpr expr = do
         return ok
 
 -- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
-fnOutputs :: HashMap Tp [Expr]
-          -> Expr
-          -> [[Tp]]                             -- ^ for each type instantiation, for each param, the input type as string
-          -> Interpreter (HashMap [Tp] String)
+fnOutputs ∷ HashMap Tp [Expr]
+          → Expr
+          → [[Tp]]                             -- ^ for each type instantiation, for each param, the input type as string
+          → Interpreter (HashMap [Tp] String)
 fnOutputs instantiation_inputs fn_ast in_instantiations = -- do
         -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs
         -- say $ "fn_str: " ++ pp fn_ast
@@ -133,23 +141,23 @@ fnOutputs instantiation_inputs fn_ast in_instantiations = -- do
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 -- | generate any combinations of a polymorphic type filled using a list of concrete types
-instantiateTypes :: [Tp] -> Tp -> Interpreter [Tp]
+instantiateTypes ∷ [Tp] → Tp → Interpreter [Tp]
 instantiateTypes tps tp = fmap (fillTypeVars tp) <$> instantiateTypeVars tps (findTypeVars tp)
 
 -- | instantiate type variables
-instantiateTypeVars :: [Tp] -> HashMap String [Tp] -> Interpreter [HashMap String Tp]
+instantiateTypeVars ∷ [Tp] → HashMap String [Tp] → Interpreter [HashMap String Tp]
 -- instantiateTypeVars tps vars = fromList . zip ks <$> sequence (replicate (length ks) tps)
 instantiateTypeVars tps vars = do
     let ks :: [String] = keys vars
     let combs :: [[Tp]] = sequence $ replicate (length ks) tps
     let maps :: [HashMap String Tp] = fromList . zip ks <$> combs
-    let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k,v) -> matchesConstraints v $ vars ! k) . toList
+    let keysOk :: HashMap String Tp → Interpreter Bool = allM (\(k,v) -> matchesConstraints v $ vars ! k) . toList
     filterM keysOk maps
 
 -- TODO: defined `Ord` on `Tp` then use `compare :: a -> a -> Ordering`?
 -- | find how two types relate
 -- | deprecated, not in use
-typeRelation :: Tp -> Tp -> Interpreter Ordering
+typeRelation ∷ Tp → Tp → Interpreter Ordering
 typeRelation a b = do
     sub   <- a `matchesType` b
     super <- b `matchesType` a
@@ -161,7 +169,7 @@ typeRelation a b = do
 -- | check if type `a` matches type `b`.
 -- | runs a command like `(undefined :: b -> ()) (undefined :: a)`.
 -- | without forall `a =>` constraints type variables will always match.
-matchesType :: Tp -> Tp -> Interpreter Bool
+matchesType ∷ Tp → Tp → Interpreter Bool
 matchesType a b = do
         -- let cmd :: String = pp $ app (undef $ tyFun b unit) $ undef a
         -- shift TyForall off the parameter type to the function type
@@ -174,7 +182,7 @@ matchesType a b = do
 
 -- | check if a type matches the given type constraints.
 -- | runs a command like `(undefined :: (Num a, Eq a) => a -> ()) (undefined :: Bool)`
-matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
+matchesConstraints ∷ Tp → [Tp] → Interpreter Bool
 matchesConstraints tp constraints = do
         let a :: Tp = tyVar "a"
         let forAll = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> classA qname [a]) <$> constraints) a

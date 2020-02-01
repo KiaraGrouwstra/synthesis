@@ -1,34 +1,41 @@
+{-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | defined type class instances
 module Synthesis.Orphanage () where
 
-import Data.Hashable (Hashable(..))
-import Data.HashMap.Lazy (HashMap, toList)
-import Data.Text.Prettyprint.Doc (Pretty(..), pretty, vcat, unsafeViaShow, colon, punctuate, fillSep, indent)
-import Language.Haskell.Exts.Pretty (prettyPrint)
-import Data.ByteString.Char8 (pack)
-import Language.Haskell.Exts.Syntax (
-    Module, ModuleHead, ExportSpecList, ExportSpec,
-    ImportDecl, ImportSpecList, ImportSpec, Assoc, Namespace,
-    Decl, DeclHead, InstRule, InstHead, IPBind, InjectivityInfo, ResultSig,
-    ClassDecl, InstDecl, Deriving, DerivStrategy,
-    DataOrNew, ConDecl, FieldDecl, QualConDecl, GadtDecl, BangType, Unpackedness,
-    Match, Rhs, GuardedRhs,
-    Context, FunDep, Asst,
-    Type, TyVarBind, Promoted,
-    TypeEqn ,
-    Exp, Stmt, QualStmt, FieldUpdate, Alt, XAttr,
-    Pat, PatField, PXAttr, RPat, RPatOp,
-    Literal,
-    ModuleName, QName, Name, QOp, Op, SpecialCon,
-    CName, IPName, XName, Role, MaybePromotedName,
-    Bracket, Splice,
-    Safety, CallConv,
-    ModulePragma, Tool, Overlap,
-    Rule, RuleVar, Activation,
-    Annotation, BooleanFormula
-    )
+import           Data.ByteString.Char8        (pack)
+import           Data.Hashable                (Hashable (..))
+import           Data.HashMap.Lazy            (HashMap, toList)
+import           Data.Text.Prettyprint.Doc    (Pretty (..), colon, fillSep,
+                                               indent, pretty, punctuate,
+                                               unsafeViaShow, vcat)
+import           Language.Haskell.Exts.Pretty (prettyPrint)
+import           Language.Haskell.Exts.Syntax (Activation, Alt, Annotation,
+                                               Assoc, Asst, BangType,
+                                               BooleanFormula, Bracket, CName,
+                                               CallConv, ClassDecl, ConDecl,
+                                               Context, DataOrNew, Decl,
+                                               DeclHead, DerivStrategy,
+                                               Deriving, Exp, ExportSpec,
+                                               ExportSpecList, FieldDecl,
+                                               FieldUpdate, FunDep, GadtDecl,
+                                               GuardedRhs, IPBind, IPName,
+                                               ImportDecl, ImportSpec,
+                                               ImportSpecList, InjectivityInfo,
+                                               InstDecl, InstHead, InstRule,
+                                               Literal, Match,
+                                               MaybePromotedName, Module,
+                                               ModuleHead, ModuleName,
+                                               ModulePragma, Name, Namespace,
+                                               Op, Overlap, PXAttr, Pat,
+                                               PatField, Promoted, QName, QOp,
+                                               QualConDecl, QualStmt, RPat,
+                                               RPatOp, ResultSig, Rhs, Role,
+                                               Rule, RuleVar, Safety,
+                                               SpecialCon, Splice, Stmt, Tool,
+                                               TyVarBind, Type, TypeEqn,
+                                               Unpackedness, XAttr, XName)
 
 -- | ensure I can use expressions as keys in HashMaps
 instance Hashable (Exp l) where

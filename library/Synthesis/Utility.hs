@@ -1,21 +1,22 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE UnicodeSyntax #-}
 
 -- | utility functions
 module Synthesis.Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pp_, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
 
-import Data.Hashable (Hashable)
-import System.Random (randomRIO)
-import Data.HashMap.Lazy (HashMap, fromList, toList, (!))
-import qualified Data.HashMap.Lazy as HM
-import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
-import qualified Data.Text.Prettyprint.Doc as PP -- (Pretty, pretty)
-import GHC.Exts (groupWith)
-import Data.Bifunctor (first)
-import Data.Bifoldable (biList)
-import Control.Monad (join, filterM)
-import Control.Arrow ((***))
-import Data.List.Split (splitPlaces)
-import Data.Maybe (isJust, fromJust)
+import           Control.Arrow                ((***))
+import           Control.Monad                (filterM, join)
+import           Data.Bifoldable              (biList)
+import           Data.Bifunctor               (first)
+import           Data.Hashable                (Hashable)
+import           Data.HashMap.Lazy            (HashMap, fromList, toList, (!))
+import qualified Data.HashMap.Lazy            as HM
+import           Data.List.Split              (splitPlaces)
+import           Data.Maybe                   (fromJust, isJust)
+import qualified Data.Text.Prettyprint.Doc    as PP
+import           GHC.Exts                     (groupWith)
+import           Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
+import           System.Random                (randomRIO)
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
