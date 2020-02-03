@@ -38,7 +38,12 @@ extra-deps:
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+
+# dump package isn't in hackage
 - dump-0.2.8@sha256:ded8982e766a98d45c38f9438723455a8c8a608f43383d193f7e7aa898d573c6,1831
+# ormolu likes this version for ghc-lib-parser / ghc-lib
+- ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
+- ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

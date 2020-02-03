@@ -1,22 +1,50 @@
-{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 -- | utility functions
-module Synthesis.Utility (Item(..), NestedTuple(..), flatten, pick, mapKeys, groupByVal, fromKeys, fromVals, flattenTuple, mapTuple, mapTuple3, tuplify3, untuple3, while, pp, pp_, pickKeys, composeSetters, randomSplit, flipOrder, equating, fromKeysM, fromValsM, ppMap, filterHmM, pickKeysSafe) where
+module Synthesis.Utility
+  ( Item (..),
+    NestedTuple (..),
+    flatten,
+    pick,
+    mapKeys,
+    groupByVal,
+    fromKeys,
+    fromVals,
+    flattenTuple,
+    mapTuple,
+    mapTuple3,
+    tuplify3,
+    untuple3,
+    while,
+    pp,
+    pp_,
+    pickKeys,
+    composeSetters,
+    randomSplit,
+    flipOrder,
+    equating,
+    fromKeysM,
+    fromValsM,
+    ppMap,
+    filterHmM,
+    pickKeysSafe,
+  )
+where
 
-import           Control.Arrow                ((***))
-import           Control.Monad                (filterM, join)
-import           Data.Bifoldable              (biList)
-import           Data.Bifunctor               (first)
-import           Data.Hashable                (Hashable)
-import           Data.HashMap.Lazy            (HashMap, fromList, toList, (!))
-import qualified Data.HashMap.Lazy            as HM
-import           Data.List.Split              (splitPlaces)
-import           Data.Maybe                   (fromJust, isJust)
-import qualified Data.Text.Prettyprint.Doc    as PP
-import           GHC.Exts                     (groupWith)
-import           Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
-import           System.Random                (randomRIO)
+import Control.Arrow ((***))
+import Control.Monad (filterM, join)
+import Data.Bifoldable (biList)
+import Data.Bifunctor (first)
+import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
+import qualified Data.HashMap.Lazy as HM
+import Data.Hashable (Hashable)
+import Data.List.Split (splitPlaces)
+import Data.Maybe (fromJust, isJust)
+import qualified Data.Text.Prettyprint.Doc as PP
+import GHC.Exts (groupWith)
+import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
+import System.Random (randomRIO)
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
@@ -28,13 +56,13 @@ mapTuple3 :: (a -> b) -> (a, a, a) -> (b, b, b)
 mapTuple3 f (a1, a2, a3) = (f a1, f a2, f a3)
 
 -- | convert a list of 3(+) items to a tuple of 3
-tuplify3 :: [a] -> (a,a,a)
-tuplify3 [x,y,z] = (x,y,z)
+tuplify3 :: [a] -> (a, a, a)
+tuplify3 [x, y, z] = (x, y, z)
 tuplify3 _ = error "tuplify3 requires list to have 3 elements!"
 
 -- | unpack a tuple into a list
 untuple3 :: (a, a, a) -> [a]
-untuple3 (x,y,z) = [x,y,z]
+untuple3 (x, y, z) = [x, y, z]
 
 -- | a homogeneous nested list
 data Item a = One [a] | Many [Item a]
@@ -51,8 +79,8 @@ data NestedTuple a = SingleTuple (a, a) | DeepTuple (a, NestedTuple a)
 -- | deprecated, not in use
 flattenTuple :: NestedTuple a -> [a]
 flattenTuple = \case
-    SingleTuple tpl -> biList tpl
-    DeepTuple (x, xs) -> x : flattenTuple xs
+  SingleTuple tpl -> biList tpl
+  DeepTuple (x, xs) -> x : flattenTuple xs
 
 -- | randomly pick an item from a list
 pick :: [a] -> IO a
@@ -83,22 +111,23 @@ fromVals fn vs = fromList $ zip (fn <$> vs) vs
 -- | create a monadic HashMap by mapping over a list of values
 fromValsM :: (Monad m, Hashable k, Eq k) => (v -> m k) -> [v] -> m (HashMap k v)
 fromValsM fn vs = do
-    ks <- sequence $ fn <$> vs
-    return $ fromList $ zip ks vs
+  ks <- sequence $ fn <$> vs
+  return $ fromList $ zip ks vs
 
 -- filter a HashMap by a monadic predicate
+
 -- | deprecated, not in use
-filterHmM :: (Monad m, Hashable k, Eq k) => ((k,v) -> m Bool) -> HashMap k v -> m (HashMap k v)
+filterHmM :: (Monad m, Hashable k, Eq k) => ((k, v) -> m Bool) -> HashMap k v -> m (HashMap k v)
 filterHmM p = fmap fromList . filterM p . toList
 
 -- | while a predicate holds, perform a monadic operation starting from an initial value
 -- | deprecated, not in use
 while :: Monad m => (a -> Bool) -> (a -> m a) -> a -> m a
 while praed funktion x
-    | praed x = do
-        y <- funktion x
-        while praed funktion y
-    | otherwise = return x
+  | praed x = do
+    y <- funktion x
+    while praed funktion y
+  | otherwise = return x
 
 -- | shorthand for pretty-printing AST nodes, used for comparisons
 pp :: Pretty a => a -> String
@@ -127,11 +156,10 @@ composeSetters newStr newGtr oldStr v part = newStr v $ oldStr (newGtr v) part
 
 -- | randomly split a dataset into subsets based on the indicated split ratio
 randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
-randomSplit split xs = let
-        n :: Int = length xs
-        ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
-    in
-        tuplify3 $ splitPlaces (untuple3 ns) xs
+randomSplit split xs =
+  let n :: Int = length xs
+      ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
+   in tuplify3 $ splitPlaces (untuple3 ns) xs
 
 -- | flip an Ordering
 -- | deprecated, not in use

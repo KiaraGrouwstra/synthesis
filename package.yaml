@@ -30,12 +30,12 @@ dependencies:
   - QuickCheck
   - containers
   - unordered-containers
-  - ghc-lib-parser
+  - ghc-lib-parser==8.8.1
 
 library:
   dependencies:
   - template-haskell
-  - ghc-lib
+  - ghc-lib==8.8.1
   - random
   - transformers
   - text

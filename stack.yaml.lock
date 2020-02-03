@@ -11,6 +11,20 @@ packages:
       sha256: 8062a9123aab358dcfee5d5a7e472c3580e878485de4b642534266f11dd3b653
   original:
     hackage: dump-0.2.8@sha256:ded8982e766a98d45c38f9438723455a8c8a608f43383d193f7e7aa898d573c6,1831
+- completed:
+    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
+    pantry-tree:
+      size: 28154
+      sha256: 326dddd9f60ac8b92e3e102f89c91aade4fed6d484be3841917051d3dc41eda1
+  original:
+    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
+- completed:
+    hackage: ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
+    pantry-tree:
+      size: 18001
+      sha256: d848b118b7af6a7e79340eb97de39dcfc600bdd2fec3ee91db5e848a283cd081
+  original:
+    hackage: ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
 snapshots:
 - completed:
     size: 524799
