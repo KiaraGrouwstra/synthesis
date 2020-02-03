@@ -33,7 +33,7 @@ stack haddock
 stack exec -- synthesis
 
 # Profile
-stack build --profile
+stack build --profile --ghc-options="-fno-prof-auto"
 stack exec -- synthesis +RTS -p -RTS
 
 # Docker: install deps from base image; rebuild top image on code changes.

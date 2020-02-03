@@ -4,6 +4,10 @@
 # For advanced use and comprehensive documentation of the format, please see:
 # https://docs.haskellstack.org/en/stable/yaml_configuration/
 
+# needed for profiling as per https://www.tweag.io/posts/2020-01-30-haskell-profiling.html
+apply-ghc-options: everything
+rebuild-ghc-options: true
+
 # Resolver to choose a 'specific' stackage snapshot or a compiler version.
 # A snapshot resolver dictates the compiler version and the set of packages
 # to be used for project dependencies. For example:
