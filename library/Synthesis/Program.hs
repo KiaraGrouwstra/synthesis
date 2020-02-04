@@ -24,6 +24,7 @@ import Data.HashMap.Lazy
     toList,
     union,
   )
+import qualified Data.HashMap.Lazy as HM
 import Data.List (minimumBy, partition)
 import Language.Haskell.Interpreter (Interpreter, lift)
 import Synthesis.Ast
@@ -58,10 +59,10 @@ import Synthesis.Types
     expTypeSig,
     fnInputTypes,
     genTypes,
-    hasFn,
     isFn,
     nubPp,
     parseExpr,
+    typeSane,
   )
 import Synthesis.Utility
   ( flatten,
@@ -89,7 +90,10 @@ program = do
   say "\nprograms:"
   say $ pp_ programs
   let task_fns = programs
-  fn_types :: HashMap Expr Tp <- fromKeysM exprType task_fns
+  fn_types_ :: HashMap Expr Tp <- fromKeysM exprType task_fns
+  say "\nfn_types_:"
+  say $ pp_ fn_types_
+  let fn_types :: HashMap Expr Tp = HM.filter typeSane fn_types_
   say "\nfn_types:"
   say $ pp_ fn_types
   let task_types :: [Tp] = elems fn_types
@@ -108,7 +112,7 @@ program = do
   -- split the input types for our programs into functions vs other -- then instantiate others.
   let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
   let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
-  (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest . filter (not . hasFn)) $ first nubPp fns_rest
+  (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest) $ first nubPp fns_rest
   say "\nparam_fn_types:"
   say $ pp_ param_fn_types
   say "\nrest_type_instantiations:"

@@ -12,13 +12,14 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Data.Either                  (fromRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.HashMap.Lazy            (HashMap, empty, insert,
-                                               singleton)
+import           Data.HashMap.Lazy            (HashMap, empty, insert, keys,
+                                               singleton, fromList, toList)
+import qualified Data.HashMap.Lazy as HM
 import           Data.List                    (nub)
 import           Data.Maybe                   (fromMaybe)
 import qualified Data.Set
-import           Language.Haskell.Interpreter (as, interpret)
-import           Util                         (fstOf3)
+import           Language.Haskell.Interpreter (Interpreter, as, interpret)
+import           Util                         (fstOf3, firstM, secondM)
 
 import           Synthesis.Ast
 import           Synthesis.Configs
@@ -191,7 +192,7 @@ types = parallel $ do
         tps <- nub . flatten <$> genTypes 0 10
         tps `shouldContain` [bl]
 
-    fit "fillTypeVars" $ do
+    it "fillTypeVars" $ do
         let a = tyVar "a"
         -- int_ -> a: a => Bool
         pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
@@ -212,6 +213,16 @@ types = parallel $ do
         isFn bl `shouldBe` False
         isFn (tyVar "a") `shouldBe` False
         isFn (tyFun bl int_) `shouldBe` True
+    
+    fit "typeSane" $ do
+        typeSane bl `shouldBe` True
+        typeSane (tyList bl) `shouldBe` True
+        typeSane (tyFun bl bl) `shouldBe` True
+        typeSane (tyFun (tyFun bl bl) (tyFun bl bl)) `shouldBe` True
+        typeSane (tyList (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
+        typeSane (tyParen (tyFun bl bl)) `shouldBe` True
 
 find ∷ Spec
 find = -- do

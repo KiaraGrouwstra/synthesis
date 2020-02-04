@@ -51,7 +51,10 @@ module Synthesis.Types
     con,
     lambda,
     tyList,
+    tyParen,
     fnInputTypes,
+    fnTypes,
+    typeSane,
     isFn,
     hasFn,
     nubPp,
@@ -163,7 +166,6 @@ mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
 mergeTyVars = unionWith $ \a b -> nubPp $ a ++ b
 
 -- | extract the input and output types from a function type
--- | deprecated, not in use
 -- TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
@@ -173,7 +175,12 @@ fnTypeIO = \case
     where
       f = TyForall _l maybeTyVarBinds maybeContext
   TyFun _l a b -> first (a :) $ fnTypeIO b
+  TyParen _l a -> fnTypeIO a
   tp -> ([], tp)
+
+-- | extract the input and output types from a function type as one list
+fnTypes :: Tp -> [Tp]
+fnTypes = (\tpl -> fst tpl ++ [snd tpl]) . fnTypeIO
 
 -- | extract the input types from a function type
 fnInputTypes :: Tp -> [Tp]
@@ -325,6 +332,10 @@ wildcard = TyWildCard l Nothing
 unit :: Tp
 unit = TyCon l $ Special l $ UnitCon l
 
+-- | parenthesized type
+tyParen :: Tp -> Tp
+tyParen = TyParen l
+
 -- | let-expression
 letIn :: HashMap String Expr -> Expr -> Expr
 letIn = Let l . binds
@@ -468,6 +479,10 @@ hasFn typ =
         TyEquals _l a b -> f a || f b
         TyBang _l _bangType _unpackedness a -> f a
         _ -> False
+
+-- | check if a type is sane -- basically we wanna throw out crap like list of function
+typeSane :: Tp -> Bool
+typeSane tp = not (hasFn tp) || (isFn tp && (and (typeSane <$> fnTypes tp)))
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]
