@@ -23,6 +23,7 @@ import Data.HashMap.Lazy
     mapWithKey,
     toList,
     union,
+    member,
   )
 import qualified Data.HashMap.Lazy as HM
 import Data.List (minimumBy, partition)
@@ -139,7 +140,7 @@ program = do
   say $ pp_ rest_instantiation_inputs
   -- map each parameter function to a filtered map of generated programs matching its type
   let functionMatches :: Tp -> Expr -> Interpreter Bool = \fn_type program_ast -> matchesType (fn_types ! program_ast) fn_type
-  let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) task_fns
+  let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) $ keys fn_types
   -- fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns param_fn_types
   -- say $ "fn_options: " ++ pp_ fn_options
   instantiated_fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns in_type_instantiations
