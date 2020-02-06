@@ -23,7 +23,6 @@ import Data.HashMap.Lazy
     mapWithKey,
     toList,
     union,
-    member,
   )
 import qualified Data.HashMap.Lazy as HM
 import Data.List (minimumBy, partition)

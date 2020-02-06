@@ -32,7 +32,11 @@ module Synthesis.Types
     parseType,
     undef,
     cxTuple,
-    classA,
+    iParam,
+    unIPName,
+    typeA,
+    unQName,
+    unName,
     tyForall,
     mergeTyVars,
     unParseResult,
@@ -108,6 +112,7 @@ import Language.Haskell.Exts.Syntax
     SpecialCon (..),
     TyVarBind (..),
     Type (..),
+    IPName (..),
   )
 import Synthesis.Orphanage ()
 import Synthesis.Utility (Item (..), equating, pick, pp)
@@ -211,19 +216,18 @@ findTypeVars_ tp =
    in case tp of
         TyForall _l maybeTyVarBinds maybeContext typ -> bindings ++ context ++ f typ
           where
-            bindings = toList $ fromListWith (++) $ (\(KindedVar _l name kind) -> (pp name, [kind])) <$> fromMaybe [] maybeTyVarBinds
-            context = fromContext $ fromMaybe (CxEmpty l) maybeContext
-            fromContext = \case
+            bindings :: [(String, [Tp])] = toList $ fromListWith (++) $ (\(KindedVar _l name kind) -> (pp name, [kind])) <$> fromMaybe [] maybeTyVarBinds
+            context :: [(String, [Tp])] = fromContext $ fromMaybe (CxEmpty l) maybeContext
+            fromContext :: Context L -> [(String, [Tp])] = \case
               CxTuple _l assts -> concat $ unAsst <$> assts
               CxSingle _l asst -> unAsst asst
               CxEmpty _l -> []
-            unAsst = \case
-              -- ClassA (UnQual (Ident "Num")) [TyVar (Ident "a")]
-              ClassA _l qname tps -> (\tp_ -> (pp tp_, [TyCon l qname])) <$> tps
-              -- TypeA _l _tp -> error "unimplemented"
-              IParam _l _iPName _tp -> error "unimplemented"
+            unAsst :: Asst L -> [(String, [Tp])] = \case
+              TypeA _l typ -> case typ of
+                TyApp _l a b -> [(pp b, [a])]
+                _ -> f typ
+              IParam _l _iPName a -> f a
               ParenA _l asst -> unAsst asst
-              _ -> []
         TyFun _l a b -> f a ++ f b
         TyTuple _l _boxed tps -> concat $ f <$> tps
         TyUnboxedSum _l tps -> concat $ f <$> tps
@@ -381,9 +385,36 @@ app = App l
 cxTuple :: [Asst L] -> Context L
 cxTuple = CxTuple l
 
--- | type constraint assertion
-classA :: QName L -> [Tp] -> Asst L
-classA = ClassA l
+-- | implicit parameter constraint
+-- | deprecated, not in use
+iParam :: String -> Tp -> Asst L
+iParam str = IParam l (IPLin l str)
+
+typeA :: String -> Tp -> Asst L
+typeA str tp = TypeA l $ tyApp (tyCon str) tp
+-- (tyVar "a")
+-- (IPLin l str) tp
+
+-- | get the string from an IPName
+-- | deprecated, not in use
+unIPName :: IPName L -> String
+unIPName = \case
+    IPDup _l str -> str -- ^ ?/ident/, non-linear implicit parameter
+    IPLin _l str -> str -- ^ %/ident/, linear implicit parameter
+
+-- | get the string from a QName
+-- | deprecated, not in use
+unQName :: QName L -> String
+unQName = \case
+    Qual _l _moduleName name -> unName name -- ^ name qualified with a module name
+    UnQual _l name -> unName name -- ^ unqualified local name
+    Special _l _specialCon -> error "SpecialCon is not string-based"  -- ^ built-in constructor with special syntax
+
+-- | get the string from a Name
+unName :: Name L -> String
+unName = \case
+    Ident _l str -> str   -- ^ /varid/ or /conid/.
+    Symbol _l str -> str  -- ^ /varsym/ or /consym/
 
 -- | infix function application
 infixApp :: Expr -> QOp L -> Expr -> Expr

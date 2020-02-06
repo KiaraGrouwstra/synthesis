@@ -25,7 +25,7 @@ default-extensions:
 
 dependencies:
   - base
-  - haskell-src-exts
+  - haskell-src-exts==1.23.0
   - hint
   - QuickCheck
   - containers

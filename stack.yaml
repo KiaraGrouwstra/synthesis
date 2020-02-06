@@ -48,6 +48,8 @@ extra-deps:
 # ormolu likes this version for ghc-lib-parser / ghc-lib
 - ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
 - ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
+# this new version helps recreating errors on Asst(ClassA)
+- haskell-src-exts-1.23.0@sha256:1bb9f7e97d569e56973133cb075fdcc1bfd11f90d94b035b5cf44814bb39a73d,4541
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

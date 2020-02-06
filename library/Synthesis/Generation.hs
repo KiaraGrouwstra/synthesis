@@ -49,10 +49,10 @@ import Language.Haskell.Interpreter
 import MonadUtils (allM)
 import Synthesis.Ast (anyFn, hasHoles)
 import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Hint (fnIoPairs, say)
+import Synthesis.Hint (fnIoPairs)
 import Synthesis.Orphanage ()
 import Synthesis.Types
-import Synthesis.Utility (pick, pickKeysSafe, pp, pp_)
+import Synthesis.Utility (pick, pickKeysSafe, pp)
 import Util (fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.
@@ -217,5 +217,5 @@ matchesType a b = do
 matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
 matchesConstraints tp constraints = do
   let a :: Tp = tyVar "a"
-  let forAll = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> classA qname [a]) <$> constraints) a
+  let forAll = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a
   if null constraints then return True else matchesType tp forAll

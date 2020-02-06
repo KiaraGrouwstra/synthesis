@@ -12,14 +12,11 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Data.Either                  (fromRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.HashMap.Lazy            (HashMap, empty, insert, keys,
-                                               singleton, fromList, toList)
-import qualified Data.HashMap.Lazy as HM
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton)
 import           Data.List                    (nub)
-import           Data.Maybe                   (fromMaybe)
 import qualified Data.Set
-import           Language.Haskell.Interpreter (Interpreter, as, interpret)
-import           Util                         (fstOf3, firstM, secondM)
+import           Language.Haskell.Interpreter (as, interpret)
+import           Util                         (fstOf3)
 
 import           Synthesis.Ast
 import           Synthesis.Configs
@@ -175,10 +172,10 @@ types = parallel $ do
     it "findTypeVars" $ do
         -- Num a => a -> Set b
         let a = tyVar "a"
-        let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
+        let tp = tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
         findTypeVars tp `shouldBe` insert "a" [tyCon "Num"] (singleton "b" [])
         -- Ord a => [a] -> [a]
-        findTypeVars (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" [tyCon "Ord"]
+        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" [tyCon "Ord"]
 
     it "randomType" $ do
         tp <- randomType False False nestLimit empty 0
@@ -197,7 +194,7 @@ types = parallel $ do
         -- int_ -> a: a => Bool
         pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
         -- Ord a => [a] -> [a]
-        let tp = tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a
+        let tp = tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a
         pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
 
     it "mergeTyVars" $
@@ -306,10 +303,10 @@ gen = let
         (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        l2 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Num") [a]]) $ tyFun a $ tyFun a a)
+        l2 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyFun a a)
         (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [classA (qName "Ord") [a]]) $ tyFun (tyList a) $ tyList a)
+        l3 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a)
         (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
