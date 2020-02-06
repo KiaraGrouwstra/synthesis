@@ -177,7 +177,7 @@ fisherYates gen l =
 splitPlaces :: RandomGen g => g -> [Int] -> [e] -> ([[e]], g)
 splitPlaces gen ns xs = (zs_, gen')
   where (zs, gen') = fisherYates gen xs
-        zs_ = fst $ foldr (\ n (splits, xs_) -> (splits ++ [take n xs_], drop n xs_)) ([], zs) ns
+        zs_ = fst $ foldl (\ (splits, xs_) n -> (splits ++ [take n xs_], drop n xs_)) ([], zs) ns
 
 -- | randomly split a dataset into subsets based on the indicated split ratio
 randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])

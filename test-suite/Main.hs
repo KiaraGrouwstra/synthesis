@@ -211,7 +211,7 @@ types = parallel $ do
         isFn (tyVar "a") `shouldBe` False
         isFn (tyFun bl int_) `shouldBe` True
     
-    fit "typeSane" $ do
+    it "typeSane" $ do
         typeSane bl `shouldBe` True
         typeSane (tyList bl) `shouldBe` True
         typeSane (tyFun bl bl) `shouldBe` True
