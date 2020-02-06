@@ -28,7 +28,6 @@ dependencies:
   - base
   - haskell-src-exts==1.23.0
   - hint
-  - QuickCheck
   - containers
   - unordered-containers
   # - ghc-lib-parser==8.8.1
@@ -38,7 +37,6 @@ library:
   - template-haskell
   # - ghc-lib==8.8.1
   - random
-  - transformers
   - hashable
   - hslogger
   # - dump  # needs older haskell-src-exts

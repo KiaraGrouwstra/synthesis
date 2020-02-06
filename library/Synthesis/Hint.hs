@@ -19,7 +19,6 @@ module Synthesis.Hint
     showError,
     interpretIO,
     fnIoPairs,
-    genInputs,
     exprType,
   )
 where
@@ -76,7 +75,6 @@ imports :: [ModuleImport]
 imports =
   [ ModuleImport "Prelude" NotQualified NoImportList,
     ModuleImport "Data.List" NotQualified NoImportList,
-    ModuleImport "Test.QuickCheck" NotQualified NoImportList,
     ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"]
   ]
 
@@ -215,18 +213,6 @@ fnIoPairs n fn_ast ins = do
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?
-
--- | generate examples given a concrete type
--- | the reason this function needs to be run through the interpreter is Gen wants to know its type at compile-time.
-genInputs :: Int -> Tp -> Interpreter [Expr]
-genInputs n in_tp = interpretIO cmd <&> \case
-  Left _e -> []
-  Right str -> unList $ parseExpr str
-  where
-    cmd = "let seed = 0 in show <$> nub <$> sample' (resize " ++ show n ++ " $ variant seed arbitrary :: Gen (" ++ pp in_tp ++ "))"
-    unList = \case
-      (List _l exps) -> exps
-      _ -> error "expected list"
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp

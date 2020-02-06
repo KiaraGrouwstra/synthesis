@@ -18,14 +18,17 @@ module Synthesis.Ast
     genUncurry,
     genFnType,
     genFnInType,
+    genInputs,
   )
 where
 
 import Data.HashMap.Lazy (HashMap, empty, mapWithKey)
 import Language.Haskell.Exts.Syntax (Exp (..), Type (..))
-import Synthesis.Configs (maxWildcardDepth, nestLimit)
+import System.Random (randoms, randomRs)
+import Synthesis.Configs (maxWildcardDepth, nestLimit, listLengths, intRange)
 import Synthesis.FindHoles (findHolesExpr)
 import Synthesis.Types
+import Synthesis.Utility (generator, pp)
 import Util (nTimes)
 
 -- | generate applied variants of a function, e.g. [`id`, `id _`]
@@ -105,3 +108,20 @@ genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) 
   where
     fn = "fn"
     letters :: [String] = pure <$> ['a' .. nTimes (n -1) succ 'a']
+
+-- | randomly generate a number of samples for a given type
+genInputs :: Int -> Tp -> [Expr]
+genInputs n tp = nubPp . take n $ exprs
+  where
+    msg = "cannot generate from unknown type!"
+    g = generator
+    exprs :: [Expr] = case tp of
+      -- these should cover types from randomType
+      -- TODO: no nub inside nested genInputs for TyList?
+      TyList _l typ -> (\n_ -> list $ genInputs n_ typ) <$> lengths
+        where lengths = randomRs listLengths g :: [Int]
+      TyCon _l qname -> case pp qname of
+        "Bool" -> con . show <$> (randoms g :: [Bool])
+        "Int" -> int <$> (randomRs intRange g :: [Integer])
+        _ -> error msg
+      _ -> error msg

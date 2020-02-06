@@ -99,7 +99,6 @@ util = parallel $ do
 
 hint ∷ Test
 hint = let
-        bl = tyCon "Bool"
     in TestList
 
     [ TestLabel "interpretSafe" $ TestCase $ do
@@ -125,15 +124,6 @@ hint = let
         x @?= "[(True,Right False),(False,Right True)]"
         q <- interpretUnsafe (fnIoPairs 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
         q @?= "[((1,2),Right 3),((3,4),Right 7)]"
-
-    , TestLabel "genInputs" $ TestCase $ do
-        -- Bool
-        x <- interpretUnsafe (genInputs 10 bl)
-        pp <$> x `shouldContain` ["True"]
-        -- -- id
-        -- let a = tyVar "a"
-        -- q <- interpretUnsafe (genInputs 10 $ tyFun a a)
-        -- isRight q `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
         x <- interpretUnsafe (exprType $ parseExpr "True")
@@ -240,10 +230,12 @@ find = -- do
         pp xpr `shouldBe` "(undefined)"
 
 ast ∷ Spec
-ast = do
+ast = let
+    bl = tyCon "Bool"
+    int_ = tyCon "Int"
+  in do
 
     it "skeleton" $ do
-        let bl = tyCon "Bool"
         -- pp (skeleton bl) `shouldBe` "_ :: Bool"
         pp (skeleton bl) `shouldBe` "undefined :: Bool"
 
@@ -252,11 +244,18 @@ ast = do
 
     it "hasHoles" $ do
         hasHoles holeExpr `shouldBe` False
-        let expr = expTypeSig holeExpr $ tyCon "Int"
+        let expr = expTypeSig holeExpr int_
         hasHoles expr `shouldBe` True
 
     it "genUncurry" $
         pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
+
+    it "genInputs" $ do
+        -- Bool
+        pp <$> (genInputs 10 bl) `shouldContain` ["True"]
+        -- [Bool]
+        let lists = genInputs 10 $ tyList bl
+        (length . nubPp . concat . fmap unList) lists `shouldBe` 2
 
 gen ∷ Test
 gen = let

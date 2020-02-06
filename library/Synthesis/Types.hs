@@ -62,6 +62,7 @@ module Synthesis.Types
     isFn,
     hasFn,
     nubPp,
+    unList,
   )
 where
 
@@ -124,6 +125,7 @@ type Tp = Type L
 
 type Expr = Exp L
 
+-- | deprecated, not in use
 type Hole = SpecialCon L -- ExprHole
     -- type Fn = TyFun L (Type L a) (Type L b)
 
@@ -451,6 +453,12 @@ lambda = Lambda l
 -- | list type
 tyList :: Tp -> Tp
 tyList = TyList l
+
+-- | unpack a list expression
+unList :: Expr -> [Expr]
+unList = \case
+    (List _l exps) -> exps
+    _ -> error "expected list"
 
 -- unpack a ParseResult into an Either
 unParseResult :: ParseResult a -> Either String a

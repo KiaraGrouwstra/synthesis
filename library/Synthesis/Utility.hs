@@ -5,6 +5,7 @@
 module Synthesis.Utility
   ( Item (..),
     NestedTuple (..),
+    generator,
     flatten,
     pick,
     mapKeys,
@@ -48,6 +49,11 @@ import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
 import System.Random (RandomGen(..), randomR, randomRIO, mkStdGen)
 import Synthesis.Configs (seed)
+import System.Random (StdGen, mkStdGen)
+
+-- | random generator
+generator :: StdGen
+generator = mkStdGen seed
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
@@ -184,8 +190,7 @@ randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
 randomSplit split xs =
   let n :: Int = length xs
       ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
-      gen = mkStdGen seed
-   in tuplify3 $ fst $ splitPlaces gen (untuple3 ns) xs
+   in tuplify3 $ fst $ splitPlaces generator (untuple3 ns) xs
 
 -- | flip an Ordering
 -- | deprecated, not in use

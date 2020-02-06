@@ -48,9 +48,11 @@ import Synthesis.Generation
   )
 import Synthesis.Hint
   ( exprType,
-    genInputs,
     runInterpreterMain,
     say,
+  )
+import Synthesis.Ast
+  ( genInputs,
   )
 import Synthesis.Orphanage ()
 import Synthesis.Types
@@ -134,7 +136,7 @@ program = do
   say $ pp_ fn_in_type_instantiations
   -- do sample generation not for each function but for each function input type
   -- for each non-function parameter combo type instantiation, a list of sample expressions
-  rest_instantiation_inputs :: HashMap Tp [Expr] <- fromKeysM (genInputs numInputs) rest_type_instantiations
+  let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs numInputs) rest_type_instantiations
   say "\nrest_instantiation_inputs:"
   say $ pp_ rest_instantiation_inputs
   -- map each parameter function to a filtered map of generated programs matching its type

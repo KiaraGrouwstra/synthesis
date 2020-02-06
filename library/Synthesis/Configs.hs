@@ -8,6 +8,8 @@ module Synthesis.Configs
     maxWildcardDepth,
     genMaxHoles,
     split,
+    listLengths,
+    intRange,
   )
 where
 
@@ -23,6 +25,14 @@ seed = 123
 -- | ratio between the number of samples to use in the training, validation, and test sets, respectively.
 split :: (Double, Double, Double)
 split = (0.7, 0.2, 0.1)
+
+-- | the range of elements to generate for list types
+listLengths :: (Int, Int)
+listLengths = (0, 5)
+
+-- | the range of integers to generate
+intRange :: (Integer, Integer)
+intRange = (-20, 20)
 
 -- type generation
 
