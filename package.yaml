@@ -42,7 +42,7 @@ library:
   - hashable
   - split
   - hslogger
-  - dump
+  # - dump  # needs older haskell-src-exts
   - bytestring
   - prettyprinter
   source-dirs: library
