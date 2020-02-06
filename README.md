@@ -33,12 +33,22 @@ stack haddock
 stack exec -- synthesis
 
 # Profile
+
+```bash
+# cabal
+cabal new-build --enable-profiling --ghc-options="-fno-prof-auto"
+synthesis +RTS -p
+
+# stack
 stack build --profile --ghc-options="-fno-prof-auto"
 stack exec -- synthesis +RTS -p -RTS
 stack install ghc-prof-flamegraph
+
+# viz
 ghc-prof-flamegraph synthesis.prof
 stack install profiterole
 profiterole synthesis.prof
+```
 
 # Docker: install deps from base image; rebuild top image on code changes.
 # this still sucks but Stack hates volume mounting. :(
