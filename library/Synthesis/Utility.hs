@@ -21,6 +21,7 @@ module Synthesis.Utility
     pp_,
     pickKeys,
     composeSetters,
+    fisherYates,
     randomSplit,
     flipOrder,
     equating,
@@ -38,13 +39,15 @@ import Data.Bifoldable (biList)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
 import qualified Data.HashMap.Lazy as HM
+import Data.Map (Map(..))
+import qualified Data.Map as Map
 import Data.Hashable (Hashable)
-import Data.List.Split (splitPlaces)
 import Data.Maybe (fromJust, isJust)
 import qualified Data.Text.Prettyprint.Doc as PP
 import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
-import System.Random (randomRIO)
+import System.Random (RandomGen(..), randomR, randomRIO, mkStdGen)
+import Synthesis.Configs (seed)
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
@@ -154,12 +157,35 @@ pickKeysSafe ks hashmap = fmap fromJust . HM.filter isJust $ fromKeys (`HM.looku
 composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
 composeSetters newStr newGtr oldStr v part = newStr v $ oldStr (newGtr v) part
 
+-- | helper for fisherYates
+fisherYatesStep :: RandomGen g => (Map Int a, g) -> (Int, a) -> (Map Int a, g)
+fisherYatesStep (m, gen) (i, x) = ((Map.insert j x . Map.insert i (m Map.! j)) m, gen')
+  where
+    (j, gen') = randomR (0, i) gen
+
+-- | randomly shuffle a list
+fisherYates :: RandomGen g => g -> [a] -> ([a], g)
+fisherYates gen [] = ([], gen)
+fisherYates gen l = 
+  toElems $ foldl fisherYatesStep (initial (head l) gen) (numerate (tail l))
+  where
+    toElems (x, y) = (Map.elems x, y)
+    numerate = zip [1..]
+    initial x gen = (Map.singleton 0 x, gen)
+
+-- | shuffle a list and split it into sub-lists of specified lengths
+splitPlaces :: RandomGen g => g -> [Int] -> [e] -> ([[e]], g)
+splitPlaces gen ns xs = (zs_, gen')
+  where (zs, gen') = fisherYates gen xs
+        zs_ = fst $ foldr (\ n (splits, xs_) -> (splits ++ [take n xs_], drop n xs_)) ([], zs) ns
+
 -- | randomly split a dataset into subsets based on the indicated split ratio
 randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
 randomSplit split xs =
   let n :: Int = length xs
       ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
-   in tuplify3 $ splitPlaces (untuple3 ns) xs
+      gen = mkStdGen seed
+   in tuplify3 $ fst $ splitPlaces gen (untuple3 ns) xs
 
 -- | flip an Ordering
 -- | deprecated, not in use

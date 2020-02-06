@@ -1,7 +1,8 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Synthesis.Configs
-  ( nestLimit,
+  ( seed,
+    nestLimit,
     maxInstances,
     numInputs,
     maxWildcardDepth,
@@ -9,6 +10,11 @@ module Synthesis.Configs
     split,
   )
 where
+
+-- | random seed
+-- | TODO: make this program input
+seed :: Int
+seed = 123
 
 -- dataset generation
 

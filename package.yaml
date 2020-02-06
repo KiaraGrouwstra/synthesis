@@ -18,10 +18,11 @@ extra-source-files:
 ghc-options: -Wall
 
 default-extensions:
-  - UnicodeSyntax
-  - QuasiQuotes
+  - LambdaCase
   - ScopedTypeVariables
-  - TemplateHaskell
+  # - UnicodeSyntax
+  # - QuasiQuotes
+  # - TemplateHaskell
 
 dependencies:
   - base
@@ -30,17 +31,15 @@ dependencies:
   - QuickCheck
   - containers
   - unordered-containers
-  - ghc-lib-parser==8.8.1
+  # - ghc-lib-parser==8.8.1
 
 library:
   dependencies:
   - template-haskell
-  - ghc-lib==8.8.1
+  # - ghc-lib==8.8.1
   - random
   - transformers
-  - text
   - hashable
-  - split
   - hslogger
   # - dump  # needs older haskell-src-exts
   - bytestring
