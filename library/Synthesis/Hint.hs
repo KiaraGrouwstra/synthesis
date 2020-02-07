@@ -74,7 +74,6 @@ import System.Log.Logger
 imports :: [ModuleImport]
 imports =
   [ ModuleImport "Prelude" NotQualified NoImportList,
-    ModuleImport "Data.List" NotQualified NoImportList,
     ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"]
   ]
 
