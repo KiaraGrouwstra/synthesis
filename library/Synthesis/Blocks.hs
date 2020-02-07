@@ -44,11 +44,11 @@ fnAstsTamandu =
     --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
     $ insert "add" "(+)" -- test!
     $ insert "mul" "(*)"
-    $ insert "div" "div"
-    $ insert "max" "max" -- Int: for fractions use (/)
-    $ insert "eq" "(==)"
-    $ insert "neq" "(/=)" -- Tamandu restricts this to Int
-    $ insert "con" "(:)" -- Tamandu restricts this to Int
+    -- $ insert "div" "div"
+    -- $ insert "max" "max" -- Int: for fractions use (/)
+    -- $ insert "eq" "(==)"
+    -- $ insert "neq" "(/=)" -- Tamandu restricts this to Int
+    -- $ insert "con" "(:)" -- Tamandu restricts this to Int
    --  $ insert "head" "head"
    --  $ insert "tail" "tail"
    --  $ insert "isNil" "null"
