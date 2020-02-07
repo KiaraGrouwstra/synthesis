@@ -225,7 +225,7 @@ findTypeVars_ tp =
               CxSingle _l asst -> unAsst asst
               CxEmpty _l -> []
             unAsst :: Asst L -> [(String, [Tp])] = \case
-              TypeA _l typ -> case typ of
+              TypeA _l tp' -> case tp' of
                 TyApp _l a b -> [(pp b, [a])]
                 _ -> f typ
               IParam _l _iPName a -> f a
@@ -521,7 +521,24 @@ hasFn typ =
 
 -- | check if a type is sane -- basically we wanna throw out crap like list of function
 typeSane :: Tp -> Bool
-typeSane tp = not (hasFn tp) || (isFn tp && (and (typeSane <$> fnTypes tp)))
+typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSane <$> fnTypes tp))))
+  where constraintsSane = \case
+          TyForall _l _maybeTyVarBinds maybeContext _typ -> contextOk
+            where
+              contextOk :: Bool = fromContext $ fromMaybe (CxEmpty l) maybeContext
+              fromContext :: Context L -> Bool = \case
+                CxTuple _l assts -> all unAsst assts
+                CxSingle _l asst -> unAsst asst
+                CxEmpty _l -> True
+              unAsst :: Asst L -> Bool = \case
+                TypeA _l typ -> case typ of
+                  TyApp _l _a b -> case b of
+                    TyVar _l _name -> True
+                    _ -> False
+                  _ -> True
+                IParam _l _iPName a -> typeSane a
+                ParenA _l asst -> unAsst asst
+          _ -> True
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]

@@ -210,6 +210,7 @@ types = parallel $ do
         typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
         typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
         typeSane (tyParen (tyFun bl bl)) `shouldBe` True
+        typeSane (parseType "(Eq (a -> Bool)) => a") `shouldBe` False
 
 find ∷ Spec
 find = -- do

@@ -126,13 +126,7 @@ fitExpr expr = do
       -- tp <- exprType expr
       res :: ParseResult Tp <- fmap parse <$> typeOf $ pp expr
       let ok = case unParseResult res of
-            Right tp -> case tp of
-              -- say $ "tp: " ++ pp tp
-              TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-                TyFun _l _a _b -> True
-                _ -> False
-              TyFun _l _a _b -> True
-              _ -> False
+            Right tp -> isFn tp && typeSane tp
             Left _e -> False
       -- error $ "failed to parse type " ++ s ++ ": " ++ e
       -- say $ "ok: " ++ show ok
