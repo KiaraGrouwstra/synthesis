@@ -42,9 +42,9 @@ synthesis +RTS -p
 # stack
 stack build --profile --ghc-options="-fno-prof-auto"
 stack exec -- synthesis +RTS -p -RTS
-stack install ghc-prof-flamegraph
 
 # viz
+stack install ghc-prof-flamegraph
 ghc-prof-flamegraph synthesis.prof
 stack install profiterole
 profiterole synthesis.prof

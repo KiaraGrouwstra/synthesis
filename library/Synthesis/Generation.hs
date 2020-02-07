@@ -58,8 +58,6 @@ import Util (fstOf3, thdOf3)
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
 genFn maxHoles expr_blocks block_asts = do
-  -- -- TODO: save duplicate effort of finding holes
-  -- while hasHoles (genFn_ fn_types) expr
   candidates <- genFns maxHoles expr_blocks block_asts
   lift $ pick candidates
 
@@ -83,6 +81,8 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
 fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
+  -- TODO: save duplicate effort of finding holes: findHolesExpr, hasHoles
+  -- TODO: switch `filterByCompile` to `matchesType`?
   partial_ <- filterByCompile partial
   complete_ <- filterByCompile complete
   return (partial_, complete_)
@@ -105,8 +105,6 @@ fillHole block_asts used_blocks expr_blocks expr = do
 -- | filter candidates by trying them in the interpreter to see if they blow up. using the GHC compiler instead would be better.
 filterByCompile :: [(Expr, Set String, Expr)] -> Interpreter [(Expr, Set String, Expr)]
 filterByCompile = filterM (fitExpr . thdOf3)
-
--- TODO: switch to `matchesType`?
 
 -- | check if a candidate fits into a hole by just type-checking the result through the interpreter.
 -- | this approach might not be very sophisticated, but... it's for task generation, I don't care if it's elegant.
