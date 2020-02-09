@@ -12,8 +12,7 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Data.Either                  (fromRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton)
-import           Data.List                    (nub)
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
 import qualified Data.Set
 import           Language.Haskell.Interpreter (as, interpret)
 import           Util                         (fstOf3)
@@ -90,9 +89,6 @@ util = parallel $ do
         let b = singleton "b" "B"
         pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
 
-    -- it "while" $
-    --     while ((< 5) . length) (\ls -> ((([head ls] :: String) ++ (ls :: String))) :: String) "ah" `shouldBe` "aaaah"
-
     it "randomSplit" $ do
         let (train, _validation, _test) = randomSplit (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length train `shouldBe` 5
@@ -163,9 +159,11 @@ types = parallel $ do
         -- Num a => a -> Set b
         let a = tyVar "a"
         let tp = tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
-        findTypeVars tp `shouldBe` insert "a" [tyCon "Num"] (singleton "b" [])
+        findTypeVars tp `shouldBe` insert "a" (0, [tyCon "Num"]) (singleton "b" (0, []))
         -- Ord a => [a] -> [a]
-        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" [tyCon "Ord"]
+        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" (0, [tyCon "Ord"])
+        -- Foldable t => t a -> Bool
+        pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
 
     it "randomType" $ do
         tp <- randomType False False nestLimit empty 0
@@ -176,8 +174,8 @@ types = parallel $ do
         [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
 
     it "genTypes" $ do
-        tps <- nub . flatten <$> genTypes 0 10
-        tps `shouldContain` [bl]
+        hm <- genTypes 0 10
+        hm ! 0 `shouldContain` [bl]
 
     it "fillTypeVars" $ do
         let a = tyVar "a"
@@ -297,28 +295,43 @@ gen = let
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "instantiateTypes" $ TestCase $ do
+        let lst_ = tyCon "[]"
         -- a => Set a
         let set_ s = tyApp (tyCon "Set") $ tyCon s
-        l1 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyApp (tyCon "Set") $ tyVar "b")
+        l1 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyApp (tyCon "Set") $ tyVar "b")
         (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        l2 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyFun a a)
+        l2 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyFun a a)
         (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypes [bl, int_] (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a)
+        l3 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a)
         (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
+        -- Foldable t => t Bool -> Bool
+        l4 <- interpretUnsafe $ instantiateTypes (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Foldable" a]) $ tyFun (tyApp a bl) bl)
+        (pp <$> l4) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl])
+        -- Foldable t => t a -> Bool
+        let t = tyVar "t"
+        l5 <- interpretUnsafe $ instantiateTypes (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Foldable" t]) $ tyFun (tyApp t a) bl)
+        (pp <$> l5) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl, tyFun (tyApp lst_ int_) bl])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
+        let lst_ = tyCon "[]"
         -- without type constraint
-        l1 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" []
+        l1 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [])
         l1 `shouldBe` [singleton "a" bl, singleton "a" int_]
         -- with type constraint
-        l2 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Num"]
+        l2 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Num"])
         l2 `shouldBe` [singleton "a" int_]
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypeVars [bl, int_] $ singleton "a" [tyCon "Ord"]
+        l3 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Ord"])
         l3 `shouldBe` [singleton "a" bl, singleton "a" int_]
+        -- Foldable t => t Bool -> Bool
+        l4 <- interpretUnsafe $ instantiateTypeVars (insert 1 [lst_] $ singleton 0 [bl, int_]) $ singleton "t" (1, [tyCon "Foldable"])
+        l4 `shouldBe` [singleton "t" lst_]
+        -- Foldable t => t a -> Bool
+        l5 <- interpretUnsafe $ instantiateTypeVars (insert 1 [lst_] $ singleton 0 [bl, int_]) $ insert "a" (0, []) $ singleton "t" (1, [tyCon "Foldable"])
+        pp_ l5 `shouldBe` pp_ [insert "a" bl (singleton "t" lst_), insert "a" int_ (singleton "t" lst_)]
 
     , TestLabel "typeRelation" $ TestCase $ do
         let a = tyVar "a"
@@ -350,8 +363,16 @@ gen = let
         y `shouldBe` True
 
     , TestLabel "matchesConstraints" $ TestCase $ do
-        x <- interpretUnsafe $ matchesConstraints int_ [tyCon "Enum"]
+        -- Bool <-> Foldable
+        y <- interpretUnsafe $ matchesConstraints 0 bl [tyCon "Foldable"]
+        y `shouldBe` False
+        -- Int <-> Enum
+        x <- interpretUnsafe $ matchesConstraints 0 int_ [tyCon "Enum"]
         x `shouldBe` True
+        -- [] <-> Foldable
+        let lst = tyCon "[]"
+        z <- interpretUnsafe $ matchesConstraints 1 lst [tyCon "Foldable"]
+        z `shouldBe` True
 
     -- , TestLabel "filterTypeSigIoFnsM" $ TestCase $ do
     --     let fn_asts = insert "not" (var "not") $ singleton "not_" $ app (var "id") $ var "not"

@@ -115,11 +115,15 @@ genInputs n tp = nubPp . take n $ exprs
   where
     msg = "cannot generate from unknown type!"
     g = generator
+    lengths :: [Int] = randomRs listLengths g
+    genList :: Tp -> [Expr] = \typ -> (\n_ -> list $ genInputs n_ typ) <$> lengths
     exprs :: [Expr] = case tp of
       -- these should cover types from randomType
       -- TODO: no nub inside nested genInputs for TyList?
-      TyList _l typ -> (\n_ -> list $ genInputs n_ typ) <$> lengths
-        where lengths = randomRs listLengths g :: [Int]
+      TyList _l typ -> genList typ
+      TyApp _l a b -> case pp a of
+        "[]" -> genList b
+        _ -> error msg
       TyCon _l qname -> case pp qname of
         "Bool" -> con . show <$> (randoms g :: [Bool])
         "Int" -> int <$> (randomRs intRange g :: [Integer])

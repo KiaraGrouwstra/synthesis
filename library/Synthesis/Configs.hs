@@ -2,6 +2,7 @@
 
 module Synthesis.Configs
   ( seed,
+    typesByArity,
     nestLimit,
     maxInstances,
     numInputs,
@@ -13,10 +14,18 @@ module Synthesis.Configs
   )
 where
 
+import Data.HashMap.Lazy (HashMap, singleton, insert)
+
 -- | random seed
 -- | TODO: make this program input
 seed :: Int
 seed = 123
+
+-- | synthesized types, categorized by arity
+typesByArity :: HashMap Int [String]
+typesByArity =
+  insert 1 ["[]"] $
+  singleton 0 ["Bool", "Int"]
 
 -- dataset generation
 

@@ -26,7 +26,7 @@ import Data.HashMap.Lazy
   )
 import qualified Data.HashMap.Lazy as HM
 import Data.List (minimumBy, partition)
-import Language.Haskell.Interpreter (Interpreter, lift)
+import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Synthesis.Ast
   ( genBlockVariants,
     letRes,
@@ -99,7 +99,7 @@ program = do
   say "\ntask_types:"
   say $ pp_ task_types
   -- generated types we will use for instantiating type variables
-  fill_types :: [Tp] <- nubPp . flatten <$> lift (genTypes nestLimit maxInstances)
+  fill_types :: HashMap Int [Tp] <- liftIO $ genTypes nestLimit maxInstances
   say "\nfill_types:"
   say $ pp_ fill_types
   let fn_input_types :: HashMap Expr [Tp] = fnInputTypes <$> fn_types

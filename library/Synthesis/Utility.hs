@@ -31,12 +31,14 @@ module Synthesis.Utility
     ppMap,
     filterHmM,
     pickKeysSafe,
+    nest,
   )
 where
 
 import Control.Arrow ((***))
-import Control.Monad (filterM, join)
+import Control.Monad (filterM, join, foldM)
 import Data.Bifoldable (biList)
+import Data.List (replicate)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
 import qualified Data.HashMap.Lazy as HM
@@ -202,3 +204,7 @@ flipOrder EQ = EQ
 -- | mapped equality check
 equating :: Eq a => (b -> a) -> b -> b -> Bool
 equating p x y = p x == p y
+
+-- | monadic version of nTimes
+nest :: (Monad m) => Int -> (a -> m a) -> a -> m a
+nest n f x0 = foldM (\x () -> f x) x0 (replicate n ())

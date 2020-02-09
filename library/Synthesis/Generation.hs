@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation
@@ -30,6 +31,7 @@ import Data.HashMap.Lazy
     empty,
     fromList,
     keys,
+    elems,
     lookupDefault,
     toList,
   )
@@ -49,11 +51,12 @@ import Language.Haskell.Interpreter
 import MonadUtils (allM)
 import Synthesis.Ast (anyFn, hasHoles)
 import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Hint (fnIoPairs)
+import Synthesis.Hint (fnIoPairs, say)
 import Synthesis.Orphanage ()
 import Synthesis.Types
-import Synthesis.Utility (pick, pickKeysSafe, pp)
-import Util (fstOf3, thdOf3)
+import Synthesis.Utility (pick, pickKeysSafe, pp, pp_)
+import Synthesis.Configs (typesByArity)
+import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.
 genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
@@ -164,18 +167,22 @@ fnOutputs instantiation_inputs fn_ast in_instantiations =
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 
 -- | generate any combinations of a polymorphic type filled using a list of concrete types
-instantiateTypes :: [Tp] -> Tp -> Interpreter [Tp]
+instantiateTypes :: HashMap Int [Tp] -> Tp -> Interpreter [Tp]
 instantiateTypes tps tp = fmap (fillTypeVars tp) <$> instantiateTypeVars tps (findTypeVars tp)
 
 -- | instantiate type variables
-instantiateTypeVars :: [Tp] -> HashMap String [Tp] -> Interpreter [HashMap String Tp]
--- instantiateTypeVars tps vars = fromList . zip ks <$> sequence (replicate (length ks) tps)
-instantiateTypeVars tps vars = do
-  let ks :: [String] = keys vars
-  let combs :: [[Tp]] = sequence $ replicate (length ks) tps
-  let maps :: [HashMap String Tp] = fromList . zip ks <$> combs
-  let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k, v) -> matchesConstraints v $ vars ! k) . toList
-  filterM keysOk maps
+instantiateTypeVars :: HashMap Int [Tp] -> HashMap String (Int, [Tp]) -> Interpreter [HashMap String Tp]
+instantiateTypeVars tpsByArity variableConstraints = do
+  let tpArity :: HashMap Tp Int = fromList $ concat $ fmap (\(i, strs) -> (,i) . tyCon <$> strs) $ toList typesByArity
+  let keyArities :: HashMap String Int = fst <$> variableConstraints
+  let arities :: [Int] = elems keyArities
+  let ks :: [String] = keys variableConstraints
+  let combs :: [[Tp]] = (\tps -> sequence $ replicate (length ks) tps) $ concat $ elems $ tpsByArity
+  let combs_ :: [[Tp]] = filter (\tps -> ((tpArity !) <$> tps) == arities) combs
+  let maps :: [HashMap String Tp] = fromList . zip ks <$> combs_
+  let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k, v) -> let (arity, tps) = variableConstraints ! k in matchesConstraints arity v tps) . toList
+  res <- filterM keysOk maps
+  return res
 
 -- TODO: defined `Ord` on `Tp` then use `compare :: a -> a -> Ordering`?
 
@@ -206,8 +213,13 @@ matchesType a b = do
 
 -- | check if a type matches the given type constraints.
 -- | runs a command like `(undefined :: (Num a, Eq a) => a -> ()) (undefined :: Bool)`
-matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
-matchesConstraints tp constraints = do
+matchesConstraints :: Int -> Tp -> [Tp] -> Interpreter Bool
+matchesConstraints arity tp constraints = do
   let a :: Tp = tyVar "a"
-  let forAll = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a
-  if null constraints then return True else matchesType tp forAll
+  -- pad with unit type `()` according to arity
+  -- TODO: this probably doesn't scale to monads' arity=2 as `()` is kind `*`
+  let addArity :: Tp -> Tp = nTimes arity $ \tp' -> tyApp tp' unit
+  let tp_ :: Tp = addArity tp
+  let a_ :: Tp = addArity a
+  let forAll :: Tp = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a_
+  if null constraints then return True else matchesType tp_ forAll
