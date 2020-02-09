@@ -28,6 +28,7 @@ import Control.Monad (join)
 import Data.Bifunctor (bimap)
 import Data.Either (fromRight)
 import Data.Functor ((<&>))
+import Data.Bifunctor (first)
 import Data.List (intercalate)
 import Language.Haskell.Exts.Syntax
   ( Boxed (..),
@@ -53,7 +54,6 @@ import Language.Haskell.Interpreter
     runInterpreter,
     set,
     setImportsF,
-    typeChecksWithDetails,
     typeOf,
   )
 import Synthesis.Ast (genUncurry)
@@ -69,6 +69,7 @@ import System.Log.Logger
     noticeM,
     warningM,
   )
+import Control.Exception (SomeException, try, evaluate)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
 imports :: [ModuleImport]
@@ -161,12 +162,10 @@ showError :: GhcError -> String
 showError (GhcError e) = e
 
 -- | interpret a stringified IO command
-interpretIO :: String -> Interpreter (Either String String)
+interpretIO :: String -> Interpreter String
 interpretIO cmd = do
-  either :: Either SomeException String <- join $ liftIO . try <$> interpret cmd (as :: IO String)
-  return $ first show either
-  -- io <- interpret cmd (as :: IO String)
-  -- lift io
+  io <- interpret cmd (as :: IO String)
+  lift io
 
 -- say e
 
@@ -203,7 +202,7 @@ fnIoPairs n fn_ast ins = do
               Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
   -- say cmd
-  fromRight "[]" <$> interpretIO cmd
+  interpretIO cmd
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?
