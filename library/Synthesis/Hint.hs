@@ -163,15 +163,10 @@ showError (GhcError e) = e
 -- | interpret a stringified IO command
 interpretIO :: String -> Interpreter (Either String String)
 interpretIO cmd = do
-  res <- typeChecksWithDetails cmd
-  sequence
-    . bimap
-      (show . fmap showError)
-      ( \_s -> do
-          io <- interpret cmd (as :: IO String)
-          lift io
-      )
-    $ res
+  either :: Either SomeException String <- join $ liftIO . try <$> interpret cmd (as :: IO String)
+  return $ first show either
+  -- io <- interpret cmd (as :: IO String)
+  -- lift io
 
 -- say e
 
