@@ -35,7 +35,7 @@ fnAstsTamandu =
     $ insert "flip" "flip"
     $ insert "not" "not"
     $ insert "isZero" "(== (0 :: Int))"
-    -- $ insert "foldNat" "\\f -> foldNatNat (const f)" -- test!
+    $ insert "foldNat" "\\f -> foldNatNat (const f)" -- test!
     $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"
     $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
     -- https://hackage.haskell.org/package/hmatrix-0.20.0.0/docs/src/Internal.Vector.html#local-6989586621679046393
@@ -43,29 +43,29 @@ fnAstsTamandu =
     --    insert "foldNatNat" "\\ f s0 d -> go (d - 1) s0; where; go 0 s = f (0::Int) s; go !j !s = go (j - 1) (f j s)" $
     $ insert "add" "(+)" -- test!
     $ insert "mul" "(*)"
-    -- $ insert "div" "div"
-    -- $ insert "max" "max" -- Int: for fractions use (/)
-    -- $ insert "eq" "(==)"
-    -- $ insert "neq" "(/=)" -- Tamandu restricts this to Int
-    -- $ insert "con" "(:)" -- Tamandu restricts this to Int
-   --  $ insert "head" "head"
-   --  $ insert "tail" "tail"
-   --  $ insert "isNil" "null"
-   --  $ insert "map" "map"
-   --  $ insert "foldr" "foldr" -- list-specific, unlike fmap
-   --  $ insert "foldl" "foldl"
-   --  $ insert "filter" "filter"
-   --  $ insert "length" "length"
-   --  $ insert "append" "(++)"
-   --  $ insert "reverse" "reverse"
-   --  $ insert "replicate" "replicate"
-   --  $ insert "concat" "concat"
-   --  $ insert "sum" "sum"
-   --  $ insert "prod" "product"
-   --  $ insert "maximum" "maximum"
-   --  $ insert "member" "elem"
-   --  $ insert "enumTo" "\\i -> [1..i]"
-   --  $ insert "enumFromTo" "enumFromTo"
+    $ insert "div" "div"
+    $ insert "max" "max" -- Int: for fractions use (/)
+    $ insert "eq" "(==)"
+    $ insert "neq" "(/=)" -- Tamandu restricts this to Int
+    $ insert "con" "(:)" -- Tamandu restricts this to Int
+    $ insert "head" "head"
+    $ insert "tail" "tail"
+    $ insert "isNil" "null"
+    $ insert "map" "map"
+    $ insert "foldr" "foldr" -- list-specific, unlike fmap
+    $ insert "foldl" "foldl"
+    $ insert "filter" "filter"
+    $ insert "length" "length"
+    $ insert "append" "(++)"
+    $ insert "reverse" "reverse"
+    $ insert "replicate" "replicate"
+    $ insert "concat" "concat"
+    $ insert "sum" "sum"
+    $ insert "prod" "product"
+    $ insert "maximum" "maximum"
+    $ insert "member" "elem"
+    $ insert "enumTo" "\\i -> [1..i]"
+    $ insert "enumFromTo" "enumFromTo"
     $ singleton "succ" "succ"
 
 -- | non-function blocks
