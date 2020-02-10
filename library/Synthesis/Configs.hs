@@ -1,7 +1,8 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Synthesis.Configs
-  ( seed,
+  ( filePath,
+    seed,
     typesByArity,
     crashOnError,
     nestLimit,
@@ -16,6 +17,10 @@ module Synthesis.Configs
 where
 
 import Data.HashMap.Lazy (HashMap, singleton, insert)
+
+-- the file path at which to store/load generated datasets
+filePath :: String
+filePath = "./datasets.bin"
 
 -- | random seed
 -- | TODO: make this program input

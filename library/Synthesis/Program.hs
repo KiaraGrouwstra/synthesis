@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
--- | main logic
+-- | generator logic
 module Synthesis.Program
   ( main,
   )
@@ -35,7 +35,8 @@ import Synthesis.Ast
   )
 import Synthesis.Blocks (blockAsts, constants, fnAsts)
 import Synthesis.Configs
-  ( genMaxHoles,
+  ( filePath,
+    genMaxHoles,
     maxInstances,
     nestLimit,
     numInputs,
@@ -161,14 +162,9 @@ program = do
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
   let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
-  let filePath = "./datasets.bin"
   -- let stuff = (fn_types, fn_in_type_instance_outputs, fn_in_type_instantiations, rest_instantiation_inputs, (train, validation, test))
   let stuff = Stuff {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test)}
   liftIO $ BS.writeFile filePath $ encode stuff
-  bs :: BS.ByteString <- liftIO $ BS.readFile filePath
-  stuff_ :: Stuff <- liftIO $ decodeIO bs
-  -- say $ pp_ stuff_
-  -- TODO: actually use these sets from a learner
 
   say "\n\nenumerating function i/o examples:"
   -- say "\n\nfinding fits!"

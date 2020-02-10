@@ -47,7 +47,16 @@ library:
 
 executables:
   synthesis:
-    source-dirs: executable
+    source-dirs: generator
+    main: Main.hs
+    dependencies:
+    - synthesis
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+  synthesizer:
+    source-dirs: synthesizer
     main: Main.hs
     dependencies:
     - synthesis
