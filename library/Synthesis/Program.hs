@@ -25,12 +25,11 @@ import Data.HashMap.Lazy
     union,
   )
 import qualified Data.HashMap.Lazy as HM
-import Data.List (minimumBy, partition)
+import Data.List (partition)
 import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Synthesis.Ast
   ( genBlockVariants,
     letRes,
-    numAstNodes,
   )
 import Synthesis.Blocks (blockAsts, constants, fnAsts)
 import Synthesis.Configs
@@ -45,6 +44,7 @@ import Synthesis.Generation
     genFns,
     instantiateTypes,
     matchesType,
+    dedupeFunctions,
   )
 import Synthesis.Hint
   ( exprType,
@@ -70,7 +70,6 @@ import Synthesis.Utility
   ( flatten,
     fromKeys,
     fromKeysM,
-    groupByVal,
     pickKeysSafe,
     pp,
     pp_,
@@ -151,28 +150,13 @@ program = do
   fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] String) <- sequence $ mapWithKey (fnOutputs both_instantiation_inputs) fn_in_type_instantiations
   say "\nfn_in_type_instance_outputs:"
   say $ pp_ fn_in_type_instance_outputs
-  -- group functions with identical type signatures
-  let type_sig_fns :: HashMap Tp [Expr] = groupByVal $ toList fn_types
-  say "\ntype_sig_fns:"
-  say $ pp_ type_sig_fns
-  -- group functions with identical type signatures + io examples, i.e. functions that are actually equivalent
-  -- for each uninstantiated type signature, a map for each type instantiation to matching expressions, from a map from instantiated parameter types to a string of io-pairs
-  let type_sig_io_fns :: HashMap Tp (HashMap (HashMap [Tp] String) [Expr]) = (\exprs -> groupByVal $ zip exprs $ (!) fn_in_type_instance_outputs <$> exprs) <$> type_sig_fns
-  say "\ntype_sig_io_fns:"
-  say $ pp_ type_sig_io_fns
-  say "\n\ndeduplicating task functions:"
-  -- deduplicate functions by identical types + io, keeping the shortest
-  -- for each uninstantiated type signature, a map for each type instantiation to the shortest matching expression, from a map from instantiated parameter types to a string of io-pairs
-  let type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minByMap numAstNodes) <$> type_sig_io_fns
-        where
-          minByMap fn = minimumBy $ \a b -> compare (fn a) (fn b)
-  say "\ntype_sig_io_fns_filtered:"
-  say $ pp_ type_sig_io_fns_filtered
-  -- TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
 
-  let kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
+  -- group functions with identical type signatures
+  -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_in_type_instance_outputs
+  let kept_fns :: [Expr] = programs
   say "\nkept_fns:"
   say $ pp_ kept_fns
+
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
   let (_train, _validation, _test) :: ([Expr], [Expr], [Expr]) = randomSplit split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis

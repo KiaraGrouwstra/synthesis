@@ -19,6 +19,7 @@ module Synthesis.Generation
     matchesConstraints,
     matchesType,
     typeRelation,
+    dedupeFunctions,
   )
 where
 
@@ -35,7 +36,7 @@ import Data.HashMap.Lazy
     lookupDefault,
     toList,
   )
-import Data.List (partition)
+import Data.List (minimumBy, partition)
 import Data.Ord (Ordering (..))
 import Data.Set (Set, insert)
 import qualified Data.Set
@@ -49,12 +50,12 @@ import Language.Haskell.Interpreter
     typeOf,
   )
 import MonadUtils (allM)
-import Synthesis.Ast (anyFn, hasHoles)
+import Synthesis.Ast (anyFn, hasHoles, numAstNodes)
 import Synthesis.FindHoles (findHolesExpr)
 import Synthesis.Hint (fnIoPairs, say)
 import Synthesis.Orphanage ()
 import Synthesis.Types
-import Synthesis.Utility (pick, pickKeysSafe, pp, pp_)
+import Synthesis.Utility (pick, pickKeysSafe, pp, pp_, groupByVal)
 import Synthesis.Configs (typesByArity)
 import Util (nTimes, fstOf3, thdOf3)
 
@@ -223,3 +224,20 @@ matchesConstraints arity tp constraints = do
   let a_ :: Tp = addArity a
   let forAll :: Tp = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a_
   if null constraints then return True else matchesType tp_ forAll
+
+-- | deduplicate functions by identical types + io, keeping the shortest
+-- | deprecated, not in use
+dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
+dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
+  where
+  -- minByMap :: (Foldable t, Ord b) => (a -> b) -> t a -> a = \fn -> 
+  minByMap fn = minimumBy $ \a b -> compare (fn a) (fn b)
+  -- group functions with identical type signatures
+  type_sig_fns :: HashMap Tp [Expr] = groupByVal $ toList fn_types
+  -- group functions with identical type signatures + io examples, i.e. functions that are actually equivalent
+  -- for each uninstantiated type signature, a map for each type instantiation to matching expressions, from a map from instantiated parameter types to a string of io-pairs
+  type_sig_io_fns :: HashMap Tp (HashMap (HashMap [Tp] String) [Expr]) = (\exprs -> groupByVal $ zip exprs $ (!) fn_in_type_instance_outputs <$> exprs) <$> type_sig_fns
+  -- for each uninstantiated type signature, a map for each type instantiation to the shortest matching expression, from a map from instantiated parameter types to a string of io-pairs
+  type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minByMap numAstNodes) <$> type_sig_io_fns
+  -- TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
+  kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
