@@ -10,6 +10,16 @@
 
 module Synthesis.Configs
 
+-- | random seed | TODO: make this program input
+seed :: Int
+
+-- | synthesized types, categorized by arity
+typesByArity :: HashMap Int [String]
+
+-- | when calculating function outputs either (False) performing an
+--   additional typecheck (slower), or (True) just crashing on error
+crashOnError :: Bool
+
 -- | max number of levels of nesting for generated types. | high values
 --   make for big logs while debugging...
 nestLimit :: Int
@@ -33,6 +43,12 @@ genMaxHoles :: Int
 -- | ratio between the number of samples to use in the training,
 --   validation, and test sets, respectively.
 split :: (Double, Double, Double)
+
+-- | the range of elements to generate for list types
+listLengths :: (Int, Int)
+
+-- | the range of integers to generate
+intRange :: (Integer, Integer)
 
 
 -- | defined type class instances
@@ -127,6 +143,9 @@ data NestedTuple a
 SingleTuple :: (a, a) -> NestedTuple a
 DeepTuple :: (a, NestedTuple a) -> NestedTuple a
 
+-- | random generator
+generator :: StdGen
+
 -- | flatten a nested list
 flatten :: Item a -> [a]
 
@@ -179,6 +198,9 @@ pickKeys :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
 --   monad instantiations
 composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
 
+-- | randomly shuffle a list
+fisherYates :: RandomGen g => g -> [a] -> ([a], g)
+
 -- | randomly split a dataset into subsets based on the indicated split
 --   ratio
 randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
@@ -205,18 +227,25 @@ filterHmM :: (Monad m, Hashable k, Eq k) => ((k, v) -> m Bool) -> HashMap k v ->
 -- | pick some keys from a hashmap
 pickKeysSafe :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
 
+-- | monadic version of nTimes
+nest :: Monad m => Int -> (a -> m a) -> a -> m a
+
 
 -- | utility functions specifically related to types
 module Synthesis.Types
 type Tp = Type L
 type Expr = Exp L
+
+-- | deprecated, not in use
 type Hole = SpecialCon L
 
--- | randomly generate a type TODO: allow generating new type vars
+-- | randomly generate a type
 randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 
--- | randomly generate a function type TODO: ensure each type var is used
---   at least twice
+-- | randomly generate a function type | deprecated, not in actual use
+--   (<a>randomType</a> is only used with <tt>allowFns</tt> as <a>True</a>
+--   in another deprecated function) TODO: ensure each type var is used at
+--   least twice
 randomFnType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 
 -- | create a monomorphic type node
@@ -225,13 +254,12 @@ tyCon :: String -> Tp
 -- | create a polymorphic type node
 tyApp :: Tp -> Tp -> Tp
 
--- | extract the input and output types from a function type | deprecated,
---   not in use TODO: Maybe
+-- | extract the input and output types from a function type TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 
 -- | generate a number of concrete types to be used in type variable
---   substitution TODO: move the flatten/nub in
-genTypes :: Int -> Int -> IO (Item Tp)
+--   substitution
+genTypes :: Int -> Int -> IO (HashMap Int [Tp])
 
 -- | this function takes an explicitly typed hole, returning its type |
 --   deprecated, not in use TODO: Maybe
@@ -249,8 +277,8 @@ qName :: String -> QName L
 -- | dummy source span info, because I don't care
 l :: L
 
--- | find the type variables and their occurrences
-findTypeVars :: Tp -> HashMap String [Tp]
+-- | find the type variables and their constraints
+findTypeVars :: Tp -> HashMap String (Int, [Tp])
 
 -- | substitute all type variable occurrences
 fillTypeVars :: Tp -> HashMap String Tp -> Tp
@@ -285,11 +313,24 @@ undef :: Tp -> Expr
 -- | tuple of type constraints
 cxTuple :: [Asst L] -> Context L
 
--- | type constraint assertion
-classA :: QName L -> [Tp] -> Asst L
+-- | implicit parameter constraint | deprecated, not in use
+iParam :: String -> Tp -> Asst L
+
+-- | get the string from an IPName | deprecated, not in use
+unIPName :: IPName L -> String
+typeA :: String -> Tp -> Asst L
+
+-- | get the string from a QName | deprecated, not in use
+unQName :: QName L -> String
+
+-- | get the string from a Name
+unName :: Name L -> String
 
 -- | type constraint
 tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
+
+-- | deprecated, not in actual use (<a>randomType</a> is only used with
+--   <tt>allowFns</tt> as <a>True</a> in another deprecated function)
 mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
 unParseResult :: ParseResult a -> Either String a
 
@@ -338,8 +379,18 @@ lambda :: [Pat L] -> Expr -> Expr
 -- | list type
 tyList :: Tp -> Tp
 
+-- | parenthesized type
+tyParen :: Tp -> Tp
+
 -- | extract the input types from a function type
 fnInputTypes :: Tp -> [Tp]
+
+-- | extract the input and output types from a function type as one list
+fnTypes :: Tp -> [Tp]
+
+-- | check if a type is sane -- basically we wanna throw out crap like list
+--   of function
+typeSane :: Tp -> Bool
 
 -- | check if a type is a function type
 isFn :: Tp -> Bool
@@ -350,6 +401,9 @@ hasFn :: Tp -> Bool
 -- | filter out duplicate types. note this dedupe will fail for type
 --   variable variations...
 nubPp :: Pretty a => [a] -> [a]
+
+-- | unpack a list expression
+unList :: Expr -> [Expr]
 
 module Synthesis.Blocks
 blockAsts :: HashMap String Expr
@@ -416,6 +470,9 @@ genFnType :: IO Tp
 --   input | deprecated, not in use
 genFnInType :: IO Tp
 
+-- | randomly generate a number of samples for a given type
+genInputs :: Int -> Tp -> [Expr]
+
 
 -- | utility functions related to the Haskell Interpreter <tt>hint</tt>
 module Synthesis.Hint
@@ -465,7 +522,8 @@ errorString :: InterpreterError -> String
 -- | show a GHC error
 showError :: GhcError -> String
 
--- | interpret a stringified IO command
+-- | interpret a stringified IO command, either performing an additional
+--   typecheck (slower), or just crashing on error for a bogus Either
 interpretIO :: String -> Interpreter (Either String String)
 
 -- | get input-output pairs for a function given the inputs (for one
@@ -476,11 +534,6 @@ interpretIO :: String -> Interpreter (Either String String)
 --   AST</i>strings, | meaning I also only know the types at run-time
 --   (which is when my programs are constructed).
 fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
-
--- | generate examples given a concrete type | the reason this function
---   needs to be run through the interpreter is Gen wants to know its type
---   at compile-time.
-genInputs :: Int -> Tp -> Interpreter [Expr]
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp
@@ -512,15 +565,15 @@ genFns :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter [Expr]
 
 -- | generate any combinations of a polymorphic type filled using a list of
 --   concrete types
-instantiateTypes :: [Tp] -> Tp -> Interpreter [Tp]
+instantiateTypes :: HashMap Int [Tp] -> Tp -> Interpreter [Tp]
 
 -- | instantiate type variables
-instantiateTypeVars :: [Tp] -> HashMap String [Tp] -> Interpreter [HashMap String Tp]
+instantiateTypeVars :: HashMap Int [Tp] -> HashMap String (Int, [Tp]) -> Interpreter [HashMap String Tp]
 
 -- | check if a type matches the given type constraints. | runs a command
 --   like `(undefined :: (Num a, Eq a) =&gt; a -&gt; ()) (undefined ::
 --   Bool)`
-matchesConstraints :: Tp -> [Tp] -> Interpreter Bool
+matchesConstraints :: Int -> Tp -> [Tp] -> Interpreter Bool
 
 -- | check if type <tt>a</tt> matches type <tt>b</tt>. | runs a command
 --   like `(undefined :: b -&gt; ()) (undefined :: a)`. | without forall `a
@@ -529,6 +582,10 @@ matchesType :: Tp -> Tp -> Interpreter Bool
 
 -- | find how two types relate | deprecated, not in use
 typeRelation :: Tp -> Tp -> Interpreter Ordering
+
+-- | deduplicate functions by identical types + io, keeping the shortest |
+--   deprecated, not in use
+dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
 
 
 -- | main logic
