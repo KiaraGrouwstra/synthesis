@@ -424,22 +424,22 @@ typeA str tp = TypeA l $ tyApp (tyCon str) tp
 -- | deprecated, not in use
 unIPName :: IPName L -> String
 unIPName = \case
-    IPDup _l str -> str -- ^ non-linear implicit parameter
-    IPLin _l str -> str -- ^ linear implicit parameter
+    IPDup _l str -> str -- non-linear implicit parameter
+    IPLin _l str -> str -- linear implicit parameter
 
 -- | get the string from a QName
 -- | deprecated, not in use
 unQName :: QName L -> String
 unQName = \case
-    Qual _l _moduleName name -> unName name -- ^ name qualified with a module name
-    UnQual _l name -> unName name -- ^ unqualified local name
-    Special _l _specialCon -> error "SpecialCon is not string-based"  -- ^ built-in constructor with special syntax
+    Qual _l _moduleName name -> unName name -- name qualified with a module name
+    UnQual _l name -> unName name -- unqualified local name
+    Special _l _specialCon -> error "SpecialCon is not string-based"  -- built-in constructor with special syntax
 
 -- | get the string from a Name
 unName :: Name L -> String
 unName = \case
-    Ident _l str -> str   -- ^ /varid/ or /conid/.
-    Symbol _l str -> str  -- ^ /varsym/ or /consym/
+    Ident _l str -> str   -- /varid/ or /conid/.
+    Symbol _l str -> str  -- /varsym/ or /consym/
 
 -- | infix function application
 infixApp :: Expr -> QOp L -> Expr -> Expr
