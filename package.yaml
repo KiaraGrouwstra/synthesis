@@ -30,7 +30,7 @@ dependencies:
   - hint
   - containers
   - unordered-containers
-  # - ghc-lib-parser==8.8.1
+  - ghc-lib-parser==8.8.1
 
 library:
   dependencies:
