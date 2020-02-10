@@ -8,7 +8,8 @@ module Synthesis.Blocks
 where
 
 import Data.HashMap.Lazy (HashMap, insert, singleton, union)
-import Synthesis.Types (Expr, parseExpr)
+import Synthesis.Types (parseExpr)
+import Synthesis.Data (Expr)
 
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants

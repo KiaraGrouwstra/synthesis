@@ -7,10 +7,7 @@
 
 -- | utility functions specifically related to types
 module Synthesis.Types
-  ( Tp,
-    Expr,
-    Hole,
-    randomType,
+  ( randomType,
     randomFnType,
     tyCon,
     tyApp,
@@ -121,20 +118,10 @@ import Language.Haskell.Exts.Syntax
     Type (..),
     IPName (..),
   )
+import Synthesis.Data (L, Expr, Tp)
 import Synthesis.Orphanage ()
 import Synthesis.Configs (typesByArity)
 import Synthesis.Utility (Item (..), equating, pick, pp, flatten, nest)
-
--- these verbose types annoy me so let's alias them
-type L = SrcSpanInfo
-
-type Tp = Type L
-
-type Expr = Exp L
-
--- | deprecated, not in use
-type Hole = SpecialCon L -- ExprHole
-    -- type Fn = TyFun L (Type L a) (Type L b)
 
 -- | randomly generate a type
 randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp

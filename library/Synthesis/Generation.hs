@@ -55,6 +55,7 @@ import Synthesis.FindHoles (findHolesExpr)
 import Synthesis.Hint (fnIoPairs, say)
 import Synthesis.Orphanage ()
 import Synthesis.Types
+import Synthesis.Data (Expr, Tp)
 import Synthesis.Utility (pick, pickKeysSafe, pp, pp_, groupByVal)
 import Synthesis.Configs (typesByArity)
 import Util (nTimes, fstOf3, thdOf3)

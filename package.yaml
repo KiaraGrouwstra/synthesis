@@ -42,6 +42,7 @@ library:
   # - dump  # needs older haskell-src-exts
   - bytestring
   - prettyprinter
+  - store==0.7.2
   source-dirs: library
 
 executables:

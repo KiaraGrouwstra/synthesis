@@ -28,6 +28,7 @@ import System.Random (randoms, randomRs)
 import Synthesis.Configs (maxWildcardDepth, nestLimit, listLengths, intRange)
 import Synthesis.FindHoles (findHolesExpr)
 import Synthesis.Types
+import Synthesis.Data (Expr, Tp)
 import Synthesis.Utility (generator, pp)
 import Util (nTimes)
 
@@ -109,7 +110,8 @@ genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) 
     fn = "fn"
     letters :: [String] = pure <$> ['a' .. nTimes (n -1) succ 'a']
 
--- | randomly generate a number of samples for a given type
+-- | randomly generate a number of samples for a given type.
+-- | this should cover types from `typesByArity`.
 genInputs :: Int -> Tp -> [Expr]
 genInputs n tp = nubPp . take n $ exprs
   where
@@ -118,7 +120,7 @@ genInputs n tp = nubPp . take n $ exprs
     lengths :: [Int] = randomRs listLengths g
     genList :: Tp -> [Expr] = \typ -> (\n_ -> list $ genInputs n_ typ) <$> lengths
     exprs :: [Expr] = case tp of
-      -- these should cover types from randomType
+      TyParen _l a -> genInputs n a
       -- TODO: no nub inside nested genInputs for TyList?
       TyList _l typ -> genList typ
       TyApp _l a b -> case pp a of

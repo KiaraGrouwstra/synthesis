@@ -26,6 +26,8 @@ import Data.HashMap.Lazy
   )
 import qualified Data.HashMap.Lazy as HM
 import Data.List (partition)
+import Data.Store (encode, decodeIO)
+import qualified Data.ByteString as BS
 import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Synthesis.Ast
   ( genBlockVariants,
@@ -56,9 +58,7 @@ import Synthesis.Ast
   )
 import Synthesis.Orphanage ()
 import Synthesis.Types
-  ( Expr,
-    Tp,
-    expTypeSig,
+  ( expTypeSig,
     fnInputTypes,
     genTypes,
     isFn,
@@ -66,6 +66,7 @@ import Synthesis.Types
     parseExpr,
     typeSane,
   )
+import Synthesis.Data (Expr, Tp, Stuff (..))
 import Synthesis.Utility
   ( flatten,
     fromKeys,
@@ -158,8 +159,15 @@ program = do
   say $ pp_ kept_fns
 
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
-  let (_train, _validation, _test) :: ([Expr], [Expr], [Expr]) = randomSplit split kept_fns
+  let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
+  let filePath = "./datasets.bin"
+  -- let stuff = (fn_types, fn_in_type_instance_outputs, fn_in_type_instantiations, rest_instantiation_inputs, (train, validation, test))
+  let stuff = Stuff {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test)}
+  liftIO $ BS.writeFile filePath $ encode stuff
+  bs :: BS.ByteString <- liftIO $ BS.readFile filePath
+  stuff_ :: Stuff <- liftIO $ decodeIO bs
+  -- say $ pp_ stuff_
   -- TODO: actually use these sets from a learner
 
   say "\n\nenumerating function i/o examples:"

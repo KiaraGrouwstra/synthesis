@@ -59,6 +59,7 @@ import Language.Haskell.Interpreter
   )
 import Synthesis.Ast (genUncurry)
 import Synthesis.Types
+import Synthesis.Data (Expr, Tp)
 import Synthesis.Utility (pp)
 import Synthesis.Configs (crashOnError)
 import System.Log.Logger

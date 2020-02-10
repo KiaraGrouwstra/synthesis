@@ -50,6 +50,8 @@ extra-deps:
 - ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
 # this new version helps recreating errors on Asst(ClassA)
 - haskell-src-exts-1.23.0@sha256:1bb9f7e97d569e56973133cb075fdcc1bfd11f90d94b035b5cf44814bb39a73d,4541
+# I dunno why it got an older version for this
+- store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
