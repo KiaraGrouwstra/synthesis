@@ -424,8 +424,8 @@ typeA str tp = TypeA l $ tyApp (tyCon str) tp
 -- | deprecated, not in use
 unIPName :: IPName L -> String
 unIPName = \case
-    IPDup _l str -> str -- ^ ?/ident/, non-linear implicit parameter
-    IPLin _l str -> str -- ^ %/ident/, linear implicit parameter
+    IPDup _l str -> str -- ^ non-linear implicit parameter
+    IPLin _l str -> str -- ^ linear implicit parameter
 
 -- | get the string from a QName
 -- | deprecated, not in use
