@@ -1,7 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE UnicodeSyntax #-}
 
 -- | find holes in an AST
 module Synthesis.FindHoles

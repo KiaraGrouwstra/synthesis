@@ -40,7 +40,6 @@ main = runInterpreterMain program
 program :: Interpreter ()
 program = do
   bs :: BS.ByteString <- liftIO $ BS.readFile filePath
---   stuff_ :: Stuff <- liftIO $ decodeIO bs
   Stuff { fn_types = fn_types
         , fn_in_type_instance_outputs = fn_in_type_instance_outputs
         , fn_in_type_instantiations = fn_in_type_instantiations

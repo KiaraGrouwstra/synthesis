@@ -1,5 +1,3 @@
-{-# LANGUAGE UnicodeSyntax #-}
-
 module Synthesis.Configs
   ( filePath,
     seed,

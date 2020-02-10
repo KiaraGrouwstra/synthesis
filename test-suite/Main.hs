@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE UnicodeSyntax  #-}
-
 -- Tasty: <http://documentup.com/feuerbach/tasty>
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 -- Hspec: <https://hspec.github.io>

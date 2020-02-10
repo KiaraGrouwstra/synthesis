@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE UnicodeSyntax #-}
 
 -- | utility functions
 module Synthesis.Utility

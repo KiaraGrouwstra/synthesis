@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE UnicodeSyntax #-}
 
 -- | utility functions related to the Haskell Interpreter `hint`
 module Synthesis.Hint
