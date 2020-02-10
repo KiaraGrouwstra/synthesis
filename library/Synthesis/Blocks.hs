@@ -35,8 +35,7 @@ fnAstsTamandu =
     $ insert "flip" "flip"
     $ insert "not" "not"
     $ insert "isZero" "(== (0 :: Int))"
-    $ insert "foldNat" "\\f -> foldNatNat (const f)" -- test!
-    $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"
+    $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"  -- "\\f -> foldNatNat (const f)"
     $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
     -- https://hackage.haskell.org/package/hmatrix-0.20.0.0/docs/src/Internal.Vector.html#local-6989586621679046393
     -- foldLoop :: (Int -> t -> t) -> t -> Int -> t
