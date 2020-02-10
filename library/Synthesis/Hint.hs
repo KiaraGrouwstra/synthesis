@@ -48,6 +48,7 @@ import Language.Haskell.Interpreter
     OptionVal (..),
     as,
     interpret,
+    typeChecksWithDetails,
     languageExtensions,
     lift,
     liftIO,
@@ -59,6 +60,7 @@ import Language.Haskell.Interpreter
 import Synthesis.Ast (genUncurry)
 import Synthesis.Types
 import Synthesis.Utility (pp)
+import Synthesis.Configs (crashOnError)
 import System.Log.Logger
   ( alertM,
     criticalM,
@@ -161,11 +163,22 @@ errorString e = show e
 showError :: GhcError -> String
 showError (GhcError e) = e
 
--- | interpret a stringified IO command
-interpretIO :: String -> Interpreter String
-interpretIO cmd = do
-  io <- interpret cmd (as :: IO String)
-  lift io
+-- | interpret a stringified IO command, either performing an additional typecheck (slower), or just crashing on error for a bogus Either
+interpretIO :: String -> Interpreter (Either String String)
+interpretIO cmd =
+  if crashOnError then do
+    io <- interpret cmd (as :: IO String)
+    Right <$> lift io
+  else do
+    res <- typeChecksWithDetails cmd
+    sequence
+      . bimap
+        (show . fmap showError)
+        ( \_s -> do
+            io <- interpret cmd (as :: IO String)
+            lift io
+        )
+      $ res
 
 -- say e
 
@@ -202,7 +215,7 @@ fnIoPairs n fn_ast ins = do
               Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
   -- say cmd
-  interpretIO cmd
+  fromRight "[]" <$> interpretIO cmd
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?

@@ -3,6 +3,7 @@
 module Synthesis.Configs
   ( seed,
     typesByArity,
+    crashOnError,
     nestLimit,
     maxInstances,
     numInputs,
@@ -26,6 +27,10 @@ typesByArity :: HashMap Int [String]
 typesByArity =
   insert 1 ["[]"] $
   singleton 0 ["Bool", "Int"]
+
+-- | when calculating function outputs either (False) performing an additional typecheck (slower), or (True) just crashing on error
+crashOnError :: Bool
+crashOnError = False
 
 -- dataset generation
 
