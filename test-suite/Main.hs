@@ -6,11 +6,11 @@ import           Test.HUnit.Text              (runTestTT)
 import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
-import           Data.Either                  (fromRight)
+import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
 import qualified Data.Set
-import           Language.Haskell.Interpreter (as, interpret)
+import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDetails)
 import           Util                         (fstOf3)
 
 import           Synthesis.Ast

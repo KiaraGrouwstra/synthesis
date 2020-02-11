@@ -99,7 +99,7 @@ interpretUnsafe fn = join $
 -- | run an interpreter monad with imports
 interpretSafe :: Interpreter a -> IO (Either InterpreterError a)
 interpretSafe fn = runInterpreter $ do
-  set [languageExtensions := [PartialTypeSignatures, ScopedTypeVariables]]
+  set [languageExtensions := [PartialTypeSignatures, ScopedTypeVariables, RankNTypes]]
   setImportsF imports
     >>= const fn
 
