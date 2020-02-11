@@ -24,20 +24,13 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List (partition)
 import Data.Store (encode, decodeIO)
 import qualified Data.ByteString as BS
+import System.Random (StdGen, mkStdGen)
 import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Synthesis.Ast
   ( genBlockVariants,
     letRes,
   )
 import Synthesis.Blocks (blockAsts, constants, fnAsts)
-import Synthesis.Configs
-  ( filePath,
-    genMaxHoles,
-    maxInstances,
-    nestLimit,
-    numInputs,
-    split,
-  )
 import Synthesis.Generation
   ( fnOutputs,
     genFns,
@@ -63,7 +56,8 @@ import Synthesis.Types
     parseExpr,
     typeSane,
   )
-import Synthesis.Data (Expr, Tp, Stuff (..))
+import Synthesis.Data (Expr, Tp, Stuff (..), GenerationConfig (..))
+import Synthesis.Configs (parseGenerationConfig)
 import Synthesis.Utility
   ( flatten,
     fromKeys,
@@ -82,9 +76,32 @@ main = runInterpreterMain program
 -- | run our program in the interpreter
 program :: Interpreter ()
 program = do
+  GenerationConfig
+      { filePath = filePath
+      , crashOnError = crashOnError
+      , seed = seed
+      -- type generation
+      , nestLimit = nestLimit
+      , maxInstances = maxInstances
+      -- sample generation
+      , numInputs = numInputs
+      , numMin = numMin
+      , numMax = numMax
+      , listMin = listMin
+      , listMax = listMax
+      -- function generation
+      , maxWildcardDepth = maxWildcardDepth
+      , genMaxHoles = genMaxHoles
+      -- dataset generation
+      , training = training
+      , validation = validation
+      , test = test
+      } :: GenerationConfig <- liftIO parseGenerationConfig
+  let gen :: StdGen = mkStdGen seed
+  let split = (training, validation, test)
   say "generating task functions:"
   block_fn_types :: HashMap String Tp <- mapM exprType fnAsts
-  let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types ++ toList (fromKeys parseExpr $ keys constants)
+  let expr_blocks :: [(String, Expr)] = genBlockVariants maxWildcardDepth block_fn_types ++ toList (fromKeys parseExpr $ keys constants)
   programs :: [Expr] <- genFns genMaxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
   say "\nprograms:"
   say $ pp_ programs
@@ -130,7 +147,7 @@ program = do
   say $ pp_ fn_in_type_instantiations
   -- do sample generation not for each function but for each function input type
   -- for each non-function parameter combo type instantiation, a list of sample expressions
-  let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs numInputs) rest_type_instantiations
+  let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (listMin, listMax) numInputs) rest_type_instantiations
   say "\nrest_instantiation_inputs:"
   say $ pp_ rest_instantiation_inputs
   -- map each parameter function to a filtered map of generated programs matching its type
@@ -145,7 +162,7 @@ program = do
   let both_instantiation_inputs :: HashMap Tp [Expr] = rest_instantiation_inputs `union` instantiated_fn_options
   say "\nboth_instantiation_inputs:"
   say $ pp_ both_instantiation_inputs
-  fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] String) <- sequence $ mapWithKey (fnOutputs both_instantiation_inputs) fn_in_type_instantiations
+  fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] String) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
   say "\nfn_in_type_instance_outputs:"
   say $ pp_ fn_in_type_instance_outputs
 
@@ -156,7 +173,7 @@ program = do
   say $ pp_ kept_fns
 
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
-  let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit split kept_fns
+  let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
   -- let stuff = (fn_types, fn_in_type_instance_outputs, fn_in_type_instantiations, rest_instantiation_inputs, (train, validation, test))
   let stuff = Stuff {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test)}

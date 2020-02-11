@@ -18,20 +18,19 @@ where
 
 import Data.HashMap.Lazy (HashMap, empty, mapWithKey)
 import Language.Haskell.Exts.Syntax (Exp (..), Type (..))
-import System.Random (randoms, randomRs)
-import Synthesis.Configs (maxWildcardDepth, nestLimit, listLengths, intRange)
+import System.Random (RandomGen, randoms, randomRs)
 import Synthesis.FindHoles (findHolesExpr)
 import Synthesis.Types
 import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (generator, pp)
+import Synthesis.Utility (pp)
 import Util (nTimes)
 
 -- | generate applied variants of a function, e.g. [`id`, `id _`]
-genBlockVariants :: HashMap String Tp -> [(String, Expr)]
-genBlockVariants block_types =
+genBlockVariants :: Int -> HashMap String Tp -> [(String, Expr)]
+genBlockVariants maxWildcardDepth block_types =
   let generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) block_types
-   in -- under currying we will allow any level of application
-
+   in
+      -- under currying we will allow any level of application
       concat $ (\k vs -> (\v -> (k, v)) <$> vs) `mapWithKey` generated
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
@@ -54,15 +53,15 @@ genHoledVariants_ maxDepth tp expr =
 
 -- | generate a function type, to then generate functions matching this type
 -- | deprecated, not in use
-genFnType :: IO Tp -- TyFun
-genFnType = randomFnType True True nestLimit empty tyVarCount
+genFnType :: Int -> IO Tp -- TyFun
+genFnType nestLimit = randomFnType True True nestLimit empty tyVarCount
   where
     tyVarCount :: Int = 0 -- TODO: is this okay?
 
 -- | generate a parameter type, to then generate functions taking this input
 -- | deprecated, not in use
-genFnInType :: IO Tp -- TyFun
-genFnInType = randomType True True nestLimit empty tyVarCount
+genFnInType :: Int -> IO Tp -- TyFun
+genFnInType nestLimit = randomType True True nestLimit empty tyVarCount
   where
     tyVarCount :: Int = 0 -- TODO: is this okay?
 
@@ -106,15 +105,15 @@ genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) 
 
 -- | randomly generate a number of samples for a given type.
 -- | this should cover types from `typesByArity`.
-genInputs :: Int -> Tp -> [Expr]
-genInputs n tp = nubPp . take n $ exprs
+genInputs :: RandomGen g => g -> (Integer, Integer) -> (Int, Int) -> Int -> Tp -> [Expr]
+genInputs g intRange listLengths n tp = nubPp . take n $ exprs
   where
+    f = genInputs g intRange listLengths
     msg = "cannot generate from unknown type!"
-    g = generator
     lengths :: [Int] = randomRs listLengths g
-    genList :: Tp -> [Expr] = \typ -> (\n_ -> list $ genInputs n_ typ) <$> lengths
+    genList :: Tp -> [Expr] = \typ -> (\n_ -> list $ f n_ typ) <$> lengths
     exprs :: [Expr] = case tp of
-      TyParen _l a -> genInputs n a
+      TyParen _l a -> f n a
       -- TODO: no nub inside nested genInputs for TyList?
       TyList _l typ -> genList typ
       TyApp _l a b -> case pp a of

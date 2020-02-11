@@ -59,7 +59,6 @@ import Synthesis.Ast (genUncurry)
 import Synthesis.Types
 import Synthesis.Data (Expr, Tp)
 import Synthesis.Utility (pp)
-import Synthesis.Configs (crashOnError)
 import System.Log.Logger
   ( alertM,
     criticalM,
@@ -163,8 +162,8 @@ showError :: GhcError -> String
 showError (GhcError e) = e
 
 -- | interpret a stringified IO command, either performing an additional typecheck (slower), or just crashing on error for a bogus Either
-interpretIO :: String -> Interpreter (Either String String)
-interpretIO cmd =
+interpretIO :: Bool -> String -> Interpreter (Either String String)
+interpretIO crashOnError cmd =
   if crashOnError then do
     io <- interpret cmd (as :: IO String)
     Right <$> lift io
@@ -185,8 +184,8 @@ interpretIO cmd =
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings,
 -- | meaning I also only know the types at run-time (which is when my programs are constructed).
-fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
-fnIoPairs n fn_ast ins = do
+fnIoPairs :: Bool -> Int -> Expr -> Expr -> Interpreter String
+fnIoPairs crashOnError n fn_ast ins = do
   -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
   let unCurry = genUncurry n
   let cmd =
@@ -214,7 +213,7 @@ fnIoPairs n fn_ast ins = do
               Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
   -- say cmd
-  fromRight "[]" <$> interpretIO cmd
+  fromRight "[]" <$> interpretIO crashOnError cmd
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?

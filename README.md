@@ -18,10 +18,27 @@ You can build and run this project using either [Stack](https://docs.haskellstac
 # basic Stack commands
 stack build
 stack test
-stack exec -- synthesis
+
+# generator-specific
+stack exec -- generator --help
+stack exec -- generator
+stack build --fast --exec "generator --help"
+
+# synthesizer-specific
+stack exec -- synthesizer --help
+stack exec -- synthesizer
+stack build --fast --exec "synthesizer --help"
+
+# command-line auto-complete
+# bash
+stack exec -- generator --bash-completion-script `stack exec which generator` >> ~/.bash_completion
+stack exec -- synthesizer --bash-completion-script `stack exec which synthesizer` >> ~/.bash_completion
+# fish
+stack exec -- generator --fish-completion-script (stack exec which generator) > ~/.config/fish/completions/generator.fish
+stack exec -- synthesizer --fish-completion-script (stack exec which synthesizer) > ~/.config/fish/completions/synthesizer.fish
 
 # Continuously build by Nix, run tests and execute
-stack --nix test --file-watch --fast --exec synthesis
+stack --nix test --file-watch --fast --exec generator
 
 # Run the benchmarks.
 stack bench
@@ -29,30 +46,25 @@ stack bench
 # Generate documentation.
 stack haddock
 
-# Run
-stack exec -- synthesis
-
 # Profile
 
-```bash
 # cabal
 cabal new-build --enable-profiling --ghc-options="-fno-prof-auto"
-synthesis +RTS -p
+generator +RTS -p
 
 # stack
 stack build --profile --ghc-options="-fno-prof-auto"
-stack exec -- synthesis +RTS -p -RTS
+stack exec -- generator +RTS -p -RTS
 
 # viz
 stack install ghc-prof-flamegraph
-ghc-prof-flamegraph synthesis.prof
+ghc-prof-flamegraph generator.prof
 stack install profiterole
-profiterole synthesis.prof
-```
+profiterole generator.prof
 
 # Docker: install deps from base image; rebuild top image on code changes.
 # this still sucks but Stack hates volume mounting. :(
 docker build -t synthesis -f ./docker/base/Dockerfile .
 docker build -t synthesis -f ./docker/top/Dockerfile .
-docker run -ti synthesis stack test --exec synthesis
+docker run -ti synthesis stack test --exec generator
 ```

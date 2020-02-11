@@ -12,9 +12,6 @@ import Data.HashMap.Lazy
 import Data.Store (decodeIO)
 import qualified Data.ByteString as BS
 import Language.Haskell.Interpreter (Interpreter, liftIO)
-import Synthesis.Configs
-  ( filePath,
-  )
 import Synthesis.Types
   ( expTypeSig,
   )
@@ -26,7 +23,8 @@ import Synthesis.Hint
     say,
   )
 import Synthesis.Orphanage ()
-import Synthesis.Data (Expr, Tp, Stuff (..))
+import Synthesis.Data (Expr, Tp, Stuff (..), SynthesizerConfig (..))
+import Synthesis.Configs (parseSynthesizerConfig)
 import Synthesis.Utility
   ( pp_,
     pickKeysSafe,
@@ -39,6 +37,9 @@ main = runInterpreterMain program
 -- | run our program in the interpreter
 program :: Interpreter ()
 program = do
+  SynthesizerConfig
+      { filePath = filePath
+      } :: SynthesizerConfig <- liftIO parseSynthesizerConfig
   bs :: BS.ByteString <- liftIO $ BS.readFile filePath
   Stuff { fn_types = fn_types
         , fn_in_type_instance_outputs = fn_in_type_instance_outputs
@@ -69,6 +70,6 @@ program = do
     -- say $ pp_ inst_io_pairs
 -- -- synthesize matching programs by brute force
 -- let inst_inputs :: HashMap String String = pickKeys instantiations rest_instantiation_inputs
--- candidate_ios :: [HashMap String String] <- forM programs $ forM inst_inputs . fnIoPairs . pp
+-- candidate_ios :: [HashMap String String] <- forM programs $ forM inst_inputs . fnIoPairs crashOnError . pp
 -- let candidates :: [Expr] = fmap (letRes . fst) $ filter (\(_expr, inst_ios) -> PP inst_io_pairs == PP inst_ios) $ zip programs candidate_ios
 -- say $ pp_ candidates

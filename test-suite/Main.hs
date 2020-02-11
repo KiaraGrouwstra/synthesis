@@ -10,7 +10,8 @@ import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
 import qualified Data.Set
-import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDetails)
+import           System.Random                (StdGen, mkStdGen)
+import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDetails, liftIO)
 import           Util                         (fstOf3)
 
 import           Synthesis.Ast
@@ -87,7 +88,9 @@ util = parallel $ do
         pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
 
     it "randomSplit" $ do
-        let (train, _validation, _test) = randomSplit (0.5, 0.3, 0.2) [0 .. 9 :: Int]
+        GenerationConfig { seed = seed } :: GenerationConfig <- liftIO parseGenerationConfig
+        let gen :: StdGen = mkStdGen seed
+        let (train, _validation, _test) = randomSplit gen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length train `shouldBe` 5
 
 hint ∷ Test
@@ -109,13 +112,15 @@ hint = let
         not (null s) @?= True
 
     , TestLabel "interpretIO" $ TestCase $ do
-        x <- interpretUnsafe (fromRight "" <$> interpretIO "return \"foo\"")
+        GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
+        x <- interpretUnsafe (fromRight "" <$> interpretIO crashOnError "return \"foo\"")
         x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        x <- interpretUnsafe (fnIoPairs 1 (var "not") $ parseExpr "[True, False]")
+        GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
+        x <- interpretUnsafe (fnIoPairs crashOnError 1 (var "not") $ parseExpr "[True, False]")
         x @?= "[(True,Right False),(False,Right True)]"
-        q <- interpretUnsafe (fnIoPairs 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
+        q <- interpretUnsafe (fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
         q @?= "[((1,2),Right 3),((3,4),Right 7)]"
 
     , TestLabel "exprType" $ TestCase $ do
@@ -125,11 +130,11 @@ hint = let
     ]
 
 types ∷ Spec
-types = parallel $ do
-
-    let bl = tyCon "Bool"
-    let int_ = tyCon "Int"
-    let str = tyCon "String"
+types = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+        str = tyCon "String"
+    in do
 
     it "var" $
         pp (var "foo") @?= "foo"
@@ -163,10 +168,12 @@ types = parallel $ do
         pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
 
     it "randomType" $ do
+        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
         tp <- randomType False False nestLimit empty 0
         [tyCon "Bool", tyCon "Int"] `shouldContain` [tp]
 
     it "randomFnType" $ do
+        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
         tp <- randomFnType False False nestLimit empty 0
         [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
 
@@ -226,10 +233,10 @@ find = -- do
         pp xpr `shouldBe` "(undefined)"
 
 ast ∷ Spec
-ast = let
-    bl = tyCon "Bool"
-    int_ = tyCon "Int"
-  in do
+ast = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+    in do
 
     it "skeleton" $ do
         -- pp (skeleton bl) `shouldBe` "_ :: Bool"
@@ -247,10 +254,19 @@ ast = let
         pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
 
     it "genInputs" $ do
+        GenerationConfig { seed = seed
+                , numMin = numMin
+                , numMax = numMax
+                , listMin = listMin
+                , listMax = listMax
+                } :: GenerationConfig <- liftIO parseGenerationConfig
+        let gen :: StdGen = mkStdGen seed
+        let intRange = (numMin, numMax)
+        let listLengths = (listMin, listMax)
         -- Bool
-        pp <$> (genInputs 10 bl) `shouldContain` ["True"]
+        pp <$> (genInputs gen intRange listLengths 10 bl) `shouldContain` ["True"]
         -- [Bool]
-        let lists = genInputs 10 $ tyList bl
+        let lists = genInputs gen intRange listLengths 10 $ tyList bl
         (length . nubPp . concat . fmap unList) lists `shouldBe` 2
 
 gen ∷ Test
@@ -261,11 +277,12 @@ gen = let
     in TestList
 
     [ TestLabel "fnOutputs" $ TestCase $ do
+        GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
         -- not
-        hm1 <- interpretUnsafe $ fnOutputs (singleton bl [con "True", con "False"]) (var "not") [[bl]]
+        hm1 <- interpretUnsafe $ fnOutputs crashOnError (singleton bl [con "True", con "False"]) (var "not") [[bl]]
         hm1 `shouldBe` singleton [bl] "[(True,Right False),(False,Right True)]"
         -- (+)
-        hm2 <- interpretUnsafe $ fnOutputs (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
+        hm2 <- interpretUnsafe $ fnOutputs crashOnError (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
         hm2 `shouldBe` singleton [int_,int_] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
 
     , TestLabel "fillHole" $ TestCase $ do

@@ -34,28 +34,27 @@ dependencies:
   - containers
   - unordered-containers
   - ghc-lib-parser==8.8.1
+  - random
 
 library:
   dependencies:
   - template-haskell
-  - random
   - hashable
   - hslogger
   - bytestring
   - prettyprinter
   - store==0.7.2
+  - optparse-applicative
   source-dirs: library
 
 executables:
+
   synthesis:
     source-dirs: generator
     main: Main.hs
     dependencies:
     - synthesis
-    ghc-options:
-    - -rtsopts
-    - -threaded
-    - -with-rtsopts=-N
+
   synthesizer:
     source-dirs: synthesizer
     main: Main.hs

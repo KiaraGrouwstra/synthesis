@@ -3,7 +3,6 @@
 module Synthesis.Utility
   ( Item (..),
     NestedTuple (..),
-    generator,
     flatten,
     pick,
     mapKeys,
@@ -48,12 +47,6 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
 import System.Random (RandomGen(..), randomR, randomRIO, mkStdGen)
-import Synthesis.Configs (seed)
-import System.Random (StdGen, mkStdGen)
-
--- | random generator
-generator :: StdGen
-generator = mkStdGen seed
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
@@ -186,11 +179,11 @@ splitPlaces gen ns xs = (zs_, gen')
         zs_ = fst $ foldl (\ (splits, xs_) n -> (splits ++ [take n xs_], drop n xs_)) ([], zs) ns
 
 -- | randomly split a dataset into subsets based on the indicated split ratio
-randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
-randomSplit split xs =
+randomSplit :: RandomGen g => g -> (Double, Double, Double) -> [a] -> ([a], [a], [a])
+randomSplit gen split xs =
   let n :: Int = length xs
       ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
-   in tuplify3 $ fst $ splitPlaces generator (untuple3 ns) xs
+   in tuplify3 $ fst $ splitPlaces gen (untuple3 ns) xs
 
 -- | flip an Ordering
 -- | deprecated, not in use
