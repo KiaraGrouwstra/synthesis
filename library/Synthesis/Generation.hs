@@ -44,14 +44,14 @@ import Language.Haskell.Interpreter
     typeOf,
   )
 import MonadUtils (allM)
-import Synthesis.Ast (anyFn, hasHoles, numAstNodes)
-import Synthesis.FindHoles (findHolesExpr)
-import Synthesis.Hint (fnIoPairs, say)
-import Synthesis.Orphanage ()
+import Synthesis.Ast
+import Synthesis.FindHoles
+import Synthesis.Hint
+import Synthesis.Orphanage
 import Synthesis.Types
-import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (pick, pickKeysSafe, pp, pp_, groupByVal)
-import Synthesis.Configs (typesByArity)
+import Synthesis.Data
+import Synthesis.Utility
+import Synthesis.Configs
 import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.

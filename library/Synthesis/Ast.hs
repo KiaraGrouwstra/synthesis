@@ -19,10 +19,10 @@ where
 import Data.HashMap.Lazy (HashMap, empty, mapWithKey)
 import Language.Haskell.Exts.Syntax (Exp (..), Type (..))
 import System.Random (RandomGen, randoms, randomRs)
-import Synthesis.FindHoles (findHolesExpr)
+import Synthesis.FindHoles
 import Synthesis.Types
-import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (pp)
+import Synthesis.Data
+import Synthesis.Utility
 import Util (nTimes)
 
 -- | generate applied variants of a function, e.g. [`id`, `id _`]

@@ -27,46 +27,15 @@ import qualified Data.ByteString as BS
 import System.Random (StdGen, mkStdGen)
 import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Synthesis.Ast
-  ( genBlockVariants,
-    letRes,
-  )
-import Synthesis.Blocks (blockAsts, constants, fnAsts)
+import Synthesis.Blocks
 import Synthesis.Generation
-  ( fnOutputs,
-    genFns,
-    instantiateTypes,
-    matchesType,
-    dedupeFunctions,
-  )
 import Synthesis.Hint
-  ( exprType,
-    runInterpreterMain,
-    say,
-  )
 import Synthesis.Ast
-  ( genInputs,
-  )
-import Synthesis.Orphanage ()
+import Synthesis.Orphanage
 import Synthesis.Types
-  ( expTypeSig,
-    fnInputTypes,
-    genTypes,
-    isFn,
-    nubPp,
-    parseExpr,
-    typeSane,
-  )
 import Synthesis.Data (Expr, Tp, Stuff (..), GenerationConfig (..))
-import Synthesis.Configs (parseGenerationConfig)
+import Synthesis.Configs
 import Synthesis.Utility
-  ( flatten,
-    fromKeys,
-    fromKeysM,
-    pickKeysSafe,
-    pp,
-    pp_,
-    randomSplit,
-  )
 import Util (secondM)
 
 -- | main function, run program in our interpreter monad

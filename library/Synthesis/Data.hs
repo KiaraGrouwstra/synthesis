@@ -17,10 +17,6 @@ import Data.HashMap.Lazy (HashMap, singleton, insert)
 import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax
-  ( Exp (..),
-    SpecialCon (..),
-    Type (..),
-  )
 
 -- these verbose types annoy me so let's alias them
 type L = SrcSpanInfo

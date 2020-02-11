@@ -13,22 +13,12 @@ import Data.Store (decodeIO)
 import qualified Data.ByteString as BS
 import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Synthesis.Types
-  ( expTypeSig,
-  )
 import Synthesis.Ast
-  ( letRes,
-  )
 import Synthesis.Hint
-  ( runInterpreterMain,
-    say,
-  )
-import Synthesis.Orphanage ()
+import Synthesis.Orphanage
 import Synthesis.Data (Expr, Tp, Stuff (..), SynthesizerConfig (..))
-import Synthesis.Configs (parseSynthesizerConfig)
+import Synthesis.Configs
 import Synthesis.Utility
-  ( pp_,
-    pickKeysSafe,
-  )
 
 -- | main function, run program in our interpreter monad
 main :: IO ()

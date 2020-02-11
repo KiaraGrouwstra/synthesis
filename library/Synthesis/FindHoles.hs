@@ -10,12 +10,7 @@ module Synthesis.FindHoles
 where
 
 import Language.Haskell.Exts.Syntax
-  ( Exp (..),
-    Name (..),
-    QName (..),
-    SpecialCon (..),
-  )
-import Synthesis.Utility (composeSetters)
+import Synthesis.Utility
 
 -- | get the first sub-expression
 gtrExpr :: Exp l -> Exp l

@@ -116,10 +116,10 @@ import Language.Haskell.Exts.Syntax
     Type (..),
     IPName (..),
   )
-import Synthesis.Data (L, Expr, Tp)
-import Synthesis.Orphanage ()
-import Synthesis.Configs (typesByArity)
-import Synthesis.Utility (Item (..), equating, pick, pp, flatten, nest)
+import Synthesis.Data
+import Synthesis.Orphanage
+import Synthesis.Configs
+import Synthesis.Utility
 
 -- | randomly generate a type
 randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp

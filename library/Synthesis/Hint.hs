@@ -29,46 +29,12 @@ import Data.Functor ((<&>))
 import Data.Bifunctor (first)
 import Data.List (intercalate)
 import Language.Haskell.Exts.Syntax
-  ( Boxed (..),
-    Exp (..),
-    Pat (..),
-    Stmt (..),
-    Type (..),
-  )
 import Language.Haskell.Interpreter
-  ( Extension (..),
-    GhcError (..),
-    ImportList (..),
-    Interpreter,
-    InterpreterError (..),
-    ModuleImport (..),
-    ModuleQualification (..),
-    OptionVal (..),
-    as,
-    interpret,
-    typeChecksWithDetails,
-    languageExtensions,
-    lift,
-    liftIO,
-    runInterpreter,
-    set,
-    setImportsF,
-    typeOf,
-  )
-import Synthesis.Ast (genUncurry)
+import Synthesis.Ast
 import Synthesis.Types
-import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (pp)
+import Synthesis.Data
+import Synthesis.Utility
 import System.Log.Logger
-  ( alertM,
-    criticalM,
-    debugM,
-    emergencyM,
-    errorM,
-    infoM,
-    noticeM,
-    warningM,
-  )
 import Control.Exception (SomeException, try, evaluate)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
