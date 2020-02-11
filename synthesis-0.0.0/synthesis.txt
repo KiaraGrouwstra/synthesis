@@ -8,49 +8,6 @@
 @package synthesis
 @version 0.0.0
 
-module Synthesis.Configs
-filePath :: String
-
--- | random seed | TODO: make this program input
-seed :: Int
-
--- | synthesized types, categorized by arity
-typesByArity :: HashMap Int [String]
-
--- | when calculating function outputs either (False) performing an
---   additional typecheck (slower), or (True) just crashing on error
-crashOnError :: Bool
-
--- | max number of levels of nesting for generated types. | high values
---   make for big logs while debugging...
-nestLimit :: Int
-
--- | max number of instantiations to generate for any type containing type
---   variables. | may get less after nub filters out duplicate type
---   instances.
-maxInstances :: Int
-
--- | max number of inputs to generate. | may get less after nub filters out
---   duplicates.
-numInputs :: Int
-
--- | the maximum level of functions to imagine in a wildcard for function
---   generation
-maxWildcardDepth :: Int
-
--- | the maximum number of holes to allow in a generated expression
-genMaxHoles :: Int
-
--- | ratio between the number of samples to use in the training,
---   validation, and test sets, respectively.
-split :: (Double, Double, Double)
-
--- | the range of elements to generate for list types
-listLengths :: (Int, Int)
-
--- | the range of integers to generate
-intRange :: (Integer, Integer)
-
 
 -- | self-defined types
 module Synthesis.Data
@@ -64,13 +21,44 @@ type Hole = SpecialCon L
 -- | things I wanna transfer between generation and synthesis sessions
 data Stuff
 Stuff :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> HashMap Expr [[Tp]] -> HashMap Tp [Expr] -> ([Expr], [Expr], [Expr]) -> Stuff
-[fn_types] :: Stuff -> HashMap Expr Tp
-[fn_in_type_instance_outputs] :: Stuff -> HashMap Expr (HashMap [Tp] String)
-[fn_in_type_instantiations] :: Stuff -> HashMap Expr [[Tp]]
-[rest_instantiation_inputs] :: Stuff -> HashMap Tp [Expr]
-[datasets] :: Stuff -> ([Expr], [Expr], [Expr])
+[$sel:fn_types:Stuff] :: Stuff -> HashMap Expr Tp
+[$sel:fn_in_type_instance_outputs:Stuff] :: Stuff -> HashMap Expr (HashMap [Tp] String)
+[$sel:fn_in_type_instantiations:Stuff] :: Stuff -> HashMap Expr [[Tp]]
+[$sel:rest_instantiation_inputs:Stuff] :: Stuff -> HashMap Tp [Expr]
+[$sel:datasets:Stuff] :: Stuff -> ([Expr], [Expr], [Expr])
+data GenerationConfig
+GenerationConfig :: String -> Bool -> Int -> Int -> Int -> Int -> Integer -> Integer -> Int -> Int -> Int -> Int -> Double -> Double -> Double -> GenerationConfig
+[$sel:filePath:GenerationConfig] :: GenerationConfig -> String
+[$sel:crashOnError:GenerationConfig] :: GenerationConfig -> Bool
+[$sel:seed:GenerationConfig] :: GenerationConfig -> Int
+[$sel:nestLimit:GenerationConfig] :: GenerationConfig -> Int
+[$sel:maxInstances:GenerationConfig] :: GenerationConfig -> Int
+[$sel:numInputs:GenerationConfig] :: GenerationConfig -> Int
+[$sel:numMin:GenerationConfig] :: GenerationConfig -> Integer
+[$sel:numMax:GenerationConfig] :: GenerationConfig -> Integer
+[$sel:listMin:GenerationConfig] :: GenerationConfig -> Int
+[$sel:listMax:GenerationConfig] :: GenerationConfig -> Int
+[$sel:maxWildcardDepth:GenerationConfig] :: GenerationConfig -> Int
+[$sel:genMaxHoles:GenerationConfig] :: GenerationConfig -> Int
+[$sel:training:GenerationConfig] :: GenerationConfig -> Double
+[$sel:validation:GenerationConfig] :: GenerationConfig -> Double
+[$sel:test:GenerationConfig] :: GenerationConfig -> Double
+data SynthesizerConfig
+SynthesizerConfig :: String -> SynthesizerConfig
+[$sel:filePath:SynthesizerConfig] :: SynthesizerConfig -> String
+instance GHC.Generics.Generic Synthesis.Data.SynthesizerConfig
+instance GHC.Show.Show Synthesis.Data.SynthesizerConfig
+instance GHC.Generics.Generic Synthesis.Data.GenerationConfig
+instance GHC.Show.Show Synthesis.Data.GenerationConfig
 instance GHC.Generics.Generic Synthesis.Data.Stuff
 instance GHC.Show.Show Synthesis.Data.Stuff
+
+module Synthesis.Configs
+
+-- | synthesized types, categorized by arity
+typesByArity :: HashMap Int [String]
+parseGenerationConfig :: IO GenerationConfig
+parseSynthesizerConfig :: IO SynthesizerConfig
 
 
 -- | defined type class instances
@@ -246,9 +234,6 @@ data NestedTuple a
 SingleTuple :: (a, a) -> NestedTuple a
 DeepTuple :: (a, NestedTuple a) -> NestedTuple a
 
--- | random generator
-generator :: StdGen
-
 -- | flatten a nested list
 flatten :: Item a -> [a]
 
@@ -306,7 +291,7 @@ fisherYates :: RandomGen g => g -> [a] -> ([a], g)
 
 -- | randomly split a dataset into subsets based on the indicated split
 --   ratio
-randomSplit :: (Double, Double, Double) -> [a] -> ([a], [a], [a])
+randomSplit :: RandomGen g => g -> (Double, Double, Double) -> [a] -> ([a], [a], [a])
 
 -- | flip an Ordering | deprecated, not in use
 flipOrder :: Ordering -> Ordering
@@ -551,7 +536,7 @@ numAstNodes :: Expr -> Int
 letRes :: Expr -> Expr
 
 -- | generate applied variants of a function, e.g. [<a>id</a>, `id _`]
-genBlockVariants :: HashMap String Tp -> [(String, Expr)]
+genBlockVariants :: Int -> HashMap String Tp -> [(String, Expr)]
 
 -- | _ :: (_ -&gt; _)
 anyFn :: Expr
@@ -562,15 +547,15 @@ genUncurry :: Int -> Expr
 
 -- | generate a function type, to then generate functions matching this
 --   type | deprecated, not in use
-genFnType :: IO Tp
+genFnType :: Int -> IO Tp
 
 -- | generate a parameter type, to then generate functions taking this
 --   input | deprecated, not in use
-genFnInType :: IO Tp
+genFnInType :: Int -> IO Tp
 
 -- | randomly generate a number of samples for a given type. | this should
 --   cover types from <tt>typesByArity</tt>.
-genInputs :: Int -> Tp -> [Expr]
+genInputs :: RandomGen g => g -> (Integer, Integer) -> (Int, Int) -> Int -> Tp -> [Expr]
 
 
 -- | utility functions related to the Haskell Interpreter <tt>hint</tt>
@@ -623,7 +608,7 @@ showError :: GhcError -> String
 
 -- | interpret a stringified IO command, either performing an additional
 --   typecheck (slower), or just crashing on error for a bogus Either
-interpretIO :: String -> Interpreter (Either String String)
+interpretIO :: Bool -> String -> Interpreter (Either String String)
 
 -- | get input-output pairs for a function given the inputs (for one
 --   concrete input type instantiation). | function application is run
@@ -632,7 +617,7 @@ interpretIO :: String -> Interpreter (Either String String)
 --   the interpreter is I only have the function<i>inputs as
 --   AST</i>strings, | meaning I also only know the types at run-time
 --   (which is when my programs are constructed).
-fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
+fnIoPairs :: Bool -> Int -> Expr -> Expr -> Interpreter String
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp
@@ -650,7 +635,7 @@ module Synthesis.Generation
 
 -- | given sample inputs by type and type instantiations for a function,
 --   get its in/out pairs (by type)
-fnOutputs :: HashMap Tp [Expr] -> Expr -> [[Tp]] -> Interpreter (HashMap [Tp] String)
+fnOutputs :: Bool -> HashMap Tp [Expr] -> Expr -> [[Tp]] -> Interpreter (HashMap [Tp] String)
 
 -- | generate potential programs filling any holes in a given expression
 --   using some building blocks
