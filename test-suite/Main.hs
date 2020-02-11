@@ -19,6 +19,7 @@ import           Synthesis.FindHoles
 import           Synthesis.Generation
 import           Synthesis.Hint
 import           Synthesis.Types
+import           Synthesis.Data
 import           Synthesis.Utility
 
 main ∷ IO ()
