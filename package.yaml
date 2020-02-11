@@ -38,7 +38,6 @@ dependencies:
 
 library:
   dependencies:
-  - template-haskell
   - hashable
   - hslogger
   - bytestring
@@ -49,7 +48,7 @@ library:
 
 executables:
 
-  synthesis:
+  generator:
     source-dirs: generator
     main: Main.hs
     dependencies:
