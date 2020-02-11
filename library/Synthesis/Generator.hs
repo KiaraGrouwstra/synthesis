@@ -163,22 +163,9 @@ program = do
   liftIO $ BS.writeFile filePath $ encode stuff
 
   say "\n\nenumerating function i/o examples:"
-  -- say "\n\nfinding fits!"
   forM_ kept_fns $ \ast -> do
     let fn_type :: Tp = fn_types ! ast
     say "================================================"
     say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
     let in_type_instance_outputs :: HashMap [Tp] String = fn_in_type_instance_outputs ! ast
-    say "\nin_type_instance_outputs:"
     say $ pp_ in_type_instance_outputs
-    let instantiations :: [[Tp]] = fn_in_type_instantiations ! ast
-    say "\ninstantiations:"
-    say $ pp_ instantiations
-    let inst_io_pairs :: HashMap [Tp] String = pickKeysSafe instantiations in_type_instance_outputs
-    say "\ninst_io_pairs:"
-    say $ pp_ inst_io_pairs
--- -- synthesize matching programs by brute force
--- let inst_inputs :: HashMap String String = pickKeys instantiations rest_instantiation_inputs
--- candidate_ios :: [HashMap String String] <- forM programs $ forM inst_inputs . fnIoPairs . pp
--- let candidates :: [Expr] = fmap (letRes . fst) $ filter (\(_expr, inst_ios) -> PP inst_io_pairs == PP inst_ios) $ zip programs candidate_ios
--- say $ pp_ candidates
