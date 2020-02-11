@@ -1,0 +1,44 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This is the main public API of the store package. The functions</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-- exported here are more likely to be stable between versions.</span><span>
+</span><a name="line-3"></a><span class="hs-comment">--</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- Usually you won't need to write your own 'Store' instances, and</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- instead can rely on either using the 'Generic' deriving approach or</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- &quot;Data.Store.TH&quot; for defining 'Store' instances for your datatypes.</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- There are some tradeoffs here - the generics instances do not require</span><span>
+</span><a name="line-8"></a><span class="hs-comment">-- @-XTemplateHaskell@, but they do not optimize as well for sum types</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- that only require a constant number of bytes.</span><span>
+</span><a name="line-10"></a><span class="hs-comment">--</span><span>
+</span><a name="line-11"></a><span class="hs-comment">-- If you need streaming encode / decode of multiple store encoded</span><span>
+</span><a name="line-12"></a><span class="hs-comment">-- messages, take a look at the @store-streaming@ package.</span><span>
+</span><a name="line-13"></a><span class="hs-comment">--</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- = Gotchas</span><span>
+</span><a name="line-15"></a><span class="hs-comment">--</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- Store is best used for communication between trusted processes and</span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- local caches.  It can certainly be used for other purposes, but the</span><span>
+</span><a name="line-18"></a><span class="hs-comment">-- builtin set of instances have some gotchas to be aware of:</span><span>
+</span><a name="line-19"></a><span class="hs-comment">--</span><span>
+</span><a name="line-20"></a><span class="hs-comment">-- * Store's builtin instances serialize in a format which depends on</span><span>
+</span><a name="line-21"></a><span class="hs-comment">--   machine endianness.</span><span>
+</span><a name="line-22"></a><span class="hs-comment">--</span><span>
+</span><a name="line-23"></a><span class="hs-comment">-- * Store's builtin instances trust the data when deserializing. For</span><span>
+</span><a name="line-24"></a><span class="hs-comment">--   example, the deserialization of `Vector` will read the vector's</span><span>
+</span><a name="line-25"></a><span class="hs-comment">--   link from the first 8 bytes. It will then allocate enough memory</span><span>
+</span><a name="line-26"></a><span class="hs-comment">--   to store all the elements. Malicious or malformed input could</span><span>
+</span><a name="line-27"></a><span class="hs-comment">--   cause allocation of large amounts of memory.  See</span><span>
+</span><a name="line-28"></a><span class="hs-comment">--   https://github.com/fpco/store/issues/122</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Store</span><span>
+</span><a name="line-30"></a><span>    </span><span class="hs-special">(</span><span>
+</span><a name="line-31"></a><span>    </span><span class="hs-comment">-- * Encoding and decoding strict ByteStrings.</span><span>
+</span><a name="line-32"></a><span>      </span><a href="Data.Store.Impl.html#encode"><span class="hs-identifier hs-var">encode</span></a><span class="hs-special">,</span><span>
+</span><a name="line-33"></a><span>      </span><a href="Data.Store.Impl.html#decode"><span class="hs-identifier hs-var">decode</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">decodeWith</span><span class="hs-special">,</span><span>
+</span><a name="line-34"></a><span>      </span><a href="Data.Store.Impl.html#decodeEx"><span class="hs-identifier hs-var">decodeEx</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">decodeExWith</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">decodeExPortionWith</span><span class="hs-special">,</span><span>
+</span><a name="line-35"></a><span>      </span><a href="Data.Store.Impl.html#decodeIO"><span class="hs-identifier hs-var">decodeIO</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">decodeIOWith</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">decodeIOPortionWith</span><span>
+</span><a name="line-36"></a><span>    </span><span class="hs-comment">-- * Store class and related types.</span><span>
+</span><a name="line-37"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Data.Store.Impl.html#Store"><span class="hs-identifier hs-type">Store</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><a href="Data.Store.Impl.html#Size"><span class="hs-identifier hs-type">Size</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Poke</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Peek</span><span>
+</span><a name="line-38"></a><span>    </span><span class="hs-special">,</span><span> </span><a href="Data.Store.Impl.html#GStoreSize"><span class="hs-identifier hs-type">GStoreSize</span></a><span class="hs-special">,</span><span> </span><a href="Data.Store.Impl.html#GStorePoke"><span class="hs-identifier hs-type">GStorePoke</span></a><span class="hs-special">,</span><span> </span><a href="Data.Store.Impl.html#GStorePeek"><span class="hs-identifier hs-type">GStorePeek</span></a><span>
+</span><a name="line-39"></a><span>    </span><span class="hs-comment">-- ** Exceptions thrown by Peek</span><span>
+</span><a name="line-40"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">PeekException</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">peekException</span><span>
+</span><a name="line-41"></a><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-42"></a><span>
+</span><a name="line-43"></a><span class="hs-keyword">import</span><span> </span><a href="Data.Store.Internal.html"><span class="hs-identifier">Data.Store.Internal</span></a><span>
+</span><a name="line-44"></a></pre></body></html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, CPP #-}</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- Module      :  Data.Generics.Instances</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, CWI 2001--2004</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file)</span><span>
+</span><a name="line-7"></a><span class="hs-comment">--</span><span>
+</span><a name="line-8"></a><span class="hs-comment">-- Maintainer  :  generics@haskell.org</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><a name="line-10"></a><span class="hs-comment">-- Portability :  non-portable (uses Data.Data)</span><span>
+</span><a name="line-11"></a><span class="hs-comment">--</span><span>
+</span><a name="line-12"></a><span class="hs-comment">-- \&quot;Scrap your boilerplate\&quot; --- Generic programming in Haskell</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- See &lt;http://www.cs.uu.nl/wiki/GenericProgramming/SYB&gt;. The present module</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- contains thirteen 'Data' instances which are considered dubious (either</span><span>
+</span><a name="line-15"></a><span class="hs-comment">-- because the types are abstract or just not meant to be traversed).</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- Instances in this module might change or disappear in future releases</span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- of this package.</span><span>
+</span><a name="line-18"></a><span class="hs-comment">--</span><span>
+</span><a name="line-19"></a><span class="hs-comment">-- (This module does not export anything. It really just defines instances.)</span><span>
+</span><a name="line-20"></a><span class="hs-comment">--</span><span>
+</span><a name="line-21"></a><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-22"></a><span>
+</span><a name="line-23"></a><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans #-}</span><span>
+</span><a name="line-24"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Generics.Instances</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-25"></a><span>
+</span><a name="line-26"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Data</span><span>
+</span><a name="line-29"></a><span>
+</span><a name="line-30"></a><span class="hs-cpp">#ifdef __GLASGOW_HASKELL__
+#if __GLASGOW_HASKELL__ &gt;= 611
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Handle</span><span>         </span><span class="hs-comment">-- So we can give Data instance for Handle</span><span>
+</span><a name="line-33"></a><span class="hs-cpp">#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IOBase</span><span>            </span><span class="hs-comment">-- So we can give Data instance for IO, Handle</span><span>
+</span><a name="line-35"></a><span class="hs-cpp">#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Stable</span><span>            </span><span class="hs-comment">-- So we can give Data instance for StablePtr</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.ST</span><span>                </span><span class="hs-comment">-- So we can give Data instance for ST</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Conc</span><span>              </span><span class="hs-comment">-- So we can give Data instance for TVar</span><span>
+</span><a name="line-39"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.IORef</span><span>            </span><span class="hs-comment">-- So we can give Data instance for IORef</span><span>
+</span><a name="line-40"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Concurrent</span><span>    </span><span class="hs-comment">-- So we can give Data instance for MVar</span><span>
+</span><a name="line-41"></a><span class="hs-cpp">#else
+# ifdef __HUGS__
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Hugs.Prelude</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Ratio</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-44"></a><span class="hs-cpp"># endif
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.IO</span><span>
+</span><a name="line-46"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Ptr</span><span>
+</span><a name="line-47"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.ForeignPtr</span><span>
+</span><a name="line-48"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.StablePtr</span><span>
+</span><a name="line-49"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad.ST</span><span>
+</span><a name="line-50"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-52"></a><span class="hs-comment">-- Version compatibility issues caused by #2760</span><span>
+</span><a name="line-53"></a><span class="hs-identifier">myMkNoRepType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">DataType</span><span>
+</span><a name="line-54"></a><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 611
+</span><a name="myMkNoRepType"><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier">myMkNoRepType</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">mkNoRepType</span><span>
+</span><a name="line-56"></a><span class="hs-cpp">#else
+</span><span class="hs-identifier">myMkNoRepType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mkNorepType</span><span>
+</span><a name="line-58"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-60"></a><span>
+</span><a name="line-61"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-62"></a><span class="hs-comment">--</span><span>
+</span><a name="line-63"></a><span class="hs-comment">--      Instances of the Data class for Prelude-like types.</span><span>
+</span><a name="line-64"></a><span class="hs-comment">--      We define top-level definitions for representations.</span><span>
+</span><a name="line-65"></a><span class="hs-comment">--</span><span>
+</span><a name="line-66"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-67"></a><span>
+</span><a name="line-68"></a><span>
+</span><a name="line-69"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-70"></a><span class="hs-comment">-- Instances of abstract datatypes (6)</span><span>
+</span><a name="line-71"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-72"></a><span>
+</span><a name="line-73"></a><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt; 801
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Data</span><span> </span><span class="hs-identifier">TypeRep</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-75"></a><span>  </span><span class="hs-identifier">toConstr</span><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-76"></a><span>  </span><span class="hs-identifier">gunfold</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-77"></a><span>  </span><span class="hs-identifier">dataTypeOf</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">myMkNoRepType</span><span> </span><span class="hs-string">&quot;Data.Typeable.TypeRep&quot;</span><span>
+</span><a name="line-78"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-80"></a><span>
+</span><a name="line-81"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-82"></a><span>
+</span><a name="line-83"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-identifier hs-type">TyCon</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-84"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-85"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-86"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;Data.Typeable.TyCon&quot;</span><span>
+</span><a name="line-87"></a><span>
+</span><a name="line-88"></a><span>
+</span><a name="line-89"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-90"></a><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt; 709
+</span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">DataType</span><span>
+</span><a name="line-92"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-94"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-identifier hs-type">DataType</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-95"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-96"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-97"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;Data.Generics.Basics.DataType&quot;</span><span>
+</span><a name="line-98"></a><span>
+</span><a name="line-99"></a><span>
+</span><a name="line-100"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-101"></a><span>
+</span><a name="line-102"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-identifier hs-type">Handle</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-103"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-104"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-105"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.IOBase.Handle&quot;</span><span>
+</span><a name="line-106"></a><span>
+</span><a name="line-107"></a><span>
+</span><a name="line-108"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-109"></a><span>
+</span><a name="line-110"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679042200"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">StablePtr</span><span> </span><a href="#local-6989586621679042200"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-111"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-112"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-113"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.Stable.StablePtr&quot;</span><span>
+</span><a name="line-114"></a><span>
+</span><a name="line-115"></a><span>
+</span><a name="line-116"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-117"></a><span>
+</span><a name="line-118"></a><span class="hs-cpp">#ifdef __GLASGOW_HASKELL__
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-identifier hs-type">ThreadId</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-120"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-121"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-122"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.Conc.ThreadId&quot;</span><span>
+</span><a name="line-123"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-125"></a><span>
+</span><a name="line-126"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-127"></a><span class="hs-comment">-- Dubious instances (7)</span><span>
+</span><a name="line-128"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-129"></a><span>
+</span><a name="line-130"></a><span class="hs-cpp">#ifdef __GLASGOW_HASKELL__
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679042199"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">TVar</span><span> </span><a href="#local-6989586621679042199"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-132"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-133"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-134"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.Conc.TVar&quot;</span><span>
+</span><a name="line-135"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-137"></a><span>
+</span><a name="line-138"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-139"></a><span>
+</span><a name="line-140"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679042137"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">MVar</span><span> </span><a href="#local-6989586621679042137"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-141"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-142"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-143"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.Conc.MVar&quot;</span><span>
+</span><a name="line-144"></a><span>
+</span><a name="line-145"></a><span>
+</span><a name="line-146"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-147"></a><span>
+</span><a name="line-148"></a><span class="hs-cpp">#ifdef __GLASGOW_HASKELL__
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679041647"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">STM</span><span> </span><a href="#local-6989586621679041647"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-150"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-151"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-152"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.Conc.STM&quot;</span><span>
+</span><a name="line-153"></a><span class="hs-cpp">#endif
+</span><span>
+</span><a name="line-155"></a><span>
+</span><a name="line-156"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-157"></a><span>
+</span><a name="line-158"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679041645"><span class="hs-identifier hs-type">s</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679041646"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">ST</span><span> </span><a href="#local-6989586621679041645"><span class="hs-identifier hs-type">s</span></a><span> </span><a href="#local-6989586621679041646"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-159"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-160"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-161"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.ST.ST&quot;</span><span>
+</span><a name="line-162"></a><span>
+</span><a name="line-163"></a><span>
+</span><a name="line-164"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-165"></a><span>
+</span><a name="line-166"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679041605"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">IORef</span><span> </span><a href="#local-6989586621679041605"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-167"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-168"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-169"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.IOBase.IORef&quot;</span><span>
+</span><a name="line-170"></a><span>
+</span><a name="line-171"></a><span>
+</span><a name="line-172"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-173"></a><span>
+</span><a name="line-174"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Typeable</span><span> </span><a href="#local-6989586621679041604"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">IO</span><span> </span><a href="#local-6989586621679041604"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-175"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-176"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-177"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;GHC.IOBase.IO&quot;</span><span>
+</span><a name="line-178"></a><span>
+</span><a name="line-179"></a><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><a name="line-180"></a><span>
+</span><a name="line-181"></a><span class="hs-comment">--</span><span>
+</span><a name="line-182"></a><span class="hs-comment">-- A last resort for functions</span><span>
+</span><a name="line-183"></a><span class="hs-comment">--</span><span>
+</span><a name="line-184"></a><span>
+</span><a name="line-185"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679041601"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><a href="#local-6989586621679041602"><span class="hs-identifier hs-type">b</span></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Data</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679041601"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679041602"><span class="hs-identifier hs-type">b</span></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-186"></a><span>  </span><a name="local-8214565720323786684"><span class="hs-identifier">toConstr</span></a><span> </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;toConstr&quot;</span><span>
+</span><a name="line-187"></a><span>  </span><a name="local-8214565720323786685"><span class="hs-identifier">gunfold</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">error</span><span> </span><span class="hs-string">&quot;gunfold&quot;</span><span>
+</span><a name="line-188"></a><span>  </span><a name="local-8214565720323786683"><span class="hs-identifier">dataTypeOf</span></a><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><a href="Data.Generics.Instances.html#myMkNoRepType"><span class="hs-identifier hs-var">myMkNoRepType</span></a><span> </span><span class="hs-string">&quot;Prelude.(-&gt;)&quot;</span><span>
+</span><a name="line-189"></a><span>  </span><a name="local-8214565720323786681"><span class="hs-identifier">dataCast2</span></a><span> </span><a name="local-6989586621679041603"><a href="#local-6989586621679041603"><span class="hs-identifier">f</span></a></a><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">gcast2</span><span> </span><a href="#local-6989586621679041603"><span class="hs-identifier hs-var">f</span></a><span>
+</span><a name="line-190"></a><span>
+</span><a name="line-191"></a></pre></body></html>

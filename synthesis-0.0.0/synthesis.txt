@@ -9,6 +9,7 @@
 @version 0.0.0
 
 module Synthesis.Configs
+filePath :: String
 
 -- | random seed | TODO: make this program input
 seed :: Int
@@ -49,6 +50,27 @@ listLengths :: (Int, Int)
 
 -- | the range of integers to generate
 intRange :: (Integer, Integer)
+
+
+-- | self-defined types
+module Synthesis.Data
+type L = SrcSpanInfo
+type Tp = Type L
+type Expr = Exp L
+
+-- | deprecated, not in use
+type Hole = SpecialCon L
+
+-- | things I wanna transfer between generation and synthesis sessions
+data Stuff
+Stuff :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> HashMap Expr [[Tp]] -> HashMap Tp [Expr] -> ([Expr], [Expr], [Expr]) -> Stuff
+[fn_types] :: Stuff -> HashMap Expr Tp
+[fn_in_type_instance_outputs] :: Stuff -> HashMap Expr (HashMap [Tp] String)
+[fn_in_type_instantiations] :: Stuff -> HashMap Expr [[Tp]]
+[rest_instantiation_inputs] :: Stuff -> HashMap Tp [Expr]
+[datasets] :: Stuff -> ([Expr], [Expr], [Expr])
+instance GHC.Generics.Generic Synthesis.Data.Stuff
+instance GHC.Show.Show Synthesis.Data.Stuff
 
 
 -- | defined type class instances
@@ -128,6 +150,87 @@ instance Data.Text.Prettyprint.Doc.Internal.Pretty (Language.Haskell.Exts.Syntax
 instance Data.Text.Prettyprint.Doc.Internal.Pretty (Language.Haskell.Exts.Syntax.Annotation l)
 instance Data.Text.Prettyprint.Doc.Internal.Pretty (Language.Haskell.Exts.Syntax.BooleanFormula l)
 instance (Data.Text.Prettyprint.Doc.Internal.Pretty k, Data.Text.Prettyprint.Doc.Internal.Pretty v) => Data.Text.Prettyprint.Doc.Internal.Pretty (Data.HashMap.Base.HashMap k v)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Module l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ModuleHead l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ExportSpecList l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ExportSpec l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ImportDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ImportSpecList l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ImportSpec l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Assoc l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Namespace l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Decl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.DeclHead l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.InstRule l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.InstHead l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.IPBind l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.InjectivityInfo l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ResultSig l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ClassDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.InstDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Deriving l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.DerivStrategy l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.DataOrNew l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ConDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.FieldDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.QualConDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.GadtDecl l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.BangType l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Unpackedness l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Match l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Rhs l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.GuardedRhs l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Context l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.FunDep l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Asst l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Type l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.TyVarBind l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Promoted l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.TypeEqn l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Exp l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Stmt l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.QualStmt l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.FieldUpdate l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Alt l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.XAttr l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Pat l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.PatField l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.PXAttr l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.RPat l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.RPatOp l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Literal l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ModuleName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.QName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Name l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.QOp l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Op l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.SpecialCon l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.CName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.IPName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.XName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Role l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.MaybePromotedName l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Bracket l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Splice l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Safety l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.CallConv l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.ModulePragma l)
+instance Data.Store.Impl.Store Language.Haskell.Exts.Syntax.Tool
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Overlap l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Rule l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.RuleVar l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Activation l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Annotation l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.BooleanFormula l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Sign l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.Binds l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.EWildcard l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.WarningText l)
+instance Data.Store.Impl.Store l => Data.Store.Impl.Store (Language.Haskell.Exts.Syntax.PatternSynDirection l)
+instance Data.Store.Impl.Store Language.Haskell.Exts.Syntax.Boxed
+instance Data.Store.Impl.Store Language.Haskell.Exts.SrcLoc.SrcSpanInfo
+instance Data.Store.Impl.Store Language.Haskell.Exts.SrcLoc.SrcSpan
+instance Data.Store.Impl.Store Synthesis.Data.Stuff
 
 
 -- | utility functions
@@ -233,11 +336,6 @@ nest :: Monad m => Int -> (a -> m a) -> a -> m a
 
 -- | utility functions specifically related to types
 module Synthesis.Types
-type Tp = Type L
-type Expr = Exp L
-
--- | deprecated, not in use
-type Hole = SpecialCon L
 
 -- | randomly generate a type
 randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
@@ -470,7 +568,8 @@ genFnType :: IO Tp
 --   input | deprecated, not in use
 genFnInType :: IO Tp
 
--- | randomly generate a number of samples for a given type
+-- | randomly generate a number of samples for a given type. | this should
+--   cover types from <tt>typesByArity</tt>.
 genInputs :: Int -> Tp -> [Expr]
 
 
@@ -539,6 +638,13 @@ fnIoPairs :: Int -> Expr -> Expr -> Interpreter String
 exprType :: Expr -> Interpreter Tp
 
 
+-- | synthesizer logic
+module Synthesis.Synthesizer
+
+-- | main function, run program in our interpreter monad
+main :: IO ()
+
+
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation
 
@@ -588,8 +694,8 @@ typeRelation :: Tp -> Tp -> Interpreter Ordering
 dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
 
 
--- | main logic
-module Synthesis.Program
+-- | generator logic
+module Synthesis.Generator
 
 -- | main function, run program in our interpreter monad
 main :: IO ()
