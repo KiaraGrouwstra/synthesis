@@ -54,9 +54,6 @@ instance GHC.Generics.Generic Synthesis.Data.Stuff
 instance GHC.Show.Show Synthesis.Data.Stuff
 
 module Synthesis.Configs
-
--- | synthesized types, categorized by arity
-typesByArity :: HashMap Int [String]
 parseGenerationConfig :: IO GenerationConfig
 parseSynthesizerConfig :: IO SynthesizerConfig
 
@@ -322,31 +319,11 @@ nest :: Monad m => Int -> (a -> m a) -> a -> m a
 -- | utility functions specifically related to types
 module Synthesis.Types
 
--- | randomly generate a type
-randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
-
--- | randomly generate a function type | deprecated, not in actual use
---   (<a>randomType</a> is only used with <tt>allowFns</tt> as <a>True</a>
---   in another deprecated function) TODO: ensure each type var is used at
---   least twice
-randomFnType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
-
 -- | create a monomorphic type node
 tyCon :: String -> Tp
 
 -- | create a polymorphic type node
 tyApp :: Tp -> Tp -> Tp
-
--- | extract the input and output types from a function type TODO: Maybe
-fnTypeIO :: Tp -> ([Tp], Tp)
-
--- | generate a number of concrete types to be used in type variable
---   substitution
-genTypes :: Int -> Int -> IO (HashMap Int [Tp])
-
--- | this function takes an explicitly typed hole, returning its type |
---   deprecated, not in use TODO: Maybe
-holeType :: Expr -> Tp
 
 -- | create a variable node
 var :: String -> Expr
@@ -359,12 +336,6 @@ qName :: String -> QName L
 
 -- | dummy source span info, because I don't care
 l :: L
-
--- | find the type variables and their constraints
-findTypeVars :: Tp -> HashMap String (Int, [Tp])
-
--- | substitute all type variable occurrences
-fillTypeVars :: Tp -> HashMap String Tp -> Tp
 
 -- | star type node: * | deprecated, not in use
 star :: Tp
@@ -411,10 +382,6 @@ unName :: Name L -> String
 
 -- | type constraint
 tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
-
--- | deprecated, not in actual use (<a>randomType</a> is only used with
---   <tt>allowFns</tt> as <a>True</a> in another deprecated function)
-mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
 unParseResult :: ParseResult a -> Either String a
 
 -- | unit type: ()
@@ -465,12 +432,6 @@ tyList :: Tp -> Tp
 -- | parenthesized type
 tyParen :: Tp -> Tp
 
--- | extract the input types from a function type
-fnInputTypes :: Tp -> [Tp]
-
--- | extract the input and output types from a function type as one list
-fnTypes :: Tp -> [Tp]
-
 -- | check if a type is sane -- basically we wanna throw out crap like list
 --   of function
 typeSane :: Tp -> Bool
@@ -488,6 +449,19 @@ nubPp :: Pretty a => [a] -> [a]
 -- | unpack a list expression
 unList :: Expr -> [Expr]
 
+-- | this function takes an explicitly typed hole, returning its type |
+--   deprecated, not in use TODO: Maybe
+holeType :: Expr -> Tp
+
+-- | extract the input and output types from a function type TODO: Maybe
+fnTypeIO :: Tp -> ([Tp], Tp)
+
+-- | extract the input types from a function type
+fnInputTypes :: Tp -> [Tp]
+
+-- | extract the input and output types from a function type as one list
+fnTypes :: Tp -> [Tp]
+
 module Synthesis.Blocks
 blockAsts :: HashMap String Expr
 
@@ -496,6 +470,60 @@ fnAsts :: HashMap String Expr
 
 -- | non-function blocks
 constants :: HashMap String Expr
+
+-- | synthesized types, categorized by arity
+typesByArity :: HashMap Int [String]
+
+
+-- | functions related to type generation
+module Synthesis.TypeGen
+
+-- | randomly generate a type
+randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
+
+-- | randomly generate a function type | deprecated, not in actual use
+--   (<a>randomType</a> is only used with <tt>allowFns</tt> as <a>True</a>
+--   in another deprecated function) TODO: ensure each type var is used at
+--   least twice
+randomFnType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
+
+-- | create a monomorphic type node
+tyCon :: String -> Tp
+
+-- | create a polymorphic type node
+tyApp :: Tp -> Tp -> Tp
+
+-- | generate a number of concrete types to be used in type variable
+--   substitution
+genTypes :: Int -> Int -> IO (HashMap Int [Tp])
+
+-- | find the type variables and their constraints
+findTypeVars :: Tp -> HashMap String (Int, [Tp])
+
+-- | substitute all type variable occurrences
+fillTypeVars :: Tp -> HashMap String Tp -> Tp
+
+-- | deprecated, not in actual use (<a>randomType</a> is only used with
+--   <tt>allowFns</tt> as <a>True</a> in another deprecated function)
+mergeTyVars :: HashMap String [Tp] -> HashMap String [Tp] -> HashMap String [Tp]
+unParseResult :: ParseResult a -> Either String a
+
+-- | check if a type is sane -- basically we wanna throw out crap like list
+--   of function
+typeSane :: Tp -> Bool
+
+-- | check if a type is a function type
+isFn :: Tp -> Bool
+
+-- | check if a type contains a function type
+hasFn :: Tp -> Bool
+
+-- | filter out duplicate types. note this dedupe will fail for type
+--   variable variations...
+nubPp :: Pretty a => [a] -> [a]
+
+-- | unpack a list expression
+unList :: Expr -> [Expr]
 
 
 -- | find holes in an AST
