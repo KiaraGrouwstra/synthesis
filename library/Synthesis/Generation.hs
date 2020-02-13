@@ -49,9 +49,11 @@ import Synthesis.FindHoles
 import Synthesis.Hint
 import Synthesis.Orphanage
 import Synthesis.Types
+import Synthesis.TypeGen
 import Synthesis.Data
 import Synthesis.Utility
 import Synthesis.Configs
+import Synthesis.Blocks (typesByArity)
 import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.

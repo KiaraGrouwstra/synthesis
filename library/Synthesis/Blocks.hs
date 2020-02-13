@@ -2,12 +2,19 @@ module Synthesis.Blocks
   ( blockAsts,
     fnAsts,
     constants,
+    typesByArity,
   )
 where
 
 import Data.HashMap.Lazy (HashMap, insert, singleton, union)
 import Synthesis.Types
 import Synthesis.Data
+
+-- | synthesized types, categorized by arity
+typesByArity :: HashMap Int [String]
+typesByArity =
+  insert 1 ["[]"] $
+  singleton 0 ["Bool", "Int"]
 
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants

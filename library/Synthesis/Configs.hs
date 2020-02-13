@@ -1,6 +1,5 @@
 module Synthesis.Configs
-  ( typesByArity,
-    parseGenerationConfig,
+  ( parseGenerationConfig,
     parseSynthesizerConfig,
   )
 where
@@ -9,12 +8,6 @@ import Data.HashMap.Lazy (HashMap, singleton, insert)
 import Synthesis.Data
 import Options.Applicative
 import Data.Semigroup ((<>))
-
--- | synthesized types, categorized by arity
-typesByArity :: HashMap Int [String]
-typesByArity =
-  insert 1 ["[]"] $
-  singleton 0 ["Bool", "Int"]
 
 generationConfig :: Parser GenerationConfig
 generationConfig = GenerationConfig

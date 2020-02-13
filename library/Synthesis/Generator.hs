@@ -33,6 +33,7 @@ import Synthesis.Hint
 import Synthesis.Ast
 import Synthesis.Orphanage
 import Synthesis.Types
+import Synthesis.TypeGen
 import Synthesis.Data (Expr, Tp, Stuff (..), GenerationConfig (..))
 import Synthesis.Configs
 import Synthesis.Utility

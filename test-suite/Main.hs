@@ -20,6 +20,7 @@ import           Synthesis.FindHoles
 import           Synthesis.Generation
 import           Synthesis.Hint
 import           Synthesis.Types
+import           Synthesis.TypeGen
 import           Synthesis.Data
 import           Synthesis.Utility
 
@@ -32,9 +33,10 @@ main = do
     -- Tasty HSpec
     util_ <- testSpec "Utility" util
     types_ <- testSpec "Types" types
+    typeGen_ <- testSpec "TypeGen" typeGen
     find_ <- testSpec "FindHoles" find
     ast_ <- testSpec "Ast" ast
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, find_, ast_]
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_]
     defaultMain tree
 
 util ∷ Spec
@@ -157,6 +159,35 @@ types = parallel $ let
         let b = tyVar "b"
         fnTypeIO (tyFun a b) `shouldBe` ([a], b)
 
+    it "parseExpr" $
+        pp (parseExpr "a") `shouldBe` "a"
+
+    it "parseType" $
+        pp (parseType "a") `shouldBe` "a"
+
+    it "isFn" $ do
+        isFn bl `shouldBe` False
+        isFn (tyVar "a") `shouldBe` False
+        isFn (tyFun bl int_) `shouldBe` True
+    
+    it "typeSane" $ do
+        typeSane bl `shouldBe` True
+        typeSane (tyList bl) `shouldBe` True
+        typeSane (tyFun bl bl) `shouldBe` True
+        typeSane (tyFun (tyFun bl bl) (tyFun bl bl)) `shouldBe` True
+        typeSane (tyList (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
+        typeSane (tyParen (tyFun bl bl)) `shouldBe` True
+        typeSane (parseType "(Eq (a -> Bool)) => a") `shouldBe` False
+
+typeGen ∷ Spec
+typeGen = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+        str = tyCon "String"
+    in do
+
     it "findTypeVars" $ do
         -- Num a => a -> Set b
         let a = tyVar "a"
@@ -191,28 +222,6 @@ types = parallel $ let
 
     it "mergeTyVars" $
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
-
-    it "parseExpr" $
-        pp (parseExpr "a") `shouldBe` "a"
-
-    it "parseType" $
-        pp (parseType "a") `shouldBe` "a"
-
-    it "isFn" $ do
-        isFn bl `shouldBe` False
-        isFn (tyVar "a") `shouldBe` False
-        isFn (tyFun bl int_) `shouldBe` True
-    
-    it "typeSane" $ do
-        typeSane bl `shouldBe` True
-        typeSane (tyList bl) `shouldBe` True
-        typeSane (tyFun bl bl) `shouldBe` True
-        typeSane (tyFun (tyFun bl bl) (tyFun bl bl)) `shouldBe` True
-        typeSane (tyList (tyFun bl bl)) `shouldBe` False
-        typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
-        typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
-        typeSane (tyParen (tyFun bl bl)) `shouldBe` True
-        typeSane (parseType "(Eq (a -> Bool)) => a") `shouldBe` False
 
 find ∷ Spec
 find = -- do

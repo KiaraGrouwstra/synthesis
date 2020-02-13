@@ -21,6 +21,7 @@ import Language.Haskell.Exts.Syntax (Exp (..), Type (..))
 import System.Random (RandomGen, randoms, randomRs)
 import Synthesis.FindHoles
 import Synthesis.Types
+import Synthesis.TypeGen
 import Synthesis.Data
 import Synthesis.Utility
 import Util (nTimes)
