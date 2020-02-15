@@ -39,10 +39,6 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 
 extra-deps:
-# - acme-missiles-0.3
-# - git: https://github.com/commercialhaskell/stack.git
-#   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
-
 # dump package isn't in hackage
 # - dump-0.2.8@sha256:ded8982e766a98d45c38f9438723455a8c8a608f43383d193f7e7aa898d573c6,1831
 # ormolu likes this version for ghc-lib-parser / ghc-lib
@@ -52,6 +48,23 @@ extra-deps:
 - haskell-src-exts-1.23.0@sha256:1bb9f7e97d569e56973133cb075fdcc1bfd11f90d94b035b5cf44814bb39a73d,4541
 # I dunno why it got an older version for this
 - store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+# Torch
+- hasktorch-0.0.1.0@sha256:b65c874ee2229dd106713cad078ad7cf89d3428e39f717ea5453f215993d0f90,99068
+- dimensions-2.1.0.0@sha256:c598a801f4ef24d13065a8f6a91b2b0d8f0668623bd4f7a866fa0606fe8b9885,2263
+- hasktorch-ffi-th-0.0.1.0@sha256:dfc18adfd84be0b57ac5ab55b85cb5ee7beda61f517f0243044960a3182c944e,5791
+- hasktorch-ffi-thc-0.0.1.0@sha256:dec926c6fdbf1a4e1af05a93c1f37c44bfb7f10508c3cce8c79707a35e1f22d0,10103
+- hasktorch-indef-0.0.1.0@sha256:ee0678444b830e087066fb398ca6071d321c8eaba5f39fcecfd096947e1fe60c,13179
+- hasktorch-signatures-partial-0.0.1.0@sha256:890fca52f6a153055ae07c6539c84e5ff098769841a23716eca386369b6054d0,1885
+- hasktorch-types-th-0.0.1.0@sha256:cd720211f8059f9392d550bddebebe15d0bc1274bd0f7209cbf27265113dff7d,1765
+- hasktorch-types-thc-0.0.1.0@sha256:a20fe08b1542cdc6f19bddde9db34060e89af782e25a2b53e58587754a7383cc,1817
+- constraints-deriving-1.1.1.0@sha256:11331f428a6859c9abb05862db0eadf36d9be3a1c9da8516f7cc6e120cd38d89,3900
+- hasktorch-signatures-0.0.1.0@sha256:cdb50cd0113eb611a45a0af21f72858c38cb9dc305ff95a69ec7c80daf910691,30646
+- hasktorch-signatures-support-0.0.1.0@sha256:5e7e6aff05983244031b18aaf2930aa9fe3e9fa8b2701c6e2bd5a57e276182c8,1608
+- hasktorch-signatures-types-0.0.1.0@sha256:6ae252a6056d616b57545f98a5b2d566115f862e4810583d2b6043c5c4d64235,1524
+
+# - template-0.2.0.10@sha256:f822de4d34c45bc84b33a61bc112c15fedee6fa6dc414c62b10456395a868f85
+# - inline-c-0.9.0.0
+# - inline-c-cpp-0.4.0.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
@@ -76,3 +89,23 @@ extra-deps:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+
+extra-lib-dirs:
+    # Torch: nix
+    - /nix/store/5r8986sg1l1alhgqw631b23cgilv14vk-libtorch-1.4/lib
+    # Torch: local
+    - /run/media/kiara/meltan/downloads/repos/hasktorch/deps/libtorch/lib
+    - /run/media/kiara/meltan/downloads/repos/hasktorch/deps/mklml/lib
+extra-include-dirs:
+    # Torch: nix
+    - /nix/store/5r8986sg1l1alhgqw631b23cgilv14vk-libtorch-1.4/include
+    - /nix/store/5r8986sg1l1alhgqw631b23cgilv14vk-libtorch-1.4/include/torch/csrc/api/include
+    # Torch: local
+    - /run/media/kiara/meltan/downloads/repos/hasktorch/deps/libtorch/include/torch/csrc/api/include
+    - /run/media/kiara/meltan/downloads/repos/hasktorch/deps/libtorch/include
+
+nix:
+    enable: false
+    packages: [zlib.dev, zlib.out]
+
+with-gcc: /usr/bin/gcc-8

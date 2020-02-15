@@ -64,6 +64,7 @@ profiterole generator.prof
 
 # Docker: install deps from base image; rebuild top image on code changes.
 # this still sucks but Stack hates volume mounting. :(
+# TODO: update for HaskTorch
 docker build -t synthesis -f ./docker/base/Dockerfile .
 docker build -t synthesis -f ./docker/top/Dockerfile .
 docker run -ti synthesis stack test --exec generator

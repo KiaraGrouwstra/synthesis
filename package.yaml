@@ -35,6 +35,10 @@ dependencies:
   - unordered-containers
   - ghc-lib-parser==8.8.1
   - random
+  # Torch
+  # - codegen
+  # - libtorch-ffi
+  - hasktorch # ==0.0.1.0
 
 library:
   dependencies:
