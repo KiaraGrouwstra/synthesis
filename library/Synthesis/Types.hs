@@ -227,7 +227,8 @@ iParam :: String -> Tp -> Asst L
 iParam str = IParam l (IPLin l str)
 
 typeA :: String -> Tp -> Asst L
-typeA str tp = TypeA l $ tyApp (tyCon str) tp
+-- typeA str tp = TypeA l $ tyApp (tyCon str) tp
+typeA = iParam
 -- (tyVar "a")
 -- (IPLin l str) tp
 
@@ -400,11 +401,11 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 CxSingle _l asst -> unAsst asst
                 CxEmpty _l -> True
               unAsst :: Asst L -> Bool = \case
-                TypeA _l typ -> case typ of
-                  TyApp _l _a b -> case b of
-                    TyVar _l _name -> True
-                    _ -> False
-                  _ -> True
+                -- TypeA _l typ -> case typ of
+                --   TyApp _l _a b -> case b of
+                --     TyVar _l _name -> True
+                --     _ -> False
+                --   _ -> True
                 IParam _l _iPName a -> typeSane a
                 ParenA _l asst -> unAsst asst
           _ -> True
