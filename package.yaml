@@ -29,12 +29,24 @@ default-extensions:
 
 dependencies:
   - base
-  - haskell-src-exts==1.23.0
+  - haskell-src-exts # ==1.23.0
   - hint
   - containers
   - unordered-containers
   - ghc-lib-parser==8.8.1
   - random
+  # - proto-lens-protoc==0.6.0.0
+  - tensorflow # ==0.2.0.1
+  - tensorflow-core-ops # ==0.2.0.1
+  - tensorflow-logging # ==0.2.0.1
+  - tensorflow-opgen # ==0.2.0.1
+  - tensorflow-ops # ==0.2.0.1
+  - tensorflow-proto # ==0.2.0.1
+  # - tensorflow-mnist # ==0.1.0.0
+  # - tensorflow-mnist-input-data # ==0.2.0.1
+  - tensorflow-records # ==0.1.0.0
+  - tensorflow-records-conduit # ==0.1.0.0
+  - tensorflow-test # ==0.2.0.1
 
 library:
   dependencies:

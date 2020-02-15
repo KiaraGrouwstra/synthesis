@@ -16,6 +16,7 @@ You can build and run this project using either [Stack](https://docs.haskellstac
 
 ``` sh
 # basic Stack commands
+stack setup
 stack build
 stack test
 
@@ -64,7 +65,22 @@ profiterole generator.prof
 
 # Docker: install deps from base image; rebuild top image on code changes.
 # this still sucks but Stack hates volume mounting. :(
-docker build -t synthesis -f ./docker/base/Dockerfile .
+# TODO: update for Torch?
+docker build -t synthesis-base -f ./docker/base/Dockerfile .
 docker build -t synthesis -f ./docker/top/Dockerfile .
 docker run -ti synthesis stack test --exec generator
+
+docker build -t synthesis-mount -f ./docker/mount/Dockerfile .
+docker run -u $(id -u):$(id -g) -v ~/.stack:/root/.stack -v $PWD:/app -ti synthesis stack test
+docker run -u (id -u):(id -g) -v ~/.stack:/root/.stack -v $PWD:/app -ti synthesis stack test
+
+docker run -u $(id -u):$(id -g) -v ~/.stack:/root/.stack -v $PWD:/app -ti synthesis-mount stack test
+docker run -u (id -u):(id -g) -v ~/.stack:/root/.stack -v $PWD:/app -ti synthesis-mount stack test
+# Preventing creation of stack root '/.stack/'. Parent directory '/' is owned by someone else.
+
+# after cloning tensorflow/haskell and building its Docker image:
+IMAGE_NAME=tensorflow/haskell:v0     # bash
+set IMAGE_NAME tensorflow/haskell:v0 # fish
+stack --docker --docker-image=$IMAGE_NAME setup
+
 ```
