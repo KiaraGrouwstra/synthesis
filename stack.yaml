@@ -39,10 +39,6 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 
 extra-deps:
-# - acme-missiles-0.3
-# - git: https://github.com/commercialhaskell/stack.git
-#   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
-
 # dump package isn't in hackage
 # - dump-0.2.8@sha256:ded8982e766a98d45c38f9438723455a8c8a608f43383d193f7e7aa898d573c6,1831
 # ormolu likes this version for ghc-lib-parser / ghc-lib
@@ -66,6 +62,9 @@ extra-deps:
       - tensorflow-mnist-input-data
       - tensorflow-records
       - tensorflow-records-conduit
+# requested by haskell-tensorflow
+- snappy-framing-0.1.2
+- snappy-0.2.0.2
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -5,6 +5,27 @@
 
 packages:
 - completed:
+    hackage: snappy-framing-0.1.2@sha256:68c8f44e7b1e04d0342b83bae62f390350875bc4fcf4c203c0ad012323508f64,1196
+    pantry-tree:
+      size: 353
+      sha256: ea6264bffff23359dabd83d38f58247277c20a0b669779c0a76c3cf5f79d9234
+  original:
+    hackage: snappy-framing-0.1.2
+- completed:
+    hackage: snappy-0.2.0.2@sha256:2931b03c5fdab2dac8d7eadb3be2f4ef8906666e43f1f1db65a06efd57ea701b,1591
+    pantry-tree:
+      size: 709
+      sha256: cd05c6ddfbbd3969adab3869d38d161e5ec8e72b1a72e00ca08f5e39538368cf
+  original:
+    hackage: snappy-0.2.0.2
+- completed:
+    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
+    pantry-tree:
+      size: 28154
+      sha256: 326dddd9f60ac8b92e3e102f89c91aade4fed6d484be3841917051d3dc41eda1
+  original:
+    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
+- completed:
     hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
     pantry-tree:
       size: 28154
