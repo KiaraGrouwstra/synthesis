@@ -60,6 +60,7 @@ let
     overlays = [ hasktorchOverlay synthesisOverlay ];
   };
 
+  nullIfDarwin = arg: if pkgs.stdenv.hostPlatform.system == "x86_64-darwin" then null else arg;
   fixmkl = old: old // {
       shellHook = ''
         export LD_PRELOAD=${pkgs.mkl}/lib/libmkl_rt.so
@@ -71,6 +72,8 @@ let
   base-compiler = pkgs.haskell.packages."${compiler}";
 in
   rec {
+    inherit nullIfDarwin;
+
     inherit (base-compiler)
       synthesis_cpu
       synthesis_cudatoolkit_9_2
