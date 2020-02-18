@@ -1,4 +1,6 @@
+# I've encountered either of these errors:
 # error building hasktorch-signatures-partial: Backpack typechecking not supported with -j
+# error building hasktorch-ffi-th: Missing (or bad) C library: ATen
 
 { compiler ? "ghc865" }:
 
