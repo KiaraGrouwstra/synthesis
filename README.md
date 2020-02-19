@@ -46,4 +46,10 @@ stack install ghc-prof-flamegraph
 ghc-prof-flamegraph generator.prof
 stack install profiterole
 profiterole generator.prof
+
+# Docker: install deps from base image; rebuild top image on code changes.
+# this still sucks but Stack hates volume mounting. :(
+# TODO: update for HaskTorch
+docker build -t synthesis
+docker run -ti synthesis nix-shell stack test --exec generator
 ```
