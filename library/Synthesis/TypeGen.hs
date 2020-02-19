@@ -130,9 +130,11 @@ findTypeVars_ arity tp =
               CxSingle _l asst -> unAsst asst
               CxEmpty _l -> []
             unAsst :: Asst L -> [(String, (Int, [Tp]))] = \case
-              TypeA _l tp' -> case tp' of
-                TyApp _l a b -> [(pp b, (arity, [a]))]
-                _ -> f typ
+              ClassA _l qname tps -> case tps of
+                  [] -> f typ
+                  _ -> (\tp' -> case tp' of
+                      TyVar _l name -> (unName name, (arity, [TyCon l qname]))
+                    ) <$> tps
               IParam _l _iPName a -> f a
               ParenA _l asst -> unAsst asst
         TyFun _l a b -> f a ++ f b

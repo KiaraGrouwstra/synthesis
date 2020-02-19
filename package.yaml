@@ -29,16 +29,13 @@ default-extensions:
 
 dependencies:
   - base
-  - haskell-src-exts==1.23.0
+  - haskell-src-exts
   - hint
   - containers
   - unordered-containers
-  - ghc-lib-parser==8.8.1
+  - ghc-lib-parser
   - random
-  # Torch
-  # - codegen
-  # - libtorch-ffi
-  - hasktorch # ==0.0.1.0
+  - hasktorch
 
 library:
   dependencies:
@@ -46,7 +43,7 @@ library:
   - hslogger
   - bytestring
   - prettyprinter
-  - store==0.7.2
+  - store
   - optparse-applicative
   source-dirs: library
 

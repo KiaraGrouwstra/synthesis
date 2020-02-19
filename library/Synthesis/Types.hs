@@ -226,10 +226,9 @@ cxTuple = CxTuple l
 iParam :: String -> Tp -> Asst L
 iParam str = IParam l (IPLin l str)
 
-typeA :: String -> Tp -> Asst L
-typeA str tp = TypeA l $ tyApp (tyCon str) tp
--- (tyVar "a")
--- (IPLin l str) tp
+-- type assertion
+typeA :: QName L -> Tp -> Asst L
+typeA qname tp = ClassA l qname [tp]
 
 -- | get the string from an IPName
 -- | deprecated, not in use
@@ -400,11 +399,9 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 CxSingle _l asst -> unAsst asst
                 CxEmpty _l -> True
               unAsst :: Asst L -> Bool = \case
-                TypeA _l typ -> case typ of
-                  TyApp _l _a b -> case b of
-                    TyVar _l _name -> True
-                    _ -> False
-                  _ -> True
+                ClassA _l _qname tps -> flip all tps $ \case
+                  TyVar _l _name -> True
+                  _ -> False
                 IParam _l _iPName a -> typeSane a
                 ParenA _l asst -> unAsst asst
           _ -> True

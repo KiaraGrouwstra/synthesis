@@ -220,7 +220,7 @@ matchesConstraints arity tp constraints = do
   let addArity :: Tp -> Tp = nTimes arity $ \tp' -> tyApp tp' unit
   let tp_ :: Tp = addArity tp
   let a_ :: Tp = addArity a
-  let forAll :: Tp = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a_
+  let forAll :: Tp = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA qname a) <$> constraints) a_
   if null constraints then return True else matchesType tp_ forAll
 
 -- | deduplicate functions by identical types + io, keeping the shortest

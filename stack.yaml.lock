@@ -3,49 +3,7 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
-- completed:
-    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
-    pantry-tree:
-      size: 28154
-      sha256: 326dddd9f60ac8b92e3e102f89c91aade4fed6d484be3841917051d3dc41eda1
-  original:
-    hackage: ghc-lib-8.8.1@sha256:5adc7b752006d38d32b51b975f66f6d32c5127f7bc49a31c465b0d5b9e282508,15747
-- completed:
-    hackage: ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
-    pantry-tree:
-      size: 18001
-      sha256: d848b118b7af6a7e79340eb97de39dcfc600bdd2fec3ee91db5e848a283cd081
-  original:
-    hackage: ghc-lib-parser-8.8.1@sha256:81dc4ed6ae6b7ccfda1e62e3c2d9a8600f8ecf45e4237d4dc099ccd4b74db180,8341
-- completed:
-    hackage: haskell-src-exts-1.23.0@sha256:1bb9f7e97d569e56973133cb075fdcc1bfd11f90d94b035b5cf44814bb39a73d,4541
-    pantry-tree:
-      size: 97804
-      sha256: 8e5bc885533431db9bf75e9609f6b80b56ab0c289a903d701f8628e78322afd0
-  original:
-    hackage: haskell-src-exts-1.23.0@sha256:1bb9f7e97d569e56973133cb075fdcc1bfd11f90d94b035b5cf44814bb39a73d,4541
-- completed:
-    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
-    pantry-tree:
-      size: 1292
-      sha256: 9cfa13cb040285bf132085f3b75f31cdfad279fe7f31f05e5b20b2a2f9d85aca
-  original:
-    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
-- completed:
-    hackage: inline-c-0.9.0.0@sha256:7b5aa24a265cb50fd71f1a2595506f5a7dec98edcf40b7fbe617193668a90f31,3249
-    pantry-tree:
-      size: 1263
-      sha256: 4aaa49d4985bdd3ae86575a1bc418e29c6a9d11a230d05a0f4728053c18787ee
-  original:
-    hackage: inline-c-0.9.0.0@sha256:7b5aa24a265cb50fd71f1a2595506f5a7dec98edcf40b7fbe617193668a90f31,3249
-- completed:
-    hackage: inline-c-cpp-0.4.0.2@sha256:874963b9af9ebc7aeccdda79d586cf0e1415d95129e20d19ef3984d285859b1d,2157
-    pantry-tree:
-      size: 682
-      sha256: ddf4ef8b29815265fd5b6c4448a86dbf5904317386ca8637c946ab06c9730b87
-  original:
-    hackage: inline-c-cpp-0.4.0.2@sha256:874963b9af9ebc7aeccdda79d586cf0e1415d95129e20d19ef3984d285859b1d,2157
+packages: []
 snapshots:
 - completed:
     size: 524799
