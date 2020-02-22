@@ -1,11 +1,6 @@
 language: nix
 nix: 2.2.1
 
-jobs:
-  include:
-    - stage: Build
-      env: TARGET=linux-exe
-
 git:
   depth: 5
 
@@ -21,7 +16,7 @@ install:
   - cachix use tycho01
   - echo $CACHIX_SIGNING_KEY
   - if [ -n "$CACHIX_SIGNING_KEY" ]; then cachix push tycho01 --watch-store; fi &
-  - nix-build nix -A $TARGET
+  - nix-build
   - sleep 10 # allow cachix finish uploading
 
 script:
