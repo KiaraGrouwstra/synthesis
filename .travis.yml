@@ -16,7 +16,7 @@ install:
   - cachix use tycho01
   - echo $CACHIX_SIGNING_KEY
   - if [ -n "$CACHIX_SIGNING_KEY" ]; then cachix push tycho01 --watch-store; fi &
-  - nix-build
+  - travis_wait 30 nix-build
   - sleep 10 # allow cachix finish uploading
 
 script:
