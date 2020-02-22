@@ -16,6 +16,8 @@ You can build and run this project using either [Stack](https://docs.haskellstac
 
 ``` sh
 # enter dev shell
+cachix use tycho01
+nix-build | cachix push tycho01
 nix-shell
 hpack --force
 
