@@ -1,0 +1,36 @@
+language: nix
+
+git:
+  depth: 5
+
+cache:
+  directories:
+  - "/nix/store"
+
+notifications:
+  email: true
+    
+install:
+  - nix-env -iA cachix -f https://cachix.org/api/v1/install
+  - cachix use tycho01
+  - echo $CACHIX_SIGNING_KEY
+  - if [ -n "$CACHIX_SIGNING_KEY" ]; then cachix push tycho01 --watch-store; fi &
+  - nix-build nix -A $TARGET
+  - sleep 10 # allow cachix finish uploading
+
+script:
+  - nix-shell
+  - cabal new-test
+  - DOC_DIR=`cabal new-build --enable-documentation 2>&1 | grep "index.html" | head -1 | sed -r -e 's/index.html//g'`
+  - echo $DOC_DIR
+  - mkdir -p docs
+  - cp -r $DOC_DIR/* ./docs
+
+deploy:
+    provider: pages
+    skip_cleanup: true
+    github_token: $GITHUB_TOKEN
+    keep_history: true
+    on:
+      branch: master
+    local_dir: docs
