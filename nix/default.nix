@@ -1,6 +1,6 @@
 { cudaVersion ? null }:
 let
-  shared = import nix/shared.nix { };
+  shared = import ./shared.nix { };
 in
 assert cudaVersion == null || cudaVersion == 9 || cudaVersion == 10;
 
