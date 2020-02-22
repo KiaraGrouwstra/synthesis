@@ -44,6 +44,9 @@ module Synthesis.Types
     lambda,
     tyList,
     tyParen,
+    cxTuple,
+    cxSingle,
+    cxEmpty,
     typeSane,
     isFn,
     hasFn,
@@ -221,6 +224,12 @@ app = App l
 cxTuple :: [Asst L] -> Context L
 cxTuple = CxTuple l
 
+cxSingle :: Asst L -> Context L
+cxSingle = CxSingle l
+
+cxEmpty :: Context L
+cxEmpty = CxEmpty l
+
 -- | implicit parameter constraint
 -- | deprecated, not in use
 iParam :: String -> Tp -> Asst L
@@ -305,8 +314,8 @@ parseMode =
   defaultParseMode
     { extensions =
         [ EnableExtension ScopedTypeVariables,
+          -- EnableExtension FlexibleContexts,
           EnableExtension ConstraintKinds
-          -- , EnableExtension FlexibleContexts
         ]
     }
 

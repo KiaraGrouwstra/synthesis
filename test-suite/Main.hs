@@ -6,6 +6,7 @@ import           Test.HUnit.Text              (runTestTT)
 import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
+import           Control.Exception            (SomeException, try, evaluate)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
@@ -162,8 +163,11 @@ types = parallel $ let
     it "parseExpr" $
         pp (parseExpr "a") `shouldBe` "a"
 
-    it "parseType" $
+    it "parseType" $ do
         pp (parseType "a") `shouldBe` "a"
+        let s = "(Eq (a -> Bool)) => a"
+        either :: Either SomeException Tp <- try $ evaluate $ parseType s
+        isRight either `shouldBe` False
 
     it "isFn" $ do
         isFn bl `shouldBe` False
@@ -179,7 +183,8 @@ types = parallel $ let
         typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
         typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
         typeSane (tyParen (tyFun bl bl)) `shouldBe` True
-        typeSane (parseType "(Eq (a -> Bool)) => a") `shouldBe` False
+        let a = tyVar "a"
+        typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
 
 typeGen ∷ Spec
 typeGen = parallel $ let
