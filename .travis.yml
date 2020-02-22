@@ -1,4 +1,10 @@
 language: nix
+nix: 2.2.1
+
+jobs:
+  include:
+    - stage: Build
+      env: TARGET=linux-exe
 
 git:
   depth: 5
