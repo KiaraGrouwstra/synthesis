@@ -20,12 +20,7 @@ install:
   - sleep 10 # allow cachix finish uploading
 
 script:
-  - nix-shell
-  - cabal new-test
-  - DOC_DIR=`cabal new-build --enable-documentation 2>&1 | grep "index.html" | head -1 | sed -r -e 's/index.html//g'`
-  - echo $DOC_DIR
-  - mkdir -p docs
-  - cp -r $DOC_DIR/* ./docs
+  - nix-shell --command "cabal new-test; DOC_DIR=`cabal new-build --enable-documentation 2>&1 | grep "index.html" | head -1 | sed -r -e 's/index.html//g'`; echo $DOC_DIR; mkdir -p docs; cp -r $DOC_DIR/* ./docs"
 
 deploy:
     provider: pages
