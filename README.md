@@ -12,9 +12,13 @@
 
 ## Usage
 
-You can build and run this project using either [Stack](https://docs.haskellstack.org/) or [Docker](https://www.docker.com/).
+You can build and run this project using [Nix](https://nixos.org/nix/).
 
 ``` sh
+# install Nix, Cachix:
+bash <(curl https://nixos.org/nix/install)
+nix-env -iA cachix -f https://cachix.org/api/v1/install
+
 # enter dev shell
 cachix use tycho01
 nix-build | cachix push tycho01
