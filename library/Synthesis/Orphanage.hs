@@ -174,6 +174,12 @@ instance Pretty (BooleanFormula l) where pretty = unsafeViaShow . prettyPrint
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty = vcat . fmap (\(k, v) -> indent 2 $ fillSep $ punctuate colon [pretty k, indent 4 $ pretty v]) . toList
 
+-- | ensure I can print eithers
+instance (Pretty l, Pretty r) => Pretty (Either l r) where
+  pretty = unsafeViaShow . \case
+    Left l -> pretty "Left (" <> pretty l <> pretty ")"
+    Right r -> pretty "Right (" <> pretty r <> pretty ")"
+
 -- -- serialization
 -- instance (Eq k, Hashable k, Store k, Store a) => Store (HashMap k a) where
 --     size = sizeMap

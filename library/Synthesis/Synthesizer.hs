@@ -49,7 +49,7 @@ program = do
     let fn_type :: Tp = fn_types ! ast
     say "================================================"
     say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-    let in_type_instance_outputs :: HashMap [Tp] String = fn_in_type_instance_outputs ! ast
+    let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
     -- say "\nin_type_instance_outputs:"
     say $ pp_ in_type_instance_outputs
     -- let instantiations :: [[Tp]] = fn_in_type_instantiations ! ast

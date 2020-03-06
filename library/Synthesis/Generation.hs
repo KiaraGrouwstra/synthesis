@@ -138,7 +138,7 @@ fnOutputs ::
   Expr ->
   -- | for each type instantiation, for each param, the input type as string
   [[Tp]] ->
-  Interpreter (HashMap [Tp] String)
+  Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
 fnOutputs crashOnError instantiation_inputs fn_ast in_instantiations =
   -- do
   -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs

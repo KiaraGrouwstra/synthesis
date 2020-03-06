@@ -30,7 +30,7 @@ type Hole = SpecialCon L -- ExprHole
 
 -- | things I wanna transfer between generation and synthesis sessions
 data Stuff = Stuff { fn_types :: HashMap Expr Tp
-                    , fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] String)
+                    , fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
                     , fn_in_type_instantiations :: HashMap Expr [[Tp]]
                     , rest_instantiation_inputs :: HashMap Tp [Expr]
                     , datasets :: ([Expr], [Expr], [Expr])

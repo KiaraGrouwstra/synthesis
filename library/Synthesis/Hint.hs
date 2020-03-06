@@ -26,7 +26,7 @@ import Control.Monad (join)
 import Data.Bifunctor (bimap)
 import Data.Either (fromRight)
 import Data.Functor ((<&>))
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.List (intercalate)
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Interpreter
@@ -41,7 +41,8 @@ import Control.Exception (SomeException, try, evaluate)
 imports :: [ModuleImport]
 imports =
   [ ModuleImport "Prelude" NotQualified NoImportList,
-    ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"]
+    ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"],
+    ModuleImport "Synthesis.Types" NotQualified NoImportList
   ]
 
 -- | run an interpreter monad, printing errors, ignoring values
@@ -150,7 +151,7 @@ interpretIO crashOnError cmd =
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings,
 -- | meaning I also only know the types at run-time (which is when my programs are constructed).
-fnIoPairs :: Bool -> Int -> Expr -> Expr -> Interpreter String
+fnIoPairs :: Bool -> Int -> Expr -> Expr -> Interpreter [(Expr, Either String Expr)]
 fnIoPairs crashOnError n fn_ast ins = do
   -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
   let unCurry = genUncurry n
@@ -179,7 +180,7 @@ fnIoPairs crashOnError n fn_ast ins = do
               Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
   -- say cmd
-  fromRight "[]" <$> interpretIO crashOnError cmd
+  fmap (second unEitherError . unTuple2) . unList . parseExpr . fromRight "[]" <$> interpretIO crashOnError cmd
 
 -- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
 -- TODO: refactor input to Expr? [Expr]?

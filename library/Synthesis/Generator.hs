@@ -132,7 +132,7 @@ program = do
   let both_instantiation_inputs :: HashMap Tp [Expr] = rest_instantiation_inputs `union` instantiated_fn_options
   say "\nboth_instantiation_inputs:"
   say $ pp_ both_instantiation_inputs
-  fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] String) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
+  fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
   say "\nfn_in_type_instance_outputs:"
   say $ pp_ fn_in_type_instance_outputs
 
@@ -154,5 +154,5 @@ program = do
     let fn_type :: Tp = fn_types ! ast
     say "================================================"
     say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-    let in_type_instance_outputs :: HashMap [Tp] String = fn_in_type_instance_outputs ! ast
+    let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
     say $ pp_ in_type_instance_outputs

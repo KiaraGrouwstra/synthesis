@@ -122,9 +122,9 @@ hint = let
     , TestLabel "fnIoPairs" $ TestCase $ do
         GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
         x <- interpretUnsafe (fnIoPairs crashOnError 1 (var "not") $ parseExpr "[True, False]")
-        x @?= "[(True,Right False),(False,Right True)]"
+        pp_ x @?= pp_ ([(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))] :: [(Expr, Either String Expr)])
         q <- interpretUnsafe (fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
-        q @?= "[((1,2),Right 3),((3,4),Right 7)]"
+        pp_ q @?= pp_ ([(parseExpr "(1, 2)", Right (parseExpr "3")), (parseExpr "(3, 4)", Right (parseExpr "7"))] :: [(Expr, Either String Expr)])
 
     , TestLabel "exprType" $ TestCase $ do
         x <- interpretUnsafe (exprType $ parseExpr "True")
@@ -294,10 +294,10 @@ gen = let
         GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
         -- not
         hm1 <- interpretUnsafe $ fnOutputs crashOnError (singleton bl [con "True", con "False"]) (var "not") [[bl]]
-        hm1 `shouldBe` singleton [bl] "[(True,Right False),(False,Right True)]"
+        pp_ hm1 `shouldBe` pp_ ((singleton [bl] [(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))]) :: HashMap [Tp] [(Expr, Either String Expr)])
         -- (+)
         hm2 <- interpretUnsafe $ fnOutputs crashOnError (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
-        hm2 `shouldBe` singleton [int_,int_] "[((1,1),Right 2),((1,2),Right 3),((1,3),Right 4),((2,1),Right 3),((2,2),Right 4),((2,3),Right 5),((3,1),Right 4),((3,2),Right 5),((3,3),Right 6)]"
+        pp_ hm2 `shouldBe` pp_ ((singleton [int_,int_] [(parseExpr "(1,1)", Right (parseExpr "2")), (parseExpr "(1,2)", Right (parseExpr "3")), (parseExpr "(1,3)", Right (parseExpr "4")), (parseExpr "(2,1)", Right (parseExpr "3")), (parseExpr "(2,2)", Right (parseExpr "4")), (parseExpr "(2,3)", Right (parseExpr "5")), (parseExpr "(3,1)", Right (parseExpr "4")), (parseExpr "(3,2)", Right (parseExpr "5")), (parseExpr "(3,3)", Right (parseExpr "6"))]) :: HashMap [Tp] [(Expr, Either String Expr)])
 
     , TestLabel "fillHole" $ TestCase $ do
         let blockAsts = singleton "not_" $ var "not"

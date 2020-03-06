@@ -52,6 +52,8 @@ module Synthesis.Types
     hasFn,
     nubPp,
     unList,
+    unTuple2,
+    unEitherError,
     holeType,
     fnTypeIO,
     fnInputTypes,
@@ -59,7 +61,8 @@ module Synthesis.Types
   )
 where
 
-import Data.Bifunctor (first)
+import Control.Exception (SomeException)
+import Data.Bifunctor (first, second)
 import Data.HashMap.Lazy
   ( HashMap,
     toList,
@@ -299,8 +302,32 @@ tyList = TyList l
 -- | unpack a list expression
 unList :: Expr -> [Expr]
 unList = \case
-    (List _l exps) -> exps
-    _ -> error "expected list"
+  List _l exps -> exps
+  _ -> error "expected list"
+
+-- | unpack a list expression
+unTuple2 :: Expr -> (Expr, Expr)
+unTuple2 = \case
+  Tuple _l _boxed exps -> case exps of
+    [a,b] -> (a,b)
+    _ -> error "expected tuple2"
+  _ -> error "expected tuple2"
+
+-- | unpack an either wrapping function results
+unEitherError :: Expr -> Either String Expr
+unEitherError = \case
+  App _l a b -> case a of
+    Con _l qname -> case qname of
+      UnQual _l name -> case name of
+        Ident l s -> case s of
+          "Right" -> Right b
+          "Left" -> Left $ pp b
+          _ -> error s
+        _ -> error s
+      _ -> error s
+    _ -> error s
+  _ -> error s
+  where s = "expected Either SomeException _ !"
 
 -- unpack a ParseResult into an Either
 unParseResult :: ParseResult a -> Either String a
