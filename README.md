@@ -12,7 +12,7 @@
 
 ## Usage
 
-You can build and run this project using [Nix](https://nixos.org/nix/).
+You can build and run this project using [Nix](https://nixos.org/nix/) + [Cabal](https://wwwhaskell.org/cabal/).
 
 ``` sh
 # install Nix, Cachix:
