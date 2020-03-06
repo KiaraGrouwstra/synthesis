@@ -186,6 +186,13 @@ types = parallel $ let
         let a = tyVar "a"
         typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
 
+    it "mkExpr" $ do
+        pp (mkExpr 1) `shouldBe` "1"
+
+    it "mkExprPair" $ do
+        let either :: Either String Bool = Right True
+        pp_ (mkExprPair (1, either)) `shouldBe` "(\"1\", Right (\"True\"))"
+
 typeGen ∷ Spec
 typeGen = parallel $ let
         bl = tyCon "Bool"

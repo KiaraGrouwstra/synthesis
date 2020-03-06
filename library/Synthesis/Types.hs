@@ -58,6 +58,9 @@ module Synthesis.Types
     fnTypeIO,
     fnInputTypes,
     fnTypes,
+    mkExpr,
+    mkExprPair,
+    showPair,
   )
 where
 
@@ -445,3 +448,18 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]
 nubPp = nubBy (equating pp)
+
+-- | turn any value into an expression
+-- | deprecated, not in use, except in another deprecated function
+mkExpr :: Show a => a -> Expr
+mkExpr = parseExpr . show
+
+-- | turn any value pair into an expression pair
+-- | deprecated, not in use
+mkExprPair :: (Show a, Show b) => (a, Either c b) -> (Expr, Either c Expr)
+mkExprPair = first mkExpr . second (second mkExpr)
+
+-- | turn any value pair into an expression pair
+-- | deprecated, not in use
+showPair :: (Show a, Show b) => (a, Either c b) -> (String, Either c String)
+showPair = first show . second (second show)
