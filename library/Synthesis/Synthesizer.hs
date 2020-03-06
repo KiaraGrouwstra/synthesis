@@ -15,7 +15,7 @@ import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Synthesis.Types
 import Synthesis.Ast
 import Synthesis.Hint
-import Synthesis.Orphanage
+import Synthesis.Orphanage ()
 import Synthesis.Data (Expr, Tp, Stuff (..), SynthesizerConfig (..))
 import Synthesis.Configs
 import Synthesis.Utility

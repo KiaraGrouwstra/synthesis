@@ -7,10 +7,10 @@ module Synthesis.Orphanage
 where
 
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as BS
+-- import qualified Data.ByteString.Char8 as BS
 import Data.HashMap.Lazy (HashMap, toList)
 import Data.Hashable (Hashable (..))
-import Data.Store (Store (..), Size (..), Peek (..), Poke (..))
+import Data.Store (Store (..)) -- , Size (..), Peek, Poke
 import Data.Store.Internal (genericSize, genericPeek, genericPoke)
 import Data.Text.Prettyprint.Doc
 import Language.Haskell.Exts.Pretty (prettyPrint)

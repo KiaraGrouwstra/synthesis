@@ -13,7 +13,7 @@ module Synthesis.Data
   )
 where
 
-import Data.HashMap.Lazy (HashMap, singleton, insert)
+import Data.HashMap.Lazy (HashMap)
 import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax

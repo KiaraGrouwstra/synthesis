@@ -4,7 +4,6 @@ module Synthesis.Configs
   )
 where
 
-import Data.HashMap.Lazy (HashMap, singleton, insert)
 import Synthesis.Data
 import Options.Applicative
 import Data.Semigroup ((<>))

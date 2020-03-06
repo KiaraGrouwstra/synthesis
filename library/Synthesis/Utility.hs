@@ -39,14 +39,14 @@ import Data.List (replicate)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
 import qualified Data.HashMap.Lazy as HM
-import Data.Map (Map(..))
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Hashable (Hashable)
 import Data.Maybe (fromJust, isJust)
 import qualified Data.Text.Prettyprint.Doc as PP
 import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
-import System.Random (RandomGen(..), randomR, randomRIO, mkStdGen)
+import System.Random (RandomGen(..), randomR, randomRIO)
 
 -- | map over both elements of a tuple
 -- | deprecated, not in use
@@ -170,7 +170,7 @@ fisherYates gen l =
   where
     toElems (x, y) = (Map.elems x, y)
     numerate = zip [1..]
-    initial x gen = (Map.singleton 0 x, gen)
+    initial x gen' = (Map.singleton 0 x, gen')
 
 -- | shuffle a list and split it into sub-lists of specified lengths
 splitPlaces :: RandomGen g => g -> [Int] -> [e] -> ([[e]], g)
@@ -180,9 +180,9 @@ splitPlaces gen ns xs = (zs_, gen')
 
 -- | randomly split a dataset into subsets based on the indicated split ratio
 randomSplit :: RandomGen g => g -> (Double, Double, Double) -> [a] -> ([a], [a], [a])
-randomSplit gen split xs =
+randomSplit gen splits xs =
   let n :: Int = length xs
-      ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) split
+      ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) splits
    in tuplify3 $ fst $ splitPlaces gen (untuple3 ns) xs
 
 -- | flip an Ordering

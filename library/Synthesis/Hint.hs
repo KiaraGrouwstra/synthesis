@@ -26,16 +26,16 @@ import Control.Monad (join)
 import Data.Bifunctor (bimap)
 import Data.Either (fromRight)
 import Data.Functor ((<&>))
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (second)
 import Data.List (intercalate)
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Interpreter
 import Synthesis.Ast
 import Synthesis.Types
-import Synthesis.Data
+import Synthesis.Data hiding (crashOnError)
 import Synthesis.Utility
 import System.Log.Logger
-import Control.Exception (SomeException, try, evaluate)
+-- import Control.Exception (SomeException, try, evaluate)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
 imports :: [ModuleImport]

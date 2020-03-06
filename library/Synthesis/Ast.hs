@@ -22,7 +22,7 @@ import System.Random (RandomGen, randoms, randomRs)
 import Synthesis.FindHoles
 import Synthesis.Types
 import Synthesis.TypeGen
-import Synthesis.Data
+import Synthesis.Data hiding (maxWildcardDepth, nestLimit)
 import Synthesis.Utility
 import Util (nTimes)
 

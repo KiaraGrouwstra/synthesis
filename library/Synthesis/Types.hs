@@ -7,6 +7,7 @@
 module Synthesis.Types
   ( tyCon,
     tyApp,
+    tyApp_,
     var,
     tyVar,
     qName,
@@ -20,7 +21,6 @@ module Synthesis.Types
     parseExpr,
     parseType,
     undef,
-    cxTuple,
     iParam,
     unIPName,
     typeA,
@@ -64,7 +64,6 @@ module Synthesis.Types
   )
 where
 
-import Control.Exception (SomeException)
 import Data.Bifunctor (first, second)
 import Data.HashMap.Lazy
   ( HashMap,
@@ -322,7 +321,7 @@ unEitherError = \case
   App _l a b -> case a of
     Con _l qname -> case qname of
       UnQual _l name -> case name of
-        Ident l s -> case s of
+        Ident _l str -> case str of
           "Right" -> Right b
           "Left" -> Left $ pp b
           _ -> error s
@@ -355,6 +354,7 @@ parseMode =
 holeType :: Expr -> Tp
 holeType = \case
   ExpTypeSig _l _exp tp -> tp
+  _ -> error "expected ExpTypeSig!"
 
 -- | parse an expression from a string
 parseExpr :: String -> Expr
@@ -443,6 +443,7 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                   _ -> False
                 IParam _l _iPName a -> typeSane a
                 ParenA _l asst -> unAsst asst
+                _ -> error "unsupported Assist!"
           _ -> True
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...

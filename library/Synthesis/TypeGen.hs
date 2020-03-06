@@ -23,7 +23,6 @@ module Synthesis.TypeGen
 where
 
 import Control.Monad (join, replicateM)
-import Data.Bifunctor (first)
 import Data.HashMap.Lazy
   ( (!),
     HashMap,
@@ -41,24 +40,24 @@ import Data.HashMap.Lazy
 import Data.Maybe (fromMaybe)
 import Language.Haskell.Exts.Syntax
   ( Asst (..),
-    Binds (..),
-    Boxed (..),
+    -- Binds (..),
+    -- Boxed (..),
     Context (..),
-    Decl (..),
-    Exp (..),
-    Literal (..),
-    Name (..),
-    Pat (..),
+    -- Decl (..),
+    -- Exp (..),
+    -- IPName (..),
+    -- Literal (..),
+    -- Name (..),
+    -- Pat (..),
     Promoted (..),
-    QName (..),
-    QOp (..),
-    Rhs (..),
-    SpecialCon (..),
+    -- QName (..),
+    -- QOp (..),
+    -- Rhs (..),
+    -- SpecialCon (..),
     TyVarBind (..),
     Type (..),
-    IPName (..),
   )
-import Synthesis.Data
+import Synthesis.Data hiding (nestLimit, maxInstances)
 import Synthesis.Types
 import Synthesis.Utility
 import Synthesis.Blocks (typesByArity)
@@ -134,9 +133,11 @@ findTypeVars_ arity tp =
                   [] -> f typ
                   _ -> (\tp' -> case tp' of
                       TyVar _l name -> (unName name, (arity, [TyCon l qname]))
+                      _ -> error "expected TyVar"
                     ) <$> tps
               IParam _l _iPName a -> f a
               ParenA _l asst -> unAsst asst
+              _ -> error "unsupported Assist"
         TyFun _l a b -> f a ++ f b
         TyTuple _l _boxed tps -> concat $ f <$> tps
         TyUnboxedSum _l tps -> concat $ f <$> tps
