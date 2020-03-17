@@ -69,10 +69,10 @@ genFnInType nestLimit = randomType True True nestLimit empty tyVarCount
 anyFn :: Expr
 anyFn = skeleton $ tyFun wildcard wildcard
 
--- | get the body of a let-in expression
+-- | get the body in case of a let-in expression
 letRes :: Expr -> Expr
 letRes = \case
-  (Let _l _binds xp) -> xp
+  Let _l _binds xp -> xp
   x -> x
 
 -- | check if an expression contains holes
