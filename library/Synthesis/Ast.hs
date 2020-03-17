@@ -8,6 +8,7 @@ module Synthesis.Ast
     numAstNodes,
     letRes,
     genBlockVariants,
+    genHoledVariants,
     anyFn,
     genUncurry,
     genFnType,
@@ -36,21 +37,19 @@ genBlockVariants maxWildcardDepth block_types =
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
 genHoledVariants :: Int -> String -> Tp -> [Expr]
-genHoledVariants maxDepth k tp = genHoledVariants_ maxDepth tp $ var k
-
--- | internal helper of `genHoledVariants` used for recursion
-genHoledVariants_ :: Int -> Tp -> Expr -> [Expr]
-genHoledVariants_ maxDepth tp expr =
-  let holed = app expr . expTypeSig holeExpr
-   in expr : case tp of
-        TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-          TyFun _l a b -> genHoledVariants_ maxDepth b $ holed a
-          _ -> []
-        TyFun _l a b -> genHoledVariants_ maxDepth b $ holed a
-        TyWildCard _l _maybeName -> case maxDepth of
-          0 -> []
-          _ -> genHoledVariants_ (maxDepth - 1) tp $ holed wildcard
-        _ -> []
+genHoledVariants maxDepth k tp = let
+    genHoledVariants' :: Int -> Tp -> Expr -> [Expr] = \ maxDepth tp expr ->
+      let holed = app expr . expTypeSig holeExpr
+      in expr : case tp of
+            TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
+              TyFun _l a b -> genHoledVariants' maxDepth b $ holed a
+              _ -> []
+            TyFun _l a b -> genHoledVariants' maxDepth b $ holed a
+            TyWildCard _l _maybeName -> case maxDepth of
+              0 -> []
+              _ -> genHoledVariants' (maxDepth - 1) tp $ holed wildcard
+            _ -> []
+  in genHoledVariants' maxDepth tp $ var k
 
 -- | generate a function type, to then generate functions matching this type
 -- | deprecated, not in use
@@ -106,6 +105,7 @@ genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) 
 
 -- | randomly generate a number of samples for a given type.
 -- | this should cover types from `typesByArity`.
+-- | cf. NSPS: use a rule-based strategy to compute well-formed input strings that satisfy the pre-conditions of the programs.
 genInputs :: RandomGen g => g -> (Integer, Integer) -> (Int, Int) -> Int -> Tp -> [Expr]
 genInputs g intRange listLengths n tp = nubPp . take n $ exprs
   where

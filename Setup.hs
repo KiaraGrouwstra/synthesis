@@ -3,5 +3,4 @@
 -- file: <https://www.haskell.org/cabal/users-guide/installing-packages.html>.
 import qualified Distribution.Simple
 
-main ∷ IO ()
 main = Distribution.Simple.defaultMain

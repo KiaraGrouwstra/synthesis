@@ -16,6 +16,11 @@ typesByArity =
   insert 1 ["[]"] $
   singleton 0 ["Bool", "Int"]
 
+-- | cf. NSPS: A DSL can be considered a context-free grammar with a start symbol S and a
+-- | set of non-terminals with corresponding expansion rules. The (partial)
+-- | grammar derivations or trees correspond to (partial) programs.
+-- | `blockAsts` fits that as my only symbol is hole, and these
+-- | blocks (augmented with holed variants) are its expansion rules.
 blockAsts :: HashMap String Expr
 blockAsts = fnAsts `union` constants
 

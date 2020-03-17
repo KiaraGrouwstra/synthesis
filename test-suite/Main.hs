@@ -1,3 +1,6 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
+
 -- Tasty: <http://documentup.com/feuerbach/tasty>
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 -- Hspec: <https://hspec.github.io>
@@ -7,16 +10,31 @@ import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
 import           Control.Exception            (SomeException, try, evaluate)
+import           Data.Word                    (Word64)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), size)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
 import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDetails, liftIO)
 import           Util                         (fstOf3)
 
+import           GHC.Exts
+import           Torch.Random (Generator)
+import           Torch.Functional.Internal (gather)
+import qualified Torch.DType                   as D
+import qualified Torch.Tensor                  as D
+import qualified Torch.Device                  as D
+import qualified Torch.Random                  as D
+import qualified Torch.Functional              as F
+import           Torch.Typed.Aux
+import           Torch.TensorOptions
+import           Torch.Typed.Tensor
+import           Torch.Typed.Factories
+
 import           Synthesis.Ast
 import           Synthesis.Configs
+import           Synthesis.Blocks
 import           Synthesis.FindHoles
 import           Synthesis.Generation
 import           Synthesis.Hint
@@ -24,12 +42,15 @@ import           Synthesis.Types
 import           Synthesis.TypeGen
 import           Synthesis.Data
 import           Synthesis.Utility
+import           Synthesis.Synthesizer.Utility
+import           Synthesis.Synthesizer.Encoder
+import           Synthesis.Synthesizer.R3NN
 
 main ∷ IO ()
 main = do
     -- unlike Tasy, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen]
+    -- void $ runTestTT $ TestList [hint, gen]
 
     -- Tasty HSpec
     util_ <- testSpec "Utility" util
@@ -37,7 +58,8 @@ main = do
     typeGen_ <- testSpec "TypeGen" typeGen
     find_ <- testSpec "FindHoles" find
     ast_ <- testSpec "Ast" ast
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_]
+    synthesizer_ <- testSpec "Synthesizer" synthesizer
+    let tree :: TestTree = testGroup "synthesis" [synthesizer_]  -- util_, types_, typeGen_, find_, ast_, 
     defaultMain tree
 
 util ∷ Spec
@@ -184,14 +206,21 @@ types = parallel $ let
         typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
         typeSane (tyParen (tyFun bl bl)) `shouldBe` True
         let a = tyVar "a"
+        -- (Eq (a -> Bool)) => a
         typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
+        -- I guess this means I'd judge HaskTorch's Typed functions as insane, but
+        -- for the purpose of program synthesis, for the moment let's say they are.
+
+    it "fnTpArity" $ do
+        fnTpArity bl `shouldBe` 0
+        fnTpArity (parseType "forall a . (Enum a) => (Int -> Bool) -> a -> Bool") `shouldBe` 2
 
     it "mkExpr" $ do
-        pp (mkExpr 1) `shouldBe` "1"
+        pp (mkExpr (1 :: Int)) `shouldBe` "1"
 
     it "mkExprPair" $ do
-        let either :: Either String Bool = Right True
-        pp_ (mkExprPair (1, either)) `shouldBe` "(\"1\", Right (\"True\"))"
+        let either' :: Either String Bool = Right True
+        pp_ (mkExprPair (1 :: Int, either')) `shouldBe` "(\"1\", Right (\"True\"))"
 
 typeGen ∷ Spec
 typeGen = parallel $ let
@@ -290,6 +319,10 @@ ast = parallel $ let
         let lists = genInputs gen intRange listLengths 10 $ tyList bl
         (length . nubPp . concat . fmap unList) lists `shouldBe` 2
 
+    it "genHoledVariants" $ do
+        let tp = parseType "Int -> String -> Tp"
+        fmap pp (genHoledVariants 0 "f" tp) `shouldBe` ["f", "f (undefined :: Int)", "f (undefined :: Int) (undefined :: String)"]
+
 gen ∷ Test
 gen = let
         bl = tyCon "Bool"
@@ -307,26 +340,26 @@ gen = let
         pp_ hm2 `shouldBe` pp_ ((singleton [int_,int_] [(parseExpr "(1,1)", Right (parseExpr "2")), (parseExpr "(1,2)", Right (parseExpr "3")), (parseExpr "(1,3)", Right (parseExpr "4")), (parseExpr "(2,1)", Right (parseExpr "3")), (parseExpr "(2,2)", Right (parseExpr "4")), (parseExpr "(2,3)", Right (parseExpr "5")), (parseExpr "(3,1)", Right (parseExpr "4")), (parseExpr "(3,2)", Right (parseExpr "5")), (parseExpr "(3,3)", Right (parseExpr "6"))]) :: HashMap [Tp] [(Expr, Either String Expr)])
 
     , TestLabel "fillHole" $ TestCase $ do
-        let blockAsts = singleton "not_" $ var "not"
-        let expr = letIn blockAsts $ expTypeSig holeExpr tp
-        lst <- interpretUnsafe (fillHole blockAsts Data.Set.empty [("not_", var "not_")] expr) <&> snd
+        let blockAsts' = singleton "not_" $ var "not"
+        let expr = letIn blockAsts' $ expTypeSig holeExpr tp
+        lst <- interpretUnsafe (fillHole blockAsts' Data.Set.empty [("not_", var "not_")] expr) <&> snd
         (gtrExpr . fstOf3 <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "fillHoles" $ TestCase $ do
-        let blockAsts = singleton "not_" $ var "not"
+        let blockAsts' = singleton "not_" $ var "not"
         let expr = expTypeSig holeExpr tp
-        lst <- interpretUnsafe $ fillHoles 0 blockAsts Data.Set.empty [("not_", var "not_")] expr
+        lst <- interpretUnsafe $ fillHoles 0 blockAsts' Data.Set.empty [("not_", var "not_")] expr
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "genFn" $ TestCase $ do
-        let blockAsts = singleton "not_" $ var "not"
-        fn <- interpretUnsafe $ genFn 0 [("not_", var "not_")] blockAsts
+        let blockAsts' = singleton "not_" $ var "not"
+        fn <- interpretUnsafe $ genFn 0 [("not_", var "not_")] blockAsts'
         is_fn <- interpretUnsafe $ isFn <$> exprType fn
         is_fn `shouldBe` True
 
     , TestLabel "genFns" $ TestCase $ do
-        let blockAsts = singleton "not_" $ var "not"
-        lst <- interpretUnsafe $ genFns 0 [("not_", var "not_")] blockAsts
+        let blockAsts' = singleton "not_" $ var "not"
+        lst <- interpretUnsafe $ genFns 0 [("not_", var "not_")] blockAsts'
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
     , TestLabel "instantiateTypes" $ TestCase $ do
@@ -416,3 +449,97 @@ gen = let
     --     -- TODO: test generic functions get priority
 
     ]
+
+synthesizer ∷ Spec
+synthesizer = parallel $ do
+
+    fit "baseline lstm encoder" $ do
+        -- True `shouldBe` True
+
+        nodeRule (parseExpr "f") `shouldBe` "f"
+        nodeRule (parseExpr "f a b") `shouldBe` "f _ _"
+        nodeRule (parseExpr "f (g c) (h d)") `shouldBe` "f _ _"
+
+        pp_ (fnAppNodes $ parseExpr "f a b") `shouldBe` "[\"f\", \"a\", \"b\"]"
+        pp_ (fnAppNodes $ parseExpr "f") `shouldBe` "[\"f\"]"
+
+        rotate [10,20] `shouldBe` [[10,20,0],[0,10,20],[20,0,10]]
+        -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
+        -- rotateT r `shouldBe` ?
+
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        -- print "<baseline_lstm_encoder>"
+        io_feats <- baseline_lstm_encoder @3 io_pairs
+        -- print "</baseline_lstm_encoder>"
+        -- print "print . show                 $ io_feats"
+        -- print . show                 $ io_feats
+        -- print . show . toList . Just $ io_feats
+
+        -- let device = D.Device D.CPU
+        -- print "device' <- getDevice"
+        -- device' <- getDevice
+        let device' = D.Device D.CPU 0
+        -- print "let"
+        let seed' = 0
+            dsl = blockAsts
+            -- ppt = parseExpr "id (not True)"
+            ppt = parseExpr "not (not True)"
+        (variants, variant_sizes) <- interpretUnsafe $ variantSizes dsl
+        let rules :: Int = size variant_sizes
+        print $ "rules: " ++ show rules
+
+        gen :: Generator <- D.mkGenerator device' $ fromIntegral seed'
+        -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
+        -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
+        --  :: Tensor Dev 'D.Float '[Symbols, M]
+        -- symbol_emb :: D.Tensor <- randn
+        -- TODO: fix seeds using untyped random generation everywhere else as well
+        -- print $ "gen: " ++ show gen
+        let tensorOptions = withDevice device' $ withDType D.Float defaultOpts
+        -- print $ "tensorOptions: " ++ show tensorOptions
+        let symbols :: Int = natValI @Symbols
+        let m :: Int = natValI @M
+        let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
+        -- print $ "symbol_emb: " ++ show (D.shape $ symbol_emb)
+        let symbol_emb' :: Tensor Dev 'D.Float '[Symbols, M] = UnsafeMkTensor symbol_emb
+        -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
+        --  :: Tensor Dev 'D.Float '[Rules, M]
+        -- symbol_expansions_emb :: D.Tensor <- randn
+        let (symbol_expansions_emb, _gen'') :: (D.Tensor, Generator) = D.randn [rules, m] tensorOptions gen'
+        -- print $ "symbol_expansions_emb: " ++ show (D.shape $ symbol_expansions_emb)
+
+        -- print "<r3nn>"
+        leaf_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats
+        -- print "</r3nn>"
+        -- print . show . D.shape . toDynamic $ leaf_expansion_probs
+        print . show . D.shape          $ leaf_expansion_probs
+        print . show                 $ leaf_expansion_probs
+        -- print . show . toList . Just $ leaf_expansion_probs
+
+        let (leaf_dim, rule_dim) :: (Int, Int) = (0, 1)
+        -- Tensor Dev 'D.Long '[NumLeaves]
+        let rule_idx_by_leaf :: D.Tensor = F.argmax (F.Dim rule_dim) F.RemoveDim leaf_expansion_probs
+        print . show . D.shape          $ rule_idx_by_leaf
+        print . show                    $ rule_idx_by_leaf
+        let num_leaves = 3 -- TODO: how to get this?
+        -- Tensor Dev 'D.Float '[NumLeaves]
+        let best_prob_by_leaf :: D.Tensor = F.squeezeAll $ gather leaf_expansion_probs rule_dim (D.reshape [num_leaves, 1] rule_idx_by_leaf) False
+        print . show . D.shape          $ best_prob_by_leaf
+        print . show                    $ best_prob_by_leaf
+        let leaf_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim best_prob_by_leaf
+        print . show                    $ leaf_idx
+        let rule_idx :: Int = D.asValue $ D.select rule_idx_by_leaf 0 leaf_idx
+        print . show                    $ rule_idx
+        let estimated_probability :: Float = D.asValue $ D.select (D.select leaf_expansion_probs leaf_dim leaf_idx) 0 rule_idx
+        print . show                    $ estimated_probability
+        -- order Rules: comes from symbol_expansions_emb, which is just randomly assigned,
+        -- so I don't need to match with anything,
+        -- and can just arbitrarily associate this with any deterministic order of block variants
+        let (rule_str, rule_expr) :: (String, Expr) = variants !! fromIntegral rule_idx
+        print . show $ (leaf_idx, rule_idx, estimated_probability, rule_str)
+
+        -- order NumLeaves: node_embs
+        -- def sucks as without SrcSpanInfo Expr isn't uniquely Hashable,
+        -- which isn't quite helping for index lookups...
+        -- unless I just go the other way around and hash from indices to lenses...
+        -- (I'll probably take whichever non-terminal it's most confident about?)

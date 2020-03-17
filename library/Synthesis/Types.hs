@@ -18,6 +18,8 @@ module Synthesis.Types
     tyFun,
     letIn,
     app,
+    appFn,
+    appArg,
     parseExpr,
     parseType,
     undef,
@@ -48,6 +50,7 @@ module Synthesis.Types
     cxSingle,
     cxEmpty,
     typeSane,
+    fnTpArity,
     isFn,
     hasFn,
     nubPp,
@@ -225,6 +228,18 @@ ident = Ident l
 app :: Expr -> Expr -> Expr
 app = App l
 
+-- | function application: function
+appFn :: Expr -> Expr
+appFn = \case
+    App _l a _b -> a
+    _ -> error "App expected!"
+
+-- | function application: argument
+appArg :: Expr -> Expr
+appArg = \case
+    App _l _a b -> b
+    _ -> error "App expected!"
+
 -- | tuple of type constraints
 cxTuple :: [Asst L] -> Context L
 cxTuple = CxTuple l
@@ -252,7 +267,6 @@ unIPName = \case
     IPLin _l str -> str -- linear implicit parameter
 
 -- | get the string from a QName
--- | deprecated, not in use
 unQName :: QName L -> String
 unQName = \case
     Qual _l _moduleName name -> unName name -- name qualified with a module name
@@ -426,7 +440,7 @@ fnInputTypes = \case
   TyFun _l a b -> a : fnInputTypes b
   _ -> []
 
--- | check if a type is sane -- basically we wanna throw out crap like list of function
+-- | check if a type is sane -- basically we wanna throw out crap like list of function.
 typeSane :: Tp -> Bool
 typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSane <$> fnTypes tp))))
   where constraintsSane = \case
@@ -445,6 +459,16 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 ParenA _l asst -> unAsst asst
                 _ -> error "unsupported Assist!"
           _ -> True
+
+-- | check the effective arity of a function type
+-- | deprecated, not in use
+fnTpArity :: Tp -> Int
+fnTpArity = \case
+  TyForall _l _maybeTyVarBinds _maybeContext tp -> f tp
+  TyParen _l a -> f a
+  TyFun _l _a b -> 1 + f b
+  _ -> 0
+  where f = fnTpArity
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]

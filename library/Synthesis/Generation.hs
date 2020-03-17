@@ -80,6 +80,7 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
   return $ (thdOf3 <$> candidates) ++ concat rest
 
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
+-- | cf. NSPS: uniformly sample programs from the DSL
 fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
   -- TODO: save duplicate effort of finding holes: findHolesExpr, hasHoles
@@ -118,6 +119,7 @@ fitExpr expr = do
   --     Left errors -> show $ showError <$> errors
   -- if isLeft checks then return False else
   if isLeft checks
+    -- TODO: add explicit type signature for this i/o so programs won't fail type check over uninferred types
     then return False
     else do
       -- for currying, not for lambdas: use type to filter out non-function programs

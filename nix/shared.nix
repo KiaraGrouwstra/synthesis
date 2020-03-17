@@ -1,10 +1,9 @@
 { compiler ? "ghc865" }:
 
 let
-  # TODO: figure out how to use this
   haskTorchSrc = builtins.fetchGit {
     url = https://github.com/hasktorch/hasktorch;
-    rev = "61eccc61ddf1b6334bfd6e8344620006174b1bef";
+    rev = "354fb2520065067c7527dc155e05f04d398f7d75";
     ref = "master";
   };
 
