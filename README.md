@@ -55,7 +55,6 @@ profiterole generator.prof
 ```
 
 ## TODO
-- figure out how to use the resulting tensor -> test
-    - get untyped lstm
-- filter to holes i.e. non-terminal leaf nodes, cuz non-holes cannot be expanded...
-- 4.1.1 / 5.2: ensure understanding
+- train
+- get untyped lstm
+- uncomment sections

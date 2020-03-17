@@ -59,9 +59,6 @@ type HiddenFeatures1 = 20 -- ?
 -- dropoutRate :: Double
 -- dropoutRate = 0.0 -- drop-out not mentioned in NSPS
 
--- hm, I'm not sure if NSPS counted hole as a symbol, in which case there'd be nothing left to distinguish...
--- data Symbol = Variable | Hole
-
 -- TODO: ensure differentiable? see https://hasktorch.github.io/hasktorch-0.2.0.0/html/Torch-Typed-Autograd.html#t:HasGrad
 
 -- ?
@@ -114,13 +111,13 @@ r3nn
     -> Expr
     -- -> Tensor Dev 'D.Float '[n, 2 * Dirs * Encoder.H * Encoder.T]
     -> D.Tensor
-    -- -> IO (Tensor Dev 'D.Float '[NumLeaves, Rules])
+    -- -> IO (Tensor Dev 'D.Float '[NumHoles, Rules])
     -> IO D.Tensor
 r3nn
     -- dsl
     variant_sizes
-    symbol_emb'
-    symbol_expansions_emb
+    symbol_emb'             -- NSPS's phi
+    symbol_expansions_emb   -- NSPS's omega
     ppt
     io_vec
     = do
@@ -256,6 +253,9 @@ r3nn
     -- | These networks f_R(n) produce a node representation which is input into the parent’s rule network and so on until we reach the root node.
     -- | Once at the root node, we effectively have a fixed-dimensionality global tree representation ϕ(root) for the start symbol.
     -- print $ "nodeRule ppt: " ++ show (nodeRule ppt)
+    -- TODO: i.e. leaf_embs
+    --  :: Tensor Dev 'D.Float '[M]
+    let expr_slice :: D.Tensor = select' symbol_emb 0 0
     --  :: Tensor Dev 'D.Float '[1, M]
     let root_emb :: D.Tensor = let
                 -- Tensor Dev 'D.Float '[1, M]
@@ -265,27 +265,15 @@ r3nn
                         Paren _l xpr -> f xpr
                         Let _l _binds xpr -> f xpr
                         ExpTypeSig _l xpr _tp -> f xpr
-                        -- TODO: i.e. leaf_embs
-                        Con _l _qname -> select' symbol_emb 0 1
-                        Var _l qname -> case qname of
-                            -- Special _l specialCon -> case specialCon of
-                            --     ExprHole _l -> ?
-                            --     _ -> ?
-                            UnQual _l name -> case name of
-                                Ident _l str ->
-                                    -- TODO: i.e. leaf_embs -- update to use conditioned', symbol_expansions_emb
-                                    select' symbol_emb 0 $ case str of
-                                        "undefined" -> 0
-                                        _ -> 1
-                                _ -> error $ "unexpected Name: " ++ show name
-                            _ -> error $ "unexpected QName: " ++ show qname
+                        Con _l _qname -> expr_slice
+                        Var _l _qname -> expr_slice
                         App _l _exp1 _exp2 -> let
                                 tensors :: [D.Tensor] = f <$> fnAppNodes expr
                                 nnet = lookupRule expansion_left_nnets $ nodeRule expr
                             in nnet $ F.cat 1 tensors
                         _ -> error $ "unexpected Expr: " ++ show expr
             in traverseTree ppt
-    -- print $ "root_emb: " ++ show (D.shape $ root_emb)
+    print $ "root_emb: " ++ show (D.shape $ root_emb)
 
     -- perform a reverse-recursive pass starting from the root to assign a global tree representation to each node in the tree.
     -- | The problem is that this representation has lost any notion of tree position.
@@ -299,8 +287,10 @@ r3nn
     -- | Once the reverse-recursive process is complete, we now have a distributed representation ϕ′(l) for every leaf node l which contains global tree information.
     -- | While ϕ(l1) and ϕ(l2) could be equal for leaf nodes which have the same symbol type,
     -- | ϕ′(l1) and ϕ′(l2) will not be equal even if they have the same symbol type because they are at different positions in the tree.
-    --  :: Tensor Dev 'D.Float '[NumLeaves, M]
+    -- note: order here should follow `findHolesExpr`!
+    --  :: Tensor Dev 'D.Float '[NumHoles, M]
     let node_embs :: D.Tensor = let
+    -- let node_embs :: (D.Tensor, ?) = let
                 -- Tensor Dev 'D.Float '[1, M] -> Expr -> [Tensor Dev 'D.Float '[1, M]]
                 traverseTree :: D.Tensor -> Expr -> [D.Tensor] = \ node_emb expr -> let
                         f = traverseTree node_emb
@@ -308,8 +298,17 @@ r3nn
                         Paren _l xpr -> f xpr
                         Let _l _binds xpr -> f xpr
                         ExpTypeSig _l xpr _tp -> f xpr
-                        Con _l _qname -> [node_emb]
-                        Var _l _qname -> [node_emb]
+                        Con _l _qname -> []  -- terminal leaf, discard embedding
+                        Var _l qname -> case qname of
+                            -- Special _l specialCon -> case specialCon of
+                            --     ExprHole _l -> [node_emb]
+                            --     _ -> []
+                            UnQual _l name -> case name of
+                                Ident _l str -> case str of
+                                    "undefined" -> [node_emb]  -- hole i.e. non-terminal, gotta keep this
+                                    _ -> []  -- terminal leaf, discard embedding
+                                _ -> error $ "unexpected Name: " ++ show name
+                            _ -> error $ "unexpected QName: " ++ show qname
                         App _l _exp1 _exp2 -> let
                                 nnet = lookupRule expansion_right_nnets $ nodeRule expr
                                 -- Tensor Dev 'D.Float '[1, q * M]
@@ -328,20 +327,20 @@ r3nn
                         _ -> error $ "unexpected Expr: " ++ show expr
             in 
                 F.cat 0 $ traverseTree root_emb ppt
-    -- print $ "node_embs: " ++ show (D.shape $ node_embs)
+    print $ "node_embs: " ++ show (D.shape $ node_embs)
 
 --     -- OPTIONAL
 --     -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
 --     -- TODO: convert from 2d to 3d for input and back for output...
---     --  :: Tensor Dev 'D.Float '[NumLeaves, Dirs * H]
---     -- damnit, given NumLeaves is dynamic (may differ by expression, unless I fix some max?),
+--     --  :: Tensor Dev 'D.Float '[NumHoles, Dirs * H]
+--     -- damnit, given NumHoles is dynamic (may differ by expression, unless I fix some max?),
 --     -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
     -- let node_embs' :: D.Tensor = do
     --         lstm :: LSTMWithInit M H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample . LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate
     --         let (emb, hidden, cell) :: (
-    --                 Tensor Dev 'D.Float '[NumLeaves, 1, Dirs * H],
-    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumLeaves, H],
-    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumLeaves, H])
+    --                 Tensor Dev 'D.Float '[NumHoles, 1, Dirs * H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumHoles, H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumHoles, H])
     --                     = lstmWithDropout @'BatchFirst lstm $ UnsafeMkTensor node_embs
     --         return . toDynamic $ emb
 
@@ -354,16 +353,17 @@ r3nn
     -- | in the tree.
     -- | The score of an expansion is calculated using z_e=ϕ′(e.l)⋅ω(e.r).
     -- TODO: filter to holes i.e. non-terminal leaf nodes, cuz non-holes cannot be expanded...
-    --  :: Tensor Dev 'D.Float '[NumLeaves, Rules]
+    --  :: Tensor Dev 'D.Float '[NumHoles, Rules]
     let scores :: D.Tensor = node_embs `F.matmul` F.transpose symbol_expansions_emb 0 1  -- node_embs'
-    -- print $ "scores: " ++ show (D.shape $ scores)
+    print $ "scores: " ++ show (D.shape $ scores)
 
     -- | probabilities to every valid expansion in the current PPT.
     -- | The probability of expansion e is simply the exponentiated normalized sum over all scores: π(e) = e^(z_e) / (∑_{e′∈E} e^z * e′).
-    --  :: Tensor Dev 'D.Float '[NumLeaves, Rules]
-    let leaf_expansion_probs :: D.Tensor = F.softmax 1 scores
+    --  :: Tensor Dev 'D.Float '[NumHoles, Rules]
+    let hole_expansion_probs :: D.Tensor = F.softmax 1 scores
     -- nodeRule :: Expr -> String
-    -- print $ "leaf_expansion_probs: " ++ show (D.shape $ leaf_expansion_probs)
+    print $ "hole_expansion_probs: " ++ show (D.shape $ hole_expansion_probs)
 
-    return leaf_expansion_probs
-    -- return . UnsafeMkTensor $ leaf_expansion_probs
+    return hole_expansion_probs
+    -- return (lenses, hole_expansion_probs)
+    -- return . UnsafeMkTensor $ hole_expansion_probs

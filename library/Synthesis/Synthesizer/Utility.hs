@@ -50,7 +50,10 @@ import Synthesis.Hint (exprType)
 
 type Dir = 'Bidirectional
 type Dirs = NumberOfDirections Dir
-type Symbols = 2
+-- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
+-- data Symbol = Variable | Hole
+-- type Symbols = 2
+type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
 type M = 20 -- number of features for R3NN expansions/symbols. must be an even number for H.
 type Dev = '( 'D.CPU, 0)
 
@@ -125,8 +128,8 @@ rotate r = res
 fnAppNodes :: Expr -> [Expr]
 fnAppNodes = \app -> case app of
     Paren _l xpr -> f xpr
-    -- Let _l _binds xpr -> f xpr
-    -- ExpTypeSig _l xpr _tp -> f xpr
+    Let _l _binds xpr -> f xpr
+    ExpTypeSig _l xpr _tp -> f xpr
     App _l a b -> f a ++ [b]
     Con _l _qname -> [app]
     Var _l _qname -> [app]

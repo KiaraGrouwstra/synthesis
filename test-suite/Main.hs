@@ -483,7 +483,15 @@ synthesizer = parallel $ do
         let seed' = 0
             dsl = blockAsts
             -- ppt = parseExpr "id (not True)"
-            ppt = parseExpr "not (not True)"
+            ppt = parseExpr "not (not (undefined :: Bool))"
+
+        let hole_lenses = findHolesExpr ppt
+        -- let num_holes = 3
+        let num_holes :: Int = case length hole_lenses of
+                0 -> error "program complete, PT is no longer a PPT!"
+                x -> x
+        print $ "num_holes: " ++ show num_holes
+
         (variants, variant_sizes) <- interpretUnsafe $ variantSizes dsl
         let rules :: Int = size variant_sizes
         print $ "rules: " ++ show rules
@@ -494,52 +502,53 @@ synthesizer = parallel $ do
         --  :: Tensor Dev 'D.Float '[Symbols, M]
         -- symbol_emb :: D.Tensor <- randn
         -- TODO: fix seeds using untyped random generation everywhere else as well
-        -- print $ "gen: " ++ show gen
+        print $ "gen: " ++ show gen
         let tensorOptions = withDevice device' $ withDType D.Float defaultOpts
-        -- print $ "tensorOptions: " ++ show tensorOptions
+        print $ "tensorOptions: " ++ show tensorOptions
         let symbols :: Int = natValI @Symbols
         let m :: Int = natValI @M
         let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
-        -- print $ "symbol_emb: " ++ show (D.shape $ symbol_emb)
+        print $ "symbol_emb: " ++ show (D.shape $ symbol_emb)
         let symbol_emb' :: Tensor Dev 'D.Float '[Symbols, M] = UnsafeMkTensor symbol_emb
         -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
         --  :: Tensor Dev 'D.Float '[Rules, M]
         -- symbol_expansions_emb :: D.Tensor <- randn
         let (symbol_expansions_emb, _gen'') :: (D.Tensor, Generator) = D.randn [rules, m] tensorOptions gen'
-        -- print $ "symbol_expansions_emb: " ++ show (D.shape $ symbol_expansions_emb)
+        print $ "symbol_expansions_emb: " ++ show (D.shape $ symbol_expansions_emb)
 
         -- print "<r3nn>"
-        leaf_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats
+        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats
         -- print "</r3nn>"
-        -- print . show . D.shape . toDynamic $ leaf_expansion_probs
-        print . show . D.shape          $ leaf_expansion_probs
-        print . show                 $ leaf_expansion_probs
-        -- print . show . toList . Just $ leaf_expansion_probs
+        -- print . show . D.shape . toDynamic $ hole_expansion_probs
+        print . show . D.shape          $ hole_expansion_probs
+        print . show                    $ hole_expansion_probs
+        -- print . show . toList . Just $ hole_expansion_probs
 
-        let (leaf_dim, rule_dim) :: (Int, Int) = (0, 1)
-        -- Tensor Dev 'D.Long '[NumLeaves]
-        let rule_idx_by_leaf :: D.Tensor = F.argmax (F.Dim rule_dim) F.RemoveDim leaf_expansion_probs
-        print . show . D.shape          $ rule_idx_by_leaf
-        print . show                    $ rule_idx_by_leaf
-        let num_leaves = 3 -- TODO: how to get this?
-        -- Tensor Dev 'D.Float '[NumLeaves]
-        let best_prob_by_leaf :: D.Tensor = F.squeezeAll $ gather leaf_expansion_probs rule_dim (D.reshape [num_leaves, 1] rule_idx_by_leaf) False
-        print . show . D.shape          $ best_prob_by_leaf
-        print . show                    $ best_prob_by_leaf
-        let leaf_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim best_prob_by_leaf
-        print . show                    $ leaf_idx
-        let rule_idx :: Int = D.asValue $ D.select rule_idx_by_leaf 0 leaf_idx
+        let (hole_dim, rule_dim) :: (Int, Int) = (0, 1)
+        -- Tensor Dev 'D.Long '[NumHoles]
+        let rule_idx_by_hole :: D.Tensor = F.argmax (F.Dim rule_dim) F.RemoveDim hole_expansion_probs
+        print . show . D.shape          $ rule_idx_by_hole
+        print . show                    $ rule_idx_by_hole
+        -- Tensor Dev 'D.Float '[NumHoles]
+        let best_prob_by_hole :: D.Tensor = F.squeezeAll $ gather hole_expansion_probs rule_dim (D.reshape [num_holes, 1] rule_idx_by_hole) False
+        print . show . D.shape          $ best_prob_by_hole
+        print . show                    $ best_prob_by_hole
+        let hole_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim best_prob_by_hole
+        print . show                    $ hole_idx
+        let rule_idx :: Int = D.asValue $ D.select rule_idx_by_hole 0 hole_idx
         print . show                    $ rule_idx
-        let estimated_probability :: Float = D.asValue $ D.select (D.select leaf_expansion_probs leaf_dim leaf_idx) 0 rule_idx
+        let estimated_probability :: Float = D.asValue $ D.select (D.select hole_expansion_probs hole_dim hole_idx) 0 rule_idx
         print . show                    $ estimated_probability
+
         -- order Rules: comes from symbol_expansions_emb, which is just randomly assigned,
         -- so I don't need to match with anything,
         -- and can just arbitrarily associate this with any deterministic order of block variants
-        let (rule_str, rule_expr) :: (String, Expr) = variants !! fromIntegral rule_idx
-        print . show $ (leaf_idx, rule_idx, estimated_probability, rule_str)
+        let (rule_str, rule_expr) :: (String, Expr) = variants !! rule_idx
 
-        -- order NumLeaves: node_embs
-        -- def sucks as without SrcSpanInfo Expr isn't uniquely Hashable,
-        -- which isn't quite helping for index lookups...
-        -- unless I just go the other way around and hash from indices to lenses...
-        -- (I'll probably take whichever non-terminal it's most confident about?)
+        -- order NumHoles: node_embs. without SrcSpanInfo Expr isn't uniquely Hashable,
+        -- so grab hole lenses by `findHolesExpr` and ensure `node_embs` follows the same order.
+        let (hole_getter, hole_setter) :: (Expr -> Expr, Expr -> Expr -> Expr) = findHolesExpr ppt !! hole_idx
+        -- let hole :: Expr = hole_getter ppt
+        let ppt' = hole_setter ppt rule_expr
+
+        print . show $ (hole_idx, rule_idx, estimated_probability, rule_str, pp ppt')
