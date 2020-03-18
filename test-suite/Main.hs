@@ -13,6 +13,7 @@ import           Control.Exception            (SomeException, try, evaluate)
 import           Data.Word                    (Word64)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
+import           Data.Bifunctor               (first)
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), size)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
@@ -20,6 +21,7 @@ import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDeta
 import           Util                         (fstOf3)
 
 import           GHC.Exts
+import           GHC.TypeNats
 import           Torch.Random (Generator)
 import           Torch.Functional.Internal (gather)
 import qualified Torch.DType                   as D
@@ -453,7 +455,16 @@ gen = let
 synthesizer ∷ Spec
 synthesizer = parallel $ do
 
-    fit "baseline lstm encoder" $ do
+    fit "baseline lstm encoder" testNsps -- @123
+
+type NumHoles = 123      -- dummy value to trick the compiler?
+type Rules = 456         -- dummy value to trick the compiler?
+-- type NumLeaves = 789  -- dummy value to trick the compiler?
+
+-- forall numHoles rules . 
+-- (KnownNat numHoles) => 
+testNsps :: IO ()
+testNsps = do
         -- True `shouldBe` True
 
         nodeRule (parseExpr "f") `shouldBe` "f"
@@ -468,11 +479,12 @@ synthesizer = parallel $ do
         -- rotateT r `shouldBe` ?
 
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        -- print "<baseline_lstm_encoder>"
+        print "<baseline_lstm_encoder>"
         -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        io_feats <- baseline_lstm_encoder @3 io_pairs
-        -- print "</baseline_lstm_encoder>"
+        io_feats <- baseline_lstm_encoder io_pairs
+        print "</baseline_lstm_encoder>"
         -- print "print . show                 $ io_feats"
+        print . show . shape' $ io_feats
         -- print . show                 $ io_feats
         -- print . show . toList . Just $ io_feats
 
@@ -480,14 +492,11 @@ synthesizer = parallel $ do
         -- print "device' <- getDevice"
         -- device' <- getDevice
         let device' = D.Device D.CPU 0
-        -- print "let"
-        let seed' = 0
+        let seed' :: Int = 0
             dsl = blockAsts
-            -- ppt = parseExpr "id (not True)"
-            ppt = parseExpr "not (not (undefined :: Bool))"
+            ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
 
         let hole_lenses = findHolesExpr ppt
-        -- let num_holes = 3
         let num_holes :: Int = case length hole_lenses of
                 0 -> error "program complete, PT is no longer a PPT!"
                 x -> x
@@ -498,51 +507,46 @@ synthesizer = parallel $ do
         print $ "rules: " ++ show rules
 
         gen :: Generator <- D.mkGenerator device' $ fromIntegral seed'
-        -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
-        -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
-        --  :: Tensor Dev 'D.Float '[Symbols, M]
-        -- symbol_emb :: D.Tensor <- randn
         -- TODO: fix seeds using untyped random generation everywhere else as well
         print $ "gen: " ++ show gen
         let tensorOptions = withDevice device' $ withDType D.Float defaultOpts
         print $ "tensorOptions: " ++ show tensorOptions
-        let symbols :: Int = natValI @Symbols
-        let m :: Int = natValI @M
-        let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
-        print $ "symbol_emb: " ++ show (D.shape $ symbol_emb)
-        let symbol_emb' :: Tensor Dev 'D.Float '[Symbols, M] = UnsafeMkTensor symbol_emb
+        -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
+        -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
+        symbol_emb :: Tensor Dev 'D.Float '[Symbols, M] <- randn
+        -- let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
+        print $ "symbol_emb: " ++ show (shape' symbol_emb)
         -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
-        --  :: Tensor Dev 'D.Float '[Rules, M]
-        -- symbol_expansions_emb :: D.Tensor <- randn
-        let (symbol_expansions_emb, _gen'') :: (D.Tensor, Generator) = D.randn [rules, m] tensorOptions gen'
-        print $ "symbol_expansions_emb: " ++ show (D.shape $ symbol_expansions_emb)
+        -- symbol_expansions_emb :: Tensor Dev 'D.Float '[Rules, M] <- randn  -- Rules isn't necessarily static so no macros...
+        -- let (symbol_expansions_emb, _gen'') :: (D.Tensor, Generator) = D.randn [Rules, m] tensorOptions gen'
+        let (symbol_expansions_emb, _gen') :: (Tensor Dev 'D.Float '[Rules, M], Generator) =
+                first UnsafeMkTensor $ D.randn [rules, m] tensorOptions gen
+        print $ "symbol_expansions_emb: " ++ show (shape' symbol_expansions_emb)
 
         -- print "<r3nn>"
         -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats --  io_feats
+        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb symbol_expansions_emb ppt io_feats
         -- print "</r3nn>"
-        -- print . show . D.shape . toDynamic $ hole_expansion_probs
-        print . show . D.shape          $ hole_expansion_probs
-        print . show                    $ hole_expansion_probs
+        print . show . shape' $ hole_expansion_probs
+        -- print . show . D.shape          $ hole_expansion_probs
+        -- print . show                    $ hole_expansion_probs
         -- print . show . toList . Just $ hole_expansion_probs
 
         let (hole_dim, rule_dim) :: (Int, Int) = (0, 1)
-        -- Tensor Dev 'D.Long '[NumHoles]
-        let rule_idx_by_hole :: D.Tensor = F.argmax (F.Dim rule_dim) F.RemoveDim hole_expansion_probs
-        print . show . D.shape          $ rule_idx_by_hole
-        print . show                    $ rule_idx_by_hole
-        -- Tensor Dev 'D.Float '[NumHoles]
-        let best_prob_by_hole :: D.Tensor = F.squeezeAll $ gather hole_expansion_probs rule_dim (D.reshape [num_holes, 1] rule_idx_by_hole) False
-        print . show . D.shape          $ best_prob_by_hole
+        let rule_idx_by_hole :: Tensor Dev 'D.Int64 '[NumHoles] = asUntyped (F.argmax (F.Dim rule_dim) F.RemoveDim) hole_expansion_probs
+        print . show . shape' $ rule_idx_by_hole
+        -- print . show                    $ rule_idx_by_hole
+        let best_prob_by_hole :: Tensor Dev 'D.Float '[NumHoles] = UnsafeMkTensor $ F.squeezeAll $ gather (toDynamic hole_expansion_probs) rule_dim (D.reshape [num_holes, 1] $ toDynamic rule_idx_by_hole) False
+        print . show . shape' $ best_prob_by_hole
         print . show                    $ best_prob_by_hole
-        let hole_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim best_prob_by_hole
+        let hole_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim $ toDynamic best_prob_by_hole
         print . show                    $ hole_idx
-        let rule_idx :: Int = D.asValue $ D.select rule_idx_by_hole 0 hole_idx
+        let rule_idx :: Int = D.asValue $ D.select (toDynamic rule_idx_by_hole) 0 hole_idx
         print . show                    $ rule_idx
-        let estimated_probability :: Float = D.asValue $ D.select (D.select hole_expansion_probs hole_dim hole_idx) 0 rule_idx
+        let estimated_probability :: Float = D.asValue $ D.select (D.select (toDynamic hole_expansion_probs) hole_dim hole_idx) 0 rule_idx
         print . show                    $ estimated_probability
 
-        -- order Rules: comes from symbol_expansions_emb, which is just randomly assigned,
+        -- order rules: comes from symbol_expansions_emb, which is just randomly assigned,
         -- so I don't need to match with anything,
         -- and can just arbitrarily associate this with any deterministic order of block variants
         let (rule_str, rule_expr) :: (String, Expr) = variants !! rule_idx

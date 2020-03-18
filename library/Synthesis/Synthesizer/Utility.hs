@@ -8,13 +8,22 @@ module Synthesis.Synthesizer.Utility (
     Dev,
     getDevice,
     asUntyped,
+    asUntyped',
     -- availableDevices,
     Dir,
     Dirs,
     Symbols,
     M,
+    dirs,
+    symbols,
+    m,
+    H0,
+    H1,
+    h0,
+    h1,
     padRight,
     unDim,
+    shape',
     select',
     rotate,
     -- rotateT,
@@ -53,11 +62,28 @@ import Synthesis.Hint (exprType)
 
 type Dir = 'Bidirectional
 type Dirs = NumberOfDirections Dir
+dirs :: Int
+dirs = natValI @Dirs
+
 -- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
 -- data Symbol = Variable | Hole
 -- type Symbols = 2
 type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
+symbols :: Int
+symbols = natValI @Symbols
+
 type M = 20 -- number of features for R3NN expansions/symbols. must be an even number for H.
+m :: Int
+m = natValI @M
+
+-- used across a few different MLPs -- does sharing make sense?
+type H0 = 20 -- ?
+type H1 = 20 -- ?
+h0 :: Int
+h0 = natValI @H0
+h1 :: Int
+h1 = natValI @H1
+
 type Dev = '( 'D.CPU, 0)
 
 getDevice :: IO D.Device
@@ -88,23 +114,27 @@ padRight :: a -> Int -> [a] -> [a]
 padRight c n xs = xs ++ replicate (n - length xs) c
 
 -- | use an untyped fn on a typed tensor, works tho unsafe
-asUntyped :: forall device dtype shape shape'
+asUntyped :: forall device dtype shape device' dtype' shape'
            . (D.Tensor -> D.Tensor)
           -> Tensor device dtype shape
-          -> Tensor device dtype shape'
+          -> Tensor device' dtype' shape'
 asUntyped f = UnsafeMkTensor . f . toDynamic
 
 -- | run an untyped op on a typed tensor, delaying safety checks to run-time
-asUntyped' :: forall device dtype shape shape'
-          .  (TensorOptions shape' dtype device)
+asUntyped' :: forall device dtype shape device' dtype' shape'
+          .  (TensorOptions shape' dtype' device')
           => (D.Tensor -> D.Tensor)
           -> Tensor device dtype shape
-          -> Tensor device dtype shape'
+          -> Tensor device' dtype' shape'
 asUntyped' f tensor = let
         untyped = f . toDynamic $ tensor
         tensor' = UnsafeMkTensor untyped
-        check = D.shape untyped == optionsRuntimeShape @shape' @dtype @device
+        check = D.shape untyped == optionsRuntimeShape @shape' @dtype' @device'
         in assert check tensor'
+
+-- | get the run-time shape of a typed tensor
+shape' :: Tensor device dtype shape -> [Int]
+shape' = D.shape . toDynamic
 
 -- | `select` alternative that retains the dimension as a 1
 -- | I want this as a built-in, see https://github.com/pytorch/pytorch/issues/34788

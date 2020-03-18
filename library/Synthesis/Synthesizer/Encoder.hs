@@ -8,6 +8,8 @@ module Synthesis.Synthesizer.Encoder (
     Dev,
     H,
     T,
+    h,
+    t,
     baseline_lstm_encoder,
 ) where
 
@@ -39,13 +41,19 @@ import Torch.Typed.NN.Recurrent.LSTM
 
 import Synthesis.Data (Expr)
 import Synthesis.Utility (pp) -- , pp_
-import Synthesis.Synthesizer.Utility (Dev, Dir, Dirs, asUntyped, padRight, select', rotate) -- rotateT
+import Synthesis.Synthesizer.Utility -- (Dev, Dir, Dirs, asUntyped', padRight, select', rotate) -- rotateT
+import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 
 type NumLayers = 3 -- ?
 -- | H is the topmost LSTM hidden dimension
 type H = 30 -- ?
 -- T is the maximum string length for any input or output string
 type T = 20 -- ?  -- TODO: find this dynamically?
+h :: Int
+h = natValI @H
+t :: Int
+t = natValI @T
+
 -- actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
 type MaxChar = 256
 dropoutRate :: Double
@@ -58,12 +66,14 @@ type Spec = LSTMWithInitSpec MaxChar H NumLayers Dir 'ConstantInitialization 'D.
 -- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
 
 -- TODO: batch data?
-baseline_lstm_encoder :: forall n . (KnownNat n) => [(Expr, Either String Expr)] -> IO (Tensor Dev 'D.Float '[n, 2 * Dirs * H * T])
+baseline_lstm_encoder
+    :: forall n
+    --  . (KnownNat n)
+    -- => [(Expr, Either String Expr)]
+     . [(Expr, Either String Expr)]
+    -> IO (Tensor Dev 'D.Float '[n, 2 * Dirs * H * T])
 baseline_lstm_encoder io_pairs = do
     -- type vals
-    -- let h :: Int = natValI @H
-    let t :: Int = natValI @T
-    -- let dirs :: Int = natValI @Dirs
     let max_char :: Int = natValI @MaxChar
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
@@ -74,7 +84,7 @@ baseline_lstm_encoder io_pairs = do
     let str2tensor :: Int -> String -> Tensor Dev 'D.Float '[1, T, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip F.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tensor Dev 'D.Float '[1, T, MaxChar], Tensor Dev 'D.Float '[1, T, MaxChar])] = first (str2tensor t) . second (str2tensor t) <$> str_pairs
     -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
-    -- let n_ :: Int = length vec_pairs
+    let n_ :: Int = length vec_pairs
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -102,7 +112,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped' (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
 
     -- -- sequential
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -133,7 +143,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, T as N
     -- let lstm_spec :: LSTMSpec T H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -165,12 +175,12 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, loop over T
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
     -- let lstm_step :: Spec -> Tensor Dev 'D.Float '[1, 1, MaxChar] -> IO (Tensor Dev 'D.Float '[Dirs, 1, H], Spec) = \ spec tensor -> do
-    --         -- tensor :: Tensor Dev 'D.Float '[1, 1, MaxChar] = UnsafeMkTensor $ select' (toDynamic tensor_in) 0 0  -- asUntyped
+    --         -- tensor :: Tensor Dev 'D.Float '[1, 1, MaxChar] = UnsafeMkTensor $ select' (toDynamic tensor_in) 0 0  -- asUntyped'
     --         lstm :: LSTMWithInit 1 H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (_emb, hidden, cell) :: (
     --                 Tensor Dev 'D.Float '[1, 1, Dirs * H],
@@ -202,7 +212,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- pre-vectored
     let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -212,23 +222,41 @@ baseline_lstm_encoder io_pairs = do
     -- print $ "in_vec: " ++ show (D.shape $ toDynamic in_vec)
     let out_vec :: Tensor Dev 'D.Float '[n, T, MaxChar] = UnsafeMkTensor $ F.stack (fmap (toDynamic . snd) vec_pairs) 0
     -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
-    -- TODO: replace this with an untyped lstm
-    let lstm_step :: Tensor Dev 'D.Float '[n, T, MaxChar] -> IO (Tensor Dev 'D.Float '[n, T, Dirs * H]) = \tensor -> do
-            lstm_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
-            let (emb, _hidden, _cell) :: (
-                    Tensor Dev 'D.Float '[n, T, Dirs * H],
-                    Tensor Dev 'D.Float '[Dirs * NumLayers, n, H],
-                    Tensor Dev 'D.Float '[Dirs * NumLayers, n, H])
-                        = lstmWithoutDropout @'BatchFirst lstm_model tensor
-            return emb
-    emb_in  <- lstm_step  in_vec
+
+    -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
+    mlp_model_in  <- A.sample $ UntypedMLP.MLPSpec max_char h0 h1 $ dirs * h
+    mlp_model_out <- A.sample $ UntypedMLP.MLPSpec max_char h0 h1 $ dirs * h
+    -- --  :: Tensor Dev 'D.Float '[NumHoles, M]
+    -- let node_embs' :: D.Tensor = UntypedMLP.mlp mlp_model_score node_embs
+    -- let emb_in  :: D.Tensor = UntypedMLP.mlp mlp_model_in in_vec
+    -- let emb_out :: D.Tensor = UntypedMLP.mlp mlp_model_out out_vec
+    let emb_in  :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
+            asUntyped (UntypedMLP.mlp mlp_model_in) in_vec
+    let emb_out :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
+            asUntyped (UntypedMLP.mlp mlp_model_out) out_vec
+
+    -- -- TODO: replace this with an untyped lstm
+    -- let lstm_step :: Tensor Dev 'D.Float '[n, T, MaxChar] -> IO (Tensor Dev 'D.Float '[n, T, Dirs * H]) = \tensor -> do
+    --         lstm_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
+    --         let (emb, _hidden, _cell) :: (
+    --                 Tensor Dev 'D.Float '[n, T, Dirs * H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, n, H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, n, H])
+    --                     = lstmWithoutDropout @'BatchFirst lstm_model tensor
+    --         return emb
+    -- emb_in  <- lstm_step  in_vec
+    -- emb_out <- lstm_step out_vec
     -- print $ "emb_in: " ++ show (D.shape $ toDynamic emb_in)
-    emb_out <- lstm_step out_vec
     -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
 
     -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = cat @2 $ emb_in :. emb_out :. HNil
-    let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = reshape feat_vec
+    let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] =
+            cat @2 $ emb_in :. emb_out :. HNil
+    -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
+    let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] =
+            asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+            -- = reshape feat_vec
+    -- print $ "feat_vec_: " ++ show (D.shape $ toDynamic feat_vec_)
 
     -- | 5.1.2 Cross Correlation encoder
 
