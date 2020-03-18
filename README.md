@@ -54,7 +54,6 @@ stack install profiterole
 profiterole generator.prof
 ```
 
-## TODO
-- train
-- get untyped lstm
-- uncomment sections
+questions for NSPS authors:
+- why not concatenate i/o features directly to symbol features?
+- why does the two recursive passes use leaf embeddings tho not branch (production rule) embeddings?

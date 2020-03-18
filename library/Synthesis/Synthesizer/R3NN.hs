@@ -47,8 +47,8 @@ import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 -- type Rules = 456      -- dummy value to trick the compiler?
 -- type NumLeaves = 789  -- dummy value to trick the compiler?
 -- TODO: consider which hyperparams have been / should be shared across networks
--- type H0 = 20 -- ?
--- type H1 = 20 -- ?
+type H0 = 20 -- ?
+type H1 = 20 -- ?
 -- now shared between left/right nns, no clue how many layers or even hidden units I'd want
 type HiddenFeatures0 = 20 -- ?
 type HiddenFeatures1 = 20 -- ?
@@ -60,10 +60,6 @@ type HiddenFeatures1 = 20 -- ?
 -- dropoutRate = 0.0 -- drop-out not mentioned in NSPS
 
 -- TODO: ensure differentiable? see https://hasktorch.github.io/hasktorch-0.2.0.0/html/Torch-Typed-Autograd.html#t:HasGrad
-
--- ?
--- returns: vector representation for every symbol and every expansion rule in the grammar
--- return (symbols_vec, symbol_expansions_vec)
 
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.):
 -- | given the continuous representation of the examples, synthesizes
@@ -122,41 +118,76 @@ r3nn
     io_vec
     = do
     -- let n               :: Int = natValI @n
+    -- let n               :: Int = size variant_sizes
+    let n               :: Int = D.shape io_vec !! 0
+    print $ "n: " ++ show n
+    print $ "io_vec: " ++ show (D.shape io_vec)
     let m               :: Int = natValI @m
     let hiddenFeatures0 :: Int = natValI @HiddenFeatures0
     let hiddenFeatures1 :: Int = natValI @HiddenFeatures1
-    -- let h0              :: Int = natValI @H0
-    -- let h1              :: Int = natValI @H1
-    -- let symbols         :: Int = natValI @Symbols
+    let h0              :: Int = natValI @H0
+    let h1              :: Int = natValI @H1
+    let symbols         :: Int = natValI @Symbols
+    let dirs            :: Int = natValI @Dirs
+    let encoderH        :: Int = natValI @Encoder.H
+    let encoderT        :: Int = natValI @Encoder.T
     let symbol_emb = toDynamic symbol_emb'
 
-    -- Let E be the set of all valid expansions in a PPT.
-    -- - question: they haven't even specified for which hole? all of them??
-    -- - interpretation 1: type-checks are non-trivial, consider any expansions for the given symbol
-    -- - interpretation 2: filter expansions by type-check, only consider valid ones
-    -- - note: take into account holed variants?
-
-    -- -- Let L be the current leaf nodes of the PPT.
-    -- -- let holes_get_set_pairs = findHolesExpr ppt
-    -- -- let ident_get_set_pairs = findIdentExpr ppt
-    -- -- let holes  :: [Name L] = ($ ppt) . fst <$> holes_get_set_pairs
-    -- -- let idents :: [Name L] = ($ ppt) . fst <$> ident_get_set_pairs
-    -- let holes  :: [Expr] = findHolesExpr' ppt
-    -- let idents :: [Expr] = findIdentExpr' ppt
-    -- let leaves :: [Expr] = holes ++ idents
-    -- -- both my leaves just so happened to have the same type now that I'm using `undefined` for holes
-
-    -- -- Let N be the current non-leaf (rule) nodes of the PPT.
-    -- -- - traverse Expr for `App`
-    -- -- let fnapp_get_set_pairs = findFnAppExpr ppt
-    -- -- let fnapps :: [Expr] = ($ ppt) . fst <$> fnapp_get_set_pairs
-    -- let fnapps :: [Expr] = findTopFnAppExpr' False ppt
-
-    -- -- Let S(l) be the symbol of leaf l∈L
-    -- let leaf_symbol :: Expr -> Symbol = \expr -> case expr of
-    --         Con _l qname -> case (unQName qname) of
-    --             "undefined" -> Hole
-    --             _ -> Variable
+    -- | 5.2 CONDITIONING PROGRAM SEARCH ON EXAMPLE ENCODINGS
+    -- | Once the I/O example encodings have been computed,
+    -- | we can use them to perform conditional generation of the program tree using the R3NN model.
+    -- | condition the PPT generation model using the I/O example encodings
+    -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
+    -- i/o features, identical for each leaf
+    --  :: Tensor Dev 'D.Float '[n * 2 * Dirs * Encoder.H * Encoder.T]
+    let io_vec' :: D.Tensor =
+            -- F.squeezeAll io_vec
+            -- asUntyped (D.reshape [n * 2 * Dirs * Encoder.H * Encoder.T]) io_vec
+            D.reshape [n * 2 * dirs * encoderH * encoderT] io_vec
+            -- reshape '[]
+    print $ "io_vec': " ++ show (D.shape io_vec')
+    -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `Symbols` instead of `NumLeaves`
+    --  :: Tensor Dev 'D.Float '[Symbols, M + n * 2 * Dirs * Encoder.H * Encoder.T] = UnsafeMkTensor $
+    -- untyped as num_leaves is dynamic
+    -- (toDynamic leaf_embs)
+    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (D.shape leaf_embs !! 0) (toDynamic io_vec')) 0]
+    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (D.shape leaf_embs !! 0) io_vec') 0]
+    -- let stacked_io = D.stack (replicate symbols io_vec') 0
+    -- print $ "stacked_io: " ++ show (D.shape stacked_io)
+    let conditioned :: D.Tensor = F.cat 1 [symbol_emb, stacked_io]
+            where stacked_io = D.stack (replicate symbols io_vec') 0 -- n
+    print $ "conditioned: " ++ show (D.shape conditioned)
+    -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
+    -- The conditioning network can be either a multi-layer feedforward network,
+    -- mlp <- A.sample (TypedMLP.MLPSpec
+    --         @(M + n * 2 * Dirs * Encoder.H * Encoder.T) @M
+    --         @H0 @H1
+    --         @D.Float
+    --         D.Device
+    --         dropoutRate
+    --     )
+    -- let conditioned' :: Tensor Dev 'D.Float '[Symbols, M] = TypedMLP.mlp conditioned
+    -- waaaait, can I really cram all that back into M??
+    mlp_model <- A.sample (UntypedMLP.MLPSpec
+            (m + n * 2 * dirs * encoderH * encoderT)
+            h0
+            h1
+            m
+        )
+    --  :: Tensor Dev 'D.Float '[Symbols, M]
+    let conditioned' :: D.Tensor = UntypedMLP.mlp mlp_model conditioned
+    -- or a bidirectional LSTM network running over tree leaves.
+    -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
+    -- let conditioned' :: Tensor Dev 'D.Float '[Symbols, Dirs * H] = emb
+    --     where
+    --         -- htan activation?
+    --         lstm :: LSTMWithInit M H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample $ LSTMWithZerosInitSpec $ LSTMSpec $ DropoutSpec $ dropoutRate
+    --         let (emb, hidden, cell) :: (
+    --                 Tensor Dev 'D.Float '[Symbols, 1, Dirs * H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, Symbols, H],
+    --                 Tensor Dev 'D.Float '[Dirs * NumLayers, Symbols, H])
+    --                     = lstmWithDropout @'BatchFirst lstm conditioned
+    print $ "conditioned': " ++ show (D.shape conditioned')
 
     -- For every production rule r∈R, a deep neural network f_r which takes as
     -- input a vector x∈R^Q⋅M, with Q being the number of symbols on the RHS of
@@ -194,6 +225,7 @@ r3nn
 
     -- | 4.1.1 Global Tree Information at the Leaves
 
+    -- -- I'm now skipping this as I'm concatting i/o features straight to symbols while matching symbols is actually easier for me than matching leaves, given my Expr isn't uniquely identifiable (without proper SrcSpanInfo). this should simplify it will staying equivalent. I should test this later.
     -- -- Given a partial tree, the model first assigns a vector representation to each leaf node.
     -- -- | for every leaf node l∈L in the tree we retrieve its distributed representation ϕ(S(l)).
     -- --  :: Tensor Dev 'D.Float '[NumLeaves, M]
@@ -201,61 +233,16 @@ r3nn
     --                         where symbolNum = \case
     --                                 Hole -> 0
     --                                 Variable -> 1
-    -- -- TODO: wait, should this use `symbol_emb` yet not `symbol_expansions_emb`?
-    -- -- TODO: where should I use this?
-
-    -- -- | 5.2 CONDITIONING PROGRAM SEARCH ON EXAMPLE ENCODINGS
-    -- -- | Once the I/O example encodings have been computed,
-    -- -- | we can use them to perform conditional generation of the program tree using the R3NN model.
-    -- -- | condition the PPT generation model using the I/O example encodings
-    -- -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
-    -- -- does concatenating on this dimension make sense?
-    -- -- let conditioned :: Tensor Dev 'D.Float '[?, ?] = cat @0 $ leaf_embs :. io_vec :. HNil
-    -- -- should I flatten io_vec and use it as extra features identical for each leaf?
-    -- -- let io_vec' :: Tensor Dev 'D.Float '[n * M] = reshape '[n * M] io_vec
-    -- let io_vec' :: Tensor Dev 'D.Float '[n * M] = asUntyped (D.reshape [n * m]) io_vec
-    -- -- TODO: if these extra features don't depend on the leaf node, should I straight up cram them onto `symbol_emb` or `symbol_expansions_emb` instead?
-    -- --  :: Tensor Dev 'D.Float '[NumLeaves, (n + 1) * M] = UnsafeMkTensor $
-    -- -- untyped as num_leaves is dynamic
-    -- -- (toDynamic leaf_embs)
-    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (D.shape leaf_embs !! 0) (toDynamic io_vec')) 0]
-    -- -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
-    -- -- The conditioning network can be either a multi-layer feedforward network,
-    -- -- mlp <- A.sample (TypedMLP.MLPSpec
-    -- --         @((n + 1) * M) @M
-    -- --         @H0 @H1
-    -- --         @D.Float
-    -- --         D.Device
-    -- --         dropoutRate
-    -- --     )
-    -- -- let conditioned' :: Tensor Dev 'D.Float '[NumLeaves, M] = TypedMLP.mlp conditioned
-    -- mlp_model <- A.sample (UntypedMLP.MLPSpec
-    --         ((n + 1) * m)
-    --         h0
-    --         h1
-    --         conditionedFeats
-    --     )
-    -- --  :: Tensor Dev 'D.Float '[NumLeaves, M]
-    -- let conditioned' :: D.Tensor = UntypedMLP.mlp mlp_model conditioned
-    -- -- or a bidirectional LSTM network running over tree leaves.
-    -- -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
-    -- -- let conditioned' :: Tensor Dev 'D.Float '[NumLeaves, Dirs * H] = emb
-    -- --     where
-    -- --         lstm :: LSTMWithInit M H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample $ LSTMWithZerosInitSpec $ LSTMSpec $ DropoutSpec $ dropoutRate
-    -- --         let (emb, hidden, cell) :: (
-    -- --                 Tensor Dev 'D.Float '[NumLeaves, 1, Dirs * H],
-    -- --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumLeaves, H],
-    -- --                 Tensor Dev 'D.Float '[Dirs * NumLayers, NumLeaves, H])
-    -- --                     = lstmWithDropout @'BatchFirst lstm conditioned
 
     -- perform a recursive pass going up in the tree to assign a global tree representation to the root.
     -- | We now do a standard recursive bottom-to-top, RHS→LHS pass on the network, by going up the tree and applying f_R(n) for every non-leaf node n∈N on its RHS node representations (see Figure 3(a)).
     -- | These networks f_R(n) produce a node representation which is input into the parent’s rule network and so on until we reach the root node.
     -- | Once at the root node, we effectively have a fixed-dimensionality global tree representation ϕ(root) for the start symbol.
     -- print $ "nodeRule ppt: " ++ show (nodeRule ppt)
-    -- TODO: i.e. leaf_embs
+    -- my DSL doesn't currently distinguish symbols so just prep it up-front
     --  :: Tensor Dev 'D.Float '[M]
-    let expr_slice :: D.Tensor = select' symbol_emb 0 0
+    let expr_slice :: D.Tensor = select' conditioned' 0 0  -- symbol_emb
+    
     --  :: Tensor Dev 'D.Float '[1, M]
     let root_emb :: D.Tensor = let
                 -- Tensor Dev 'D.Float '[1, M]
@@ -329,13 +316,23 @@ r3nn
                 F.cat 0 $ traverseTree root_emb ppt
     print $ "node_embs: " ++ show (D.shape $ node_embs)
 
---     -- OPTIONAL
---     -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
---     -- TODO: convert from 2d to 3d for input and back for output...
---     --  :: Tensor Dev 'D.Float '[NumHoles, Dirs * H]
---     -- damnit, given NumHoles is dynamic (may differ by expression, unless I fix some max?),
---     -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
+    -- OPTIONAL
+    -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
+    -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
+    mlp_model_score <- A.sample (UntypedMLP.MLPSpec
+            m
+            h0
+            h1
+            m
+        )
+    --  :: Tensor Dev 'D.Float '[NumHoles, M]
+    let node_embs' :: D.Tensor = UntypedMLP.mlp mlp_model_score node_embs
+    -- damnit, given NumHoles is dynamic (may differ by expression, unless I fix some max?),
+    -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
+    -- TODO: convert from 2d to 3d for input and back for output...
+    --  :: Tensor Dev 'D.Float '[NumHoles, Dirs * H]
     -- let node_embs' :: D.Tensor = do
+    --         -- htan activation?
     --         lstm :: LSTMWithInit M H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample . LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate
     --         let (emb, hidden, cell) :: (
     --                 Tensor Dev 'D.Float '[NumHoles, 1, Dirs * H],
@@ -354,7 +351,7 @@ r3nn
     -- | The score of an expansion is calculated using z_e=ϕ′(e.l)⋅ω(e.r).
     -- TODO: filter to holes i.e. non-terminal leaf nodes, cuz non-holes cannot be expanded...
     --  :: Tensor Dev 'D.Float '[NumHoles, Rules]
-    let scores :: D.Tensor = node_embs `F.matmul` F.transpose symbol_expansions_emb 0 1  -- node_embs'
+    let scores :: D.Tensor = node_embs' `F.matmul` F.transpose symbol_expansions_emb 0 1  -- node_embs
     print $ "scores: " ++ show (D.shape $ scores)
 
     -- | probabilities to every valid expansion in the current PPT.
@@ -364,6 +361,6 @@ r3nn
     -- nodeRule :: Expr -> String
     print $ "hole_expansion_probs: " ++ show (D.shape $ hole_expansion_probs)
 
+    -- TODO: zero-mask non-compiling expansions? ensure penalized by loss?
     return hole_expansion_probs
-    -- return (lenses, hole_expansion_probs)
     -- return . UnsafeMkTensor $ hole_expansion_probs

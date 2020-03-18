@@ -1,6 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Synthesis.Synthesizer.Utility (
     Dev,
@@ -28,11 +30,12 @@ import Data.Int (Int64)
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, (!), size, keys, lookup)
 import System.Environment (getEnv)
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, try, assert)
 import GHC.TypeNats (Nat, KnownNat)
 import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import Language.Haskell.Exts.Syntax
 
+import Torch.Typed.Aux (Index, type IndexImpl, natValI)
 import Torch.Typed.Tensor
 import Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
@@ -80,14 +83,28 @@ getDevice = do
 --              else mempty
 --            )
 
+-- | right-pad a list to a given length
 padRight :: a -> Int -> [a] -> [a]
 padRight c n xs = xs ++ replicate (n - length xs) c
 
+-- | use an untyped fn on a typed tensor, works tho unsafe
 asUntyped :: forall device dtype shape shape'
            . (D.Tensor -> D.Tensor)
           -> Tensor device dtype shape
           -> Tensor device dtype shape'
 asUntyped f = UnsafeMkTensor . f . toDynamic
+
+-- | run an untyped op on a typed tensor, delaying safety checks to run-time
+asUntyped' :: forall device dtype shape shape'
+          .  (TensorOptions shape' dtype device)
+          => (D.Tensor -> D.Tensor)
+          -> Tensor device dtype shape
+          -> Tensor device dtype shape'
+asUntyped' f tensor = let
+        untyped = f . toDynamic $ tensor
+        tensor' = UnsafeMkTensor untyped
+        check = D.shape untyped == optionsRuntimeShape @shape' @dtype @device
+        in assert check tensor'
 
 -- | `select` alternative that retains the dimension as a 1
 -- | I want this as a built-in, see https://github.com/pytorch/pytorch/issues/34788

@@ -166,6 +166,7 @@ findFnAppExpr' expr =
         _ -> []
 
 -- | find top App occurrences, i.e. only count multi-arg chains once
+-- | deprecated, not in use
 findTopFnAppExpr' :: Bool -> Expr -> [Expr]
 findTopFnAppExpr' chained expr =
   let f = findTopFnAppExpr'

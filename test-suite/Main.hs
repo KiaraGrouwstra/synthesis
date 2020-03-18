@@ -469,6 +469,7 @@ synthesizer = parallel $ do
 
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         -- print "<baseline_lstm_encoder>"
+        -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
         io_feats <- baseline_lstm_encoder @3 io_pairs
         -- print "</baseline_lstm_encoder>"
         -- print "print . show                 $ io_feats"
@@ -517,7 +518,8 @@ synthesizer = parallel $ do
         print $ "symbol_expansions_emb: " ++ show (D.shape $ symbol_expansions_emb)
 
         -- print "<r3nn>"
-        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats
+        -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
+        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb' symbol_expansions_emb ppt $ toDynamic io_feats --  io_feats
         -- print "</r3nn>"
         -- print . show . D.shape . toDynamic $ hole_expansion_probs
         print . show . D.shape          $ hole_expansion_probs
@@ -552,3 +554,5 @@ synthesizer = parallel $ do
         let ppt' = hole_setter ppt rule_expr
 
         print . show $ (hole_idx, rule_idx, estimated_probability, rule_str, pp ppt')
+        -- TODO: calculate loss to backprop and train?
+        -- sample for best of 100 predictions

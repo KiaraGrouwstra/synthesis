@@ -102,8 +102,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = UnsafeMkTensor . D.reshape [n_, 2 * Dirs * h * t] . toDynamic $ feat_vec
-    -- -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
 
     -- -- sequential
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -134,8 +133,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = UnsafeMkTensor . D.reshape [n_, 2 * dirs * h * t] . toDynamic $ feat_vec
-    -- -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, T as N
     -- let lstm_spec :: LSTMSpec T H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -167,8 +165,7 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = UnsafeMkTensor $ D.stack (toDynamic <$> feat_vecs) 0
     -- -- let feat_vec :: Tensor Dev 'D.Float '[n, T, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = UnsafeMkTensor . D.reshape [n_, 2 * dirs * h * t] . toDynamic $ feat_vec
-    -- -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, loop over T
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -241,15 +238,18 @@ baseline_lstm_encoder io_pairs = do
     -- | Then, we sum over all overlapping time steps.
     -- | Features of all pairs are then concatenated to form a 2∗(T−1)-dimensional vector encoding for all example pairs.
     -- | There are 2∗(T−1) possible alignments in total between input and output feature blocks.
-    -- | We also designed the following variants of this encoder.
 
     -- Cross Correlation encoder
+    -- rotate, rotateT
     -- h1_in, h1_out
     -- dot(a, b)
     -- mm(a, b)
     -- matmul(a, b) performs matrix multiplications if both arguments are 2D and computes their dot product if both arguments are 1D
     -- bmm(a, b)
     -- bdot(a, b): (a*b).sum(-1)  -- https://github.com/pytorch/pytorch/issues/18027
+    -- htan activation fn
+
+    -- | We also designed the following variants of this encoder.
 
     -- | Diffused Cross Correlation Encoder:
     -- | This encoder is identical to the Cross Correlation encoder except that instead of summing over overlapping time steps after the element-wise dot product, we simply concatenate the vectors corresponding to all time steps, resulting in a final representation that contains 2∗(T−1)∗T features for each example pair.
