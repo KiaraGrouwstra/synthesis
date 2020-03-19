@@ -29,6 +29,7 @@ import qualified Torch.Tensor                  as D
 import qualified Torch.Device                  as D
 import qualified Torch.Random                  as D
 import qualified Torch.Functional              as F
+import qualified Torch.NN                      as A
 import           Torch.Typed.Aux
 import           Torch.TensorOptions
 import           Torch.Typed.Tensor
@@ -480,8 +481,9 @@ testNsps = do
         -- rotateT r `shouldBe` ?
 
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        let n_ :: Int = length io_pairs
         print "<baseline_encoder>"
-        -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
+        -- in action, for batch size I may use n>=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
         baseline_mlp_encoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Encoder.h
         io_feats <- baselineMLPEncoder baseline_mlp_encoder io_pairs
         print "</baseline_encoder>"
@@ -525,9 +527,29 @@ testNsps = do
                 first UnsafeMkTensor $ D.randn [rules, m] tensorOptions gen
         print $ "symbol_expansions_emb: " ++ show (shape' symbol_expansions_emb)
 
+        r3nn_model :: R3NN M <- A.sample $ R3NNSpec
+            variant_sizes
+            -- left
+            hiddenFeatures0
+            hiddenFeatures1
+            -- right
+            hiddenFeatures0
+            hiddenFeatures1
+            -- condition MLP
+            -- waaaait, can I really cram all that back into M??
+            (m + n_ * 2 * dirs * Encoder.h * Encoder.t)
+            h0
+            h1
+            m
+            -- score MLP
+            m
+            h0
+            h1
+            m
+
         -- print "<r3nn>"
         -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        hole_expansion_probs <- r3nn @M variant_sizes symbol_emb symbol_expansions_emb ppt io_feats
+        hole_expansion_probs <- r3nn r3nn_model symbol_emb symbol_expansions_emb ppt io_feats
         -- print "</r3nn>"
         print . show . shape' $ hole_expansion_probs
         -- print . show . D.shape          $ hole_expansion_probs

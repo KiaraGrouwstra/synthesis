@@ -1,6 +1,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
 
 module Synthesis.Synthesizer.Encoder (
@@ -10,7 +13,7 @@ module Synthesis.Synthesizer.Encoder (
     T,
     h,
     t,
-    BaselineMLPEncoderSpec,
+    BaselineMLPEncoderSpec (..),
     BaselineMLPEncoder,
     -- baseline_lstm_encoder,
     baselineMLPEncoder,
@@ -23,6 +26,7 @@ import Data.Int (Int64)
 import Data.Char (ord)
 -- import Data.Foldable (foldrM)
 -- import qualified GHC.TypeNats
+import GHC.Generics (Generic)
 import GHC.TypeNats (Nat, KnownNat, Mod, type (*), type (+), type (-))
 
 import Torch.Typed.Tensor
@@ -57,42 +61,30 @@ h = natValI @H
 t :: Int
 t = natValI @T
 
--- actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
-type MaxChar = 256
-max_char :: Int
-max_char = natValI @MaxChar
 -- dropoutRate :: Double
 -- dropoutRate = 0.0
 
 -- type Spec = LSTMWithInitSpec MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
 
 data BaselineMLPEncoderSpec = BaselineMLPEncoderSpec {
-    inputFeatures :: Int,
-    hiddenFeatures0 :: Int,
-    hiddenFeatures1 :: Int,
-    outputFeatures :: Int
+    inFeats :: Int,
+    hidden0 :: Int,
+    hidden1 :: Int,
+    outFeats :: Int
     } deriving (Show, Eq)
 
 data BaselineMLPEncoder = BaselineMLPEncoder {
-    in_l0 :: Linear,
-    in_l1 :: Linear,
-    in_l2 :: Linear,
-    out_l0 :: Linear,
-    out_l1 :: Linear,
-    out_l2 :: Linear
-    } deriving (Generic, Show)
+    in_model :: UntypedMLP.MLP,
+    out_model :: UntypedMLP.MLP
+    } deriving (Show, Generic)
 
-instance Parameterized BaselineMLPEncoder
-instance Randomizable BaselineMLPEncoderSpec BaselineMLPEncoder where
+instance A.Parameterized BaselineMLPEncoder
+
+instance A.Randomizable BaselineMLPEncoderSpec BaselineMLPEncoder where
     sample BaselineMLPEncoderSpec {..} = BaselineMLPEncoder
-        <$> sample (LinearSpec inputFeatures hiddenFeatures0)
-        <*> sample (LinearSpec hiddenFeatures0 hiddenFeatures1)
-        <*> sample (LinearSpec hiddenFeatures1 outputFeatures)
-        <*> sample (LinearSpec inputFeatures hiddenFeatures0)
-        <*> sample (LinearSpec hiddenFeatures0 hiddenFeatures1)
-        <*> sample (LinearSpec hiddenFeatures1 outputFeatures)
-
-    -- max_char h0 h1 $ dirs * h
+        <$> A.sample spec
+        <*> A.sample spec
+            where spec = UntypedMLP.MLPSpec inFeats hidden0 hidden1 outFeats
 
 -- TODO: combine i/o lists across types
 -- | 5.1.1 Baseline LSTM encoder
@@ -109,7 +101,7 @@ baselineMLPEncoder
     -> IO (Tensor Dev 'D.Float '[n, 2 * Dirs * H * T])
 baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
 -- baseline_lstm_encoder io_pairs = do
-    -- type vals
+    let n_ :: Int = length io_pairs
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
@@ -119,7 +111,6 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     let str2tensor :: Int -> String -> Tensor Dev 'D.Float '[1, T, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip F.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tensor Dev 'D.Float '[1, T, MaxChar], Tensor Dev 'D.Float '[1, T, MaxChar])] = first (str2tensor t) . second (str2tensor t) <$> str_pairs
     -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
-    let n_ :: Int = length vec_pairs
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -257,12 +248,10 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
 
     -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
-    let mlp_model_in  :: UntypedMLP.MLP = UntypedMLP.MLP in_l0 in_l1 in_l2
-    let mlp_model_out :: UntypedMLP.MLP = UntypedMLP.MLP out_l0 out_l1 out_l2
     let emb_in  :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
-            asUntyped (UntypedMLP.mlp mlp_model_in) in_vec
+            asUntyped (UntypedMLP.mlp in_model) in_vec
     let emb_out :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
-            asUntyped (UntypedMLP.mlp mlp_model_out) out_vec
+            asUntyped (UntypedMLP.mlp out_model) out_vec
 
     -- -- TODO: replace this with an untyped lstm
     -- let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec

@@ -12,15 +12,21 @@ module Synthesis.Synthesizer.Utility (
     -- availableDevices,
     Dir,
     Dirs,
-    Symbols,
-    M,
     dirs,
+    Symbols,
     symbols,
+    MaxChar,
+    max_char,
+    M,
     m,
     H0,
-    H1,
     h0,
+    H1,
     h1,
+    HiddenFeatures0,
+    hiddenFeatures0,
+    HiddenFeatures1,
+    hiddenFeatures1,
     padRight,
     unDim,
     shape',
@@ -72,6 +78,11 @@ type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left
 symbols :: Int
 symbols = natValI @Symbols
 
+-- actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
+type MaxChar = 256
+max_char :: Int
+max_char = natValI @MaxChar
+
 type M = 20 -- number of features for R3NN expansions/symbols. must be an even number for H.
 m :: Int
 m = natValI @M
@@ -83,6 +94,14 @@ h0 :: Int
 h0 = natValI @H0
 h1 :: Int
 h1 = natValI @H1
+
+-- left/right MLPs
+type HiddenFeatures0 = 20 -- ?
+hiddenFeatures0 :: Int
+hiddenFeatures0 = natValI @HiddenFeatures0
+type HiddenFeatures1 = 20 -- ?
+hiddenFeatures1 :: Int
+hiddenFeatures1 = natValI @HiddenFeatures1
 
 type Dev = '( 'D.CPU, 0)
 

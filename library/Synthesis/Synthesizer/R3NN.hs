@@ -1,10 +1,17 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs #-}
 
 module Synthesis.Synthesizer.R3NN (
+    R3NNSpec (..),
+    R3NN,
     r3nn,
 ) where
 
@@ -13,7 +20,8 @@ import Data.Bifunctor (second)
 import Data.HashMap.Lazy (HashMap, fromList, (!), size, keys, lookup)
 import Control.Monad ((=<<))
 import Language.Haskell.Exts.Syntax
-import GHC.TypeNats (KnownNat, Mod, Div, type (*), type (+), type (-))
+import GHC.Generics (Generic)
+import GHC.TypeNats (KnownNat, Nat, Mod, Div, type (*), type (+), type (-))
 
 import Torch.Typed.Tensor
 import Torch.Typed.Functional
@@ -44,8 +52,6 @@ import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 
 -- TODO: consider which hyperparams have been / should be shared across networks
 -- now shared between left/right nns, no clue how many layers or even hidden units I'd want
-type HiddenFeatures0 = 20 -- ?
-type HiddenFeatures1 = 20 -- ?
 -- pre-score lstm
 -- type NumLayers = 3 -- ?
 -- | H is the topmost LSTM hidden dimension
@@ -54,6 +60,82 @@ type HiddenFeatures1 = 20 -- ?
 -- dropoutRate = 0.0 -- drop-out not mentioned in NSPS
 
 -- TODO: ensure differentiable? see https://hasktorch.github.io/hasktorch-0.2.0.0/html/Torch-Typed-Autograd.html#t:HasGrad
+-- TODO: should Encoder be included in here for backprop? then again, I only need to encode for any new samples, while I'd wanna run r3nn for each synthesis step on those...
+
+data R3NNSpec
+    (m :: Nat)
+    -- (m :: KnownNat)
+ where
+  R3NNSpec
+    :: forall
+        m
+     . {
+        variant_sizes :: HashMap String Int,    -- dsl
+        leftH0 :: Int,
+        leftH1 :: Int,
+        rightH0 :: Int,
+        rightH1 :: Int,
+        condIn :: Int,
+        condH0 :: Int,
+        condH1 :: Int,
+        scoreIn :: Int,
+        scoreH0 :: Int,
+        scoreH1 :: Int,
+        scoreOut :: Int,
+        condOut :: Int
+        }
+    -> R3NNSpec
+        m
+ deriving (Show, Eq)
+
+data R3NN
+    (m :: Nat)
+ where
+  R3NN
+    :: forall
+        m
+     . { condition_model :: UntypedMLP.MLP
+                            -- TypedMLP.MLP
+                            -- LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+       , score_model :: UntypedMLP.MLP
+                            -- LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+       , left_nnets :: HashMap String UntypedMLP.MLP
+       , right_nnets :: HashMap String UntypedMLP.MLP
+        }
+    -> R3NN
+        m
+ deriving (Show, Generic)
+
+-- instance ( KnownNat m
+--          )
+--   => A.Parameterized (R3NN m)
+
+instance ( KnownNat m
+         )
+  => A.Randomizable (R3NNSpec m)
+                    (R3NN     m)
+ where
+    sample R3NNSpec {..} = R3NN
+        -- condition_model
+        <$> A.sample (UntypedMLP.MLPSpec  condIn  condH0  condH1  condOut)
+                    -- htan activation?
+                    -- (LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate)
+        <*> A.sample (UntypedMLP.MLPSpec scoreIn scoreH0 scoreH1 scoreOut)
+                    -- (TypedMLP.MLPSpec
+                    --         @(m + n * 2 * Dirs * Encoder.H * Encoder.T) @m
+                    --         @H0 @H1
+                    --         @D.Float
+                    --         D.Device
+                    --         dropoutRate
+                    --     )
+                    -- htan activation?
+                    -- (LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate)
+        -- score_model
+        -- left
+        <*> mapM (\q -> A.sample $ UntypedMLP.MLPSpec (q * m) leftH0 leftH1 m) variant_sizes
+        -- right
+        <*> mapM (\q -> A.sample $ UntypedMLP.MLPSpec m rightH0 rightH1 (q * m)) variant_sizes
+        where m = natValI @m
 
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.):
 -- | given the continuous representation of the examples, synthesizes
@@ -91,26 +173,25 @@ type HiddenFeatures1 = 20 -- ?
     -- -> 
 r3nn
     :: forall m n rules numHoles
-    . ( KnownNat m )
-    => HashMap String Int
+    -- . ( KnownNat m )
+    -- => R3NN m
+     . R3NN m
     -> Tensor Dev 'D.Float '[Symbols, m]
     -> Tensor Dev 'D.Float '[rules, m]
     -> Expr
     -> Tensor Dev 'D.Float '[n, 2 * Dirs * Encoder.H * Encoder.T]
     -> IO (Tensor Dev 'D.Float '[numHoles, rules])
 r3nn
-    -- dsl
-    variant_sizes
+    R3NN{..}
     symbol_emb              -- NSPS's phi
     symbol_expansions_emb   -- NSPS's omega
     ppt
-    io_vec
+    io_feats
     = do
-    let n :: Int = shape' io_vec !! 0
+
+    let n :: Int = shape' io_feats !! 0
     print $ "n: " ++ show n
-    print $ "io_vec: " ++ show (shape' io_vec)
-    let hiddenFeatures0 :: Int = natValI @HiddenFeatures0
-    let hiddenFeatures1 :: Int = natValI @HiddenFeatures1
+    print $ "io_feats: " ++ show (shape' io_feats)
     -- let symbol_emb = toDynamic symbol_emb'
 
     -- | 5.2 CONDITIONING PROGRAM SEARCH ON EXAMPLE ENCODINGS
@@ -119,51 +200,35 @@ r3nn
     -- | condition the PPT generation model using the I/O example encodings
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
     -- i/o features, identical for each leaf
-    let io_vec' :: Tensor Dev 'D.Float '[n * 2 * Dirs * Encoder.H * Encoder.T] =
-            asUntyped (D.reshape [n * 2 * dirs * Encoder.h * Encoder.t]) io_vec
-            -- reshape '[n * 2 * Dirs * Encoder.H * Encoder.T] io_vec
-    print $ "io_vec': " ++ show (shape' io_vec')
+    let io_feats' :: Tensor Dev 'D.Float '[n * 2 * Dirs * Encoder.H * Encoder.T] =
+            asUntyped (D.reshape [n * 2 * dirs * Encoder.h * Encoder.t]) io_feats
+            -- reshape '[n * 2 * Dirs * Encoder.H * Encoder.T] io_feats
+    print $ "io_feats': " ++ show (shape' io_feats')
     -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `Symbols` instead of `NumLeaves`
     -- untyped as num_leaves is dynamic
     -- (toDynamic leaf_embs)
-    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (shape' leaf_embs !! 0) (toDynamic io_vec')) 0]
-    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (shape' leaf_embs !! 0) io_vec') 0]
-    -- let stacked_io = D.stack (replicate symbols io_vec') 0
+    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (shape' leaf_embs !! 0) (toDynamic io_feats')) 0]
+    -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, D.stack (replicate (shape' leaf_embs !! 0) io_feats') 0]
+    -- let stacked_io = D.stack (replicate symbols io_feats') 0
     -- print $ "stacked_io: " ++ show (shape' stacked_io)
     let conditioned :: Tensor Dev 'D.Float '[Symbols, m + n * 2 * Dirs * Encoder.H * Encoder.T] =
             UnsafeMkTensor $ F.cat 1 [toDynamic symbol_emb, stacked_io]
-            where stacked_io = D.stack (toDynamic <$> replicate symbols io_vec') 0 -- n
+            where stacked_io = D.stack (toDynamic <$> replicate symbols io_feats') 0 -- n
     print $ "conditioned: " ++ show (shape' conditioned)
     -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
     -- The conditioning network can be either a multi-layer feedforward network,
-    -- -- mlp <- A.sample (TypedMLP.MLPSpec
-    -- --         @(m + n * 2 * Dirs * Encoder.H * Encoder.T) @m
-    -- --         @H0 @H1
-    -- --         @D.Float
-    -- --         D.Device
-    -- --         dropoutRate
-    -- --     )
-    -- -- let conditioned' :: Tensor Dev 'D.Float '[Symbols, m] = TypedMLP.mlp conditioned
-    -- -- waaaait, can I really cram all that back into M??
-    mlp_model <- A.sample (UntypedMLP.MLPSpec
-            (m + n * 2 * dirs * Encoder.h * Encoder.t)
-            h0
-            h1
-            m
-        )
+    -- -- let conditioned' :: Tensor Dev 'D.Float '[Symbols, m] = TypedMLP.mlp condition_model train conditioned
     let conditioned' :: Tensor Dev 'D.Float '[Symbols, m] =
-            asUntyped (UntypedMLP.mlp mlp_model) conditioned
+            asUntyped (UntypedMLP.mlp condition_model) conditioned
     -- or a bidirectional LSTM network running over tree leaves.
     -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
     -- let conditioned' :: Tensor Dev 'D.Float '[Symbols, Dirs * H] = emb
     --     where
-    --         -- htan activation?
-    --         lstm :: LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample $ LSTMWithZerosInitSpec $ LSTMSpec $ DropoutSpec $ dropoutRate
     --         let (emb, hidden, cell) :: (
     --                 Tensor Dev 'D.Float '[Symbols, 1, Dirs * H],
     --                 Tensor Dev 'D.Float '[Dirs * NumLayers, Symbols, H],
     --                 Tensor Dev 'D.Float '[Dirs * NumLayers, Symbols, H])
-    --                     = lstmWithDropout @'BatchFirst lstm conditioned
+    --                     = lstmWithDropout @'BatchFirst condition_model conditioned
     print $ "conditioned': " ++ show (shape' conditioned')
 
     -- For every production rule r∈R, a deep neural network f_r which takes as
@@ -175,28 +240,26 @@ r3nn
     -- TODO: further check MLPMnist for usage
     -- TODO: does it even make sense to just randomly generate these?
     -- forall n' q . (KnownNat n', KnownNat q) => Tensor Dev 'D.Float '[n', q * m] -> IO (Tensor Dev 'D.Float '[n', m])
-    expansion_left_nnets :: HashMap String (D.Tensor -> D.Tensor) <- let
-        -- untyped as q is not static
-        -- forall n' q . (KnownNat n', KnownNat q) => 
-        -- Tensor Dev 'D.Float '[n', q * m] -> Tensor Dev 'D.Float '[n', m]
-        mapper :: Int -> (IO (D.Tensor -> D.Tensor)) = \ q -> do
-            spec :: UntypedMLP.MLP <- A.sample $ UntypedMLP.MLPSpec (q * m) hiddenFeatures0 hiddenFeatures1 m
-            let mkNN :: D.Tensor -> D.Tensor = UntypedMLP.mlp spec
-            return mkNN --  $ asUntyped mkNN
-        in mapper `mapM` variant_sizes
-    -- print $ "expansion_left_nnets: " ++ show (keys expansion_left_nnets)
+    -- left_nnets :: HashMap String (D.Tensor -> D.Tensor) <- let
+    --     -- untyped as q is not static
+    --     -- forall n' q . (KnownNat n', KnownNat q) => 
+    --     -- Tensor Dev 'D.Float '[n', q * m] -> Tensor Dev 'D.Float '[n', m]
+    --     mapper :: Int -> (IO (D.Tensor -> D.Tensor)) = \ q -> do
+    --         -- spec :: UntypedMLP.MLP <- A.sample $ UntypedMLP.MLPSpec (q * m) hiddenFeatures0 hiddenFeatures1 m
+    --         let mkNN :: D.Tensor -> D.Tensor = UntypedMLP.mlp spec
+    --         return mkNN --  $ asUntyped mkNN
+    --     in mapper `mapM` variant_sizes
 
     -- For every production rule r∈R, an additional deep neural network g_r which takes as input a vector x′∈R^M and outputs a vector y′∈R^Q⋅M.
     -- We can think of g_r as a reverse production-rule network that takes as input a vector representation of the LHS and produces a concatenation of the distributed representations of each of the rule’s RHS symbols.
     -- forall n' q . (KnownNat n', KnownNat q) => Tensor Dev 'D.Float '[n', m] -> IO (Tensor Dev 'D.Float '[n', q * m])
-    expansion_right_nnets :: HashMap String (D.Tensor -> D.Tensor) <- let
-        -- untyped as q is not static
-        mapper :: Int -> IO (D.Tensor -> D.Tensor) = \ q -> do
-            spec :: UntypedMLP.MLP <- A.sample $ UntypedMLP.MLPSpec m hiddenFeatures0 hiddenFeatures1 (q * m)
-            let mkNN :: D.Tensor -> D.Tensor = UntypedMLP.mlp spec
-            return $ mkNN --  $ asUntyped mkNN
-        in mapper `mapM` variant_sizes
-    -- print $ "expansion_right_nnets: " ++ show (keys expansion_right_nnets)
+    -- right_nnets :: HashMap String (D.Tensor -> D.Tensor) <- let
+    --     -- untyped as q is not static
+    --     mapper :: Int -> IO (D.Tensor -> D.Tensor) = \ q -> do
+    --         -- spec :: UntypedMLP.MLP <- A.sample $ UntypedMLP.MLPSpec m hiddenFeatures0 hiddenFeatures1 (q * m)
+    --         let mkNN :: D.Tensor -> D.Tensor = UntypedMLP.mlp spec
+    --         return $ mkNN --  $ asUntyped mkNN
+    --     in mapper `mapM` variant_sizes
 
     -- | 4.1.1 Global Tree Information at the Leaves
 
@@ -229,7 +292,7 @@ r3nn
                         Var _l _qname -> expr_slice
                         App _l _exp1 _exp2 -> let
                                 tensors :: [Tensor Dev 'D.Float '[1, m]] = f <$> fnAppNodes expr
-                                nnet = lookupRule expansion_left_nnets $ nodeRule expr
+                                nnet = UntypedMLP.mlp $ lookupRule left_nnets $ nodeRule expr
                             in UnsafeMkTensor $ nnet $ F.cat 1 $ toDynamic <$> tensors
                         _ -> error $ "unexpected Expr: " ++ show expr
             in traverseTree ppt
@@ -271,7 +334,7 @@ r3nn
                                 _ -> error $ "unexpected Name: " ++ show name
                             _ -> error $ "unexpected QName: " ++ show qname
                         App _l _exp1 _exp2 -> let
-                                nnet = lookupRule expansion_right_nnets $ nodeRule expr
+                                nnet = UntypedMLP.mlp $ lookupRule right_nnets $ nodeRule expr
                                 -- tensor :: Tensor Dev 'D.Float '[1, q * m] =
                                 --         asUntyped nnet node_emb
                                 tensor :: D.Tensor = nnet $ toDynamic node_emb
@@ -294,26 +357,18 @@ r3nn
     -- OPTIONAL
     -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
     -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
-    mlp_model_score <- A.sample (UntypedMLP.MLPSpec
-            m
-            h0
-            h1
-            m
-        )
     let node_embs' :: Tensor Dev 'D.Float '[numHoles, m] =
-            asUntyped (UntypedMLP.mlp mlp_model_score) node_embs
+            asUntyped (UntypedMLP.mlp score_model) node_embs
     -- damnit, given numHoles is dynamic (may differ by expression, unless I fix some max?),
     -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
     -- TODO: convert from 2d to 3d for input and back for output...
     --  :: Tensor Dev 'D.Float '[numHoles, Dirs * H]
     -- let node_embs' :: D.Tensor = do
-    --         -- htan activation?
-    --         lstm :: LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample . LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate
     --         let (emb, hidden, cell) :: (
     --                 Tensor Dev 'D.Float '[numHoles, 1, Dirs * H],
     --                 Tensor Dev 'D.Float '[Dirs * NumLayers, numHoles, H],
     --                 Tensor Dev 'D.Float '[Dirs * NumLayers, numHoles, H])
-    --                     = lstmWithDropout @'BatchFirst lstm $ UnsafeMkTensor node_embs
+    --                     = lstmWithDropout @'BatchFirst score_model $ UnsafeMkTensor node_embs
     --         return . toDynamic $ emb
 
     -- | 4.1.2 Expansion Probabilities
