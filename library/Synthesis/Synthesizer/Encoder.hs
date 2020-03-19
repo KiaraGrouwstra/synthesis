@@ -4,13 +4,16 @@
 {-# LANGUAGE NoStarIsType #-}
 
 module Synthesis.Synthesizer.Encoder (
-    NumLayers,
+    -- NumLayers,
     Dev,
     H,
     T,
     h,
     t,
-    baseline_lstm_encoder,
+    BaselineMLPEncoderSpec,
+    BaselineMLPEncoder,
+    -- baseline_lstm_encoder,
+    baselineMLPEncoder,
 ) where
 
 -- import GHC.Exts (fromList)
@@ -44,7 +47,7 @@ import Synthesis.Utility (pp) -- , pp_
 import Synthesis.Synthesizer.Utility -- (Dev, Dir, Dirs, asUntyped', padRight, select', rotate) -- rotateT
 import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 
-type NumLayers = 3 -- ?
+-- type NumLayers = 3 -- ?
 -- | H is the topmost LSTM hidden dimension
 type H = 30 -- ?
 -- T is the maximum string length for any input or output string
@@ -56,30 +59,62 @@ t = natValI @T
 
 -- actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
 type MaxChar = 256
-dropoutRate :: Double
-dropoutRate = 0.0
+max_char :: Int
+max_char = natValI @MaxChar
+-- dropoutRate :: Double
+-- dropoutRate = 0.0
 
-type Spec = LSTMWithInitSpec MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+-- type Spec = LSTMWithInitSpec MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+
+data BaselineMLPEncoderSpec = BaselineMLPEncoderSpec {
+    inputFeatures :: Int,
+    hiddenFeatures0 :: Int,
+    hiddenFeatures1 :: Int,
+    outputFeatures :: Int
+    } deriving (Show, Eq)
+
+data BaselineMLPEncoder = BaselineMLPEncoder {
+    in_l0 :: Linear,
+    in_l1 :: Linear,
+    in_l2 :: Linear,
+    out_l0 :: Linear,
+    out_l1 :: Linear,
+    out_l2 :: Linear
+    } deriving (Generic, Show)
+
+instance Parameterized BaselineMLPEncoder
+instance Randomizable BaselineMLPEncoderSpec BaselineMLPEncoder where
+    sample BaselineMLPEncoderSpec {..} = BaselineMLPEncoder
+        <$> sample (LinearSpec inputFeatures hiddenFeatures0)
+        <*> sample (LinearSpec hiddenFeatures0 hiddenFeatures1)
+        <*> sample (LinearSpec hiddenFeatures1 outputFeatures)
+        <*> sample (LinearSpec inputFeatures hiddenFeatures0)
+        <*> sample (LinearSpec hiddenFeatures0 hiddenFeatures1)
+        <*> sample (LinearSpec hiddenFeatures1 outputFeatures)
+
+    -- max_char h0 h1 $ dirs * h
 
 -- TODO: combine i/o lists across types
 -- | 5.1.1 Baseline LSTM encoder
 -- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
 
 -- TODO: batch data?
-baseline_lstm_encoder
+baselineMLPEncoder
+-- baseline_lstm_encoder
     :: forall n
     --  . (KnownNat n)
-    -- => [(Expr, Either String Expr)]
-     . [(Expr, Either String Expr)]
+    -- => BaselineMLPEncoder
+     . BaselineMLPEncoder
+    -> [(Expr, Either String Expr)]
     -> IO (Tensor Dev 'D.Float '[n, 2 * Dirs * H * T])
-baseline_lstm_encoder io_pairs = do
+baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
+-- baseline_lstm_encoder io_pairs = do
     -- type vals
-    let max_char :: Int = natValI @MaxChar
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
     -- | Our first I/O encoding network involves running two separate deep bidirectional LSTM networks for processing the input and the output string in each example pair.
-    let dropoutSpec :: DropoutSpec = DropoutSpec dropoutRate -- drop-out not mentioned in NSPS
+    -- let dropoutSpec :: DropoutSpec = DropoutSpec dropoutRate -- drop-out not mentioned in NSPS
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
     let str2tensor :: Int -> String -> Tensor Dev 'D.Float '[1, T, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip F.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tensor Dev 'D.Float '[1, T, MaxChar], Tensor Dev 'D.Float '[1, T, MaxChar])] = first (str2tensor t) . second (str2tensor t) <$> str_pairs
@@ -215,8 +250,6 @@ baseline_lstm_encoder io_pairs = do
     -- let feat_vec_ :: Tensor Dev 'D.Float '[n, 2 * Dirs * H * T] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- pre-vectored
-    let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
-    let spec :: Spec = LSTMWithZerosInitSpec lstm_spec
     -- stack input vectors, dynamic cuz no static dataset size
     let  in_vec :: Tensor Dev 'D.Float '[n, T, MaxChar] = UnsafeMkTensor $ F.stack (fmap (toDynamic . fst) vec_pairs) 0
     -- print $ "in_vec: " ++ show (D.shape $ toDynamic in_vec)
@@ -224,18 +257,16 @@ baseline_lstm_encoder io_pairs = do
     -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
 
     -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
-    mlp_model_in  <- A.sample $ UntypedMLP.MLPSpec max_char h0 h1 $ dirs * h
-    mlp_model_out <- A.sample $ UntypedMLP.MLPSpec max_char h0 h1 $ dirs * h
-    -- --  :: Tensor Dev 'D.Float '[NumHoles, M]
-    -- let node_embs' :: D.Tensor = UntypedMLP.mlp mlp_model_score node_embs
-    -- let emb_in  :: D.Tensor = UntypedMLP.mlp mlp_model_in in_vec
-    -- let emb_out :: D.Tensor = UntypedMLP.mlp mlp_model_out out_vec
+    let mlp_model_in  :: UntypedMLP.MLP = UntypedMLP.MLP in_l0 in_l1 in_l2
+    let mlp_model_out :: UntypedMLP.MLP = UntypedMLP.MLP out_l0 out_l1 out_l2
     let emb_in  :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
             asUntyped (UntypedMLP.mlp mlp_model_in) in_vec
     let emb_out :: Tensor Dev 'D.Float '[n, T, Dirs * H] =
             asUntyped (UntypedMLP.mlp mlp_model_out) out_vec
 
     -- -- TODO: replace this with an untyped lstm
+    -- let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
+    -- let spec :: Spec = LSTMWithZerosInitSpec lstm_spec
     -- let lstm_step :: Tensor Dev 'D.Float '[n, T, MaxChar] -> IO (Tensor Dev 'D.Float '[n, T, Dirs * H]) = \tensor -> do
     --         lstm_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (emb, _hidden, _cell) :: (

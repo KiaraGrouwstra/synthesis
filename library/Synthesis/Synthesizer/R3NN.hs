@@ -13,13 +13,11 @@ import Data.Bifunctor (second)
 import Data.HashMap.Lazy (HashMap, fromList, (!), size, keys, lookup)
 import Control.Monad ((=<<))
 import Language.Haskell.Exts.Syntax
--- import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
 import GHC.TypeNats (KnownNat, Mod, Div, type (*), type (+), type (-))
 
 import Torch.Typed.Tensor
 import Torch.Typed.Functional
 import Torch.Typed.NN
--- import Torch.Typed.Factories
 import Torch.Typed.Aux
 import Torch.Random (Generator)
 import Torch.Typed.NN.Recurrent.LSTM

@@ -46,6 +46,7 @@ import           Synthesis.Data
 import           Synthesis.Utility
 import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
+import qualified Synthesis.Synthesizer.Encoder as Encoder
 import           Synthesis.Synthesizer.R3NN
 
 main ∷ IO ()
@@ -455,7 +456,7 @@ gen = let
 synthesizer ∷ Spec
 synthesizer = parallel $ do
 
-    fit "baseline lstm encoder" testNsps -- @123
+    fit "baseline encoder" testNsps -- @123
 
 type NumHoles = 123      -- dummy value to trick the compiler?
 type Rules = 456         -- dummy value to trick the compiler?
@@ -479,10 +480,11 @@ testNsps = do
         -- rotateT r `shouldBe` ?
 
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        print "<baseline_lstm_encoder>"
+        print "<baseline_encoder>"
         -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        io_feats <- baseline_lstm_encoder io_pairs
-        print "</baseline_lstm_encoder>"
+        baseline_mlp_encoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Encoder.h
+        io_feats <- baselineMLPEncoder baseline_mlp_encoder io_pairs
+        print "</baseline_encoder>"
         -- print "print . show                 $ io_feats"
         print . show . shape' $ io_feats
         -- print . show                 $ io_feats
