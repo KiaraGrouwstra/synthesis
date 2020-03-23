@@ -38,7 +38,7 @@ generationConfig = GenerationConfig
     -- NSPS: for all results, the program tree generation is conditioned on a set of 10 input/output string pairs.
     <*> option auto
         ( long "numInputs"
-        <> value 10  -- 
+        <> value 10
         <> showDefault
         <> help "max number of inputs to generate. may get less after nub filters out duplicates." )
     <*> option auto
@@ -105,6 +105,32 @@ synthesizerConfig = SynthesizerConfig
         <> value "./datasets.bin"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
+    <*> option auto
+        ( long "seed"
+        <> value 123
+        <> showDefault
+        <> help "random seed" )
+    <*> option auto
+        ( long "numEpochs"
+        <> value 1000
+        <> showDefault
+        <> help "the number of epochs to train for" )
+    <*> strOption
+        ( long "modelPath"
+        <> short 'm'
+        <> value "./synthesis.pt"
+        <> showDefault
+        <> help "the file path at which to store trained models" )
+    -- <*> option auto
+    --     ( long "batchSize"
+    --     <> value 8
+    --     <> showDefault
+    --     <> help "the batch size i.e. number of items to process in one go" )
+    <*> option auto
+        ( long "bestOf"
+        <> value 100
+        <> showDefault
+        <> help "Number of functions to sample from the model for each latent function and set of input/output examples that we test on, determining success based on the best from this sample." )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

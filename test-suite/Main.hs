@@ -54,7 +54,7 @@ main ∷ IO ()
 main = do
     -- unlike Tasy, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
-    -- void $ runTestTT $ TestList [hint, gen]
+    void $ runTestTT $ TestList [hint, gen]
 
     -- Tasty HSpec
     util_ <- testSpec "Utility" util
@@ -63,7 +63,7 @@ main = do
     find_ <- testSpec "FindHoles" find
     ast_ <- testSpec "Ast" ast
     synthesizer_ <- testSpec "Synthesizer" synthesizer
-    let tree :: TestTree = testGroup "synthesis" [synthesizer_]  -- util_, types_, typeGen_, find_, ast_, 
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
     defaultMain tree
 
 util ∷ Spec
@@ -121,6 +121,15 @@ util = parallel $ do
         let gen :: StdGen = mkStdGen seed
         let (train, _validation, _test) = randomSplit gen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length train `shouldBe` 5
+
+    it "batchList" $ do
+        batchList 2 [1,2,3,4,5 :: Int] `shouldBe` [[1,2],[3,4],[5]]
+
+    it "statistic" $ do
+        statistic (0 :: Int) (+) (const id) [1,2,3 :: Int] `shouldBe` 6
+        statistic (0 :: Int) (+) (\ xs i -> i / length xs) [1,2,3 :: Int] `shouldBe` 2
+        -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+) }) [1,2,3 :: Int] `shouldBe` 6
+        -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+), summarizer = (\ xs i -> i / length xs) }) [1,2,3 :: Int] `shouldBe` 2
 
 hint ∷ Test
 hint = let
@@ -450,137 +459,45 @@ gen = let
     --     let fn_asts = insert "not" (var "not") $ singleton "not_" $ app (var "id") $ var "not"
     --     let hm = filterTypeSigIoFnsM fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
     --     hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
-    --     -- TODO: test generic functions get priority
+    --     -- TODO: test to ensure generic functions get priority
 
     ]
+
+type BatchSize = 3
+-- dummy values to trick the compiler
+type T = 42
+type NumHoles = 123
+type Rules = 456
+-- type NumLeaves = 789
 
 synthesizer ∷ Spec
 synthesizer = parallel $ do
 
-    fit "baseline encoder" testNsps -- @123
-
-type NumHoles = 123      -- dummy value to trick the compiler?
-type Rules = 456         -- dummy value to trick the compiler?
--- type NumLeaves = 789  -- dummy value to trick the compiler?
-
--- forall numHoles rules . 
--- (KnownNat numHoles) => 
-testNsps :: IO ()
-testNsps = do
-        -- True `shouldBe` True
-
+    it "nodeRule" $ do
         nodeRule (parseExpr "f") `shouldBe` "f"
         nodeRule (parseExpr "f a b") `shouldBe` "f _ _"
         nodeRule (parseExpr "f (g c) (h d)") `shouldBe` "f _ _"
 
+    it "fnAppNodes" $ do
         pp_ (fnAppNodes $ parseExpr "f a b") `shouldBe` "[\"f\", \"a\", \"b\"]"
         pp_ (fnAppNodes $ parseExpr "f") `shouldBe` "[\"f\"]"
 
+    it "rotate" $ do
         rotate [10,20] `shouldBe` [[10,20,0],[0,10,20],[20,0,10]]
         -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
         -- rotateT r `shouldBe` ?
 
+    it "baseline encoder" $ do
+        let batchSize = natValI @BatchSize
+        -- let seed' :: Int = 123
+        let dsl = blockAsts
+        variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        let n_ :: Int = length io_pairs
-        print "<baseline_encoder>"
-        -- in action, for batch size I may use n>=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        baseline_mlp_encoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Encoder.h
-        io_feats <- baselineMLPEncoder baseline_mlp_encoder io_pairs
-        print "</baseline_encoder>"
-        -- print "print . show                 $ io_feats"
-        print . show . shape' $ io_feats
-        -- print . show                 $ io_feats
-        -- print . show . toList . Just $ io_feats
-
-        -- let device = D.Device D.CPU
-        -- print "device' <- getDevice"
-        -- device' <- getDevice
-        let device' = D.Device D.CPU 0
-        let seed' :: Int = 0
-            dsl = blockAsts
-            ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-
-        let hole_lenses = findHolesExpr ppt
-        let num_holes :: Int = case length hole_lenses of
-                0 -> error "program complete, PT is no longer a PPT!"
-                x -> x
-        print $ "num_holes: " ++ show num_holes
-
-        (variants, variant_sizes) <- interpretUnsafe $ variantSizes dsl
-        let rules :: Int = size variant_sizes
-        print $ "rules: " ++ show rules
-
-        gen :: Generator <- D.mkGenerator device' $ fromIntegral seed'
-        -- TODO: fix seeds using untyped random generation everywhere else as well
-        print $ "gen: " ++ show gen
-        let tensorOptions = withDevice device' $ withDType D.Float defaultOpts
-        print $ "tensorOptions: " ++ show tensorOptions
-        -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
-        -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
-        symbol_emb :: Tensor Dev 'D.Float '[Symbols, M] <- randn
-        -- let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
-        print $ "symbol_emb: " ++ show (shape' symbol_emb)
-        -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
-        -- symbol_expansions_emb :: Tensor Dev 'D.Float '[Rules, M] <- randn  -- Rules isn't necessarily static so no macros...
-        -- let (symbol_expansions_emb, _gen'') :: (D.Tensor, Generator) = D.randn [Rules, m] tensorOptions gen'
-        let (symbol_expansions_emb, _gen') :: (Tensor Dev 'D.Float '[Rules, M], Generator) =
-                first UnsafeMkTensor $ D.randn [rules, m] tensorOptions gen
-        print $ "symbol_expansions_emb: " ++ show (shape' symbol_expansions_emb)
-
-        r3nn_model :: R3NN M <- A.sample $ R3NNSpec
-            variant_sizes
-            -- left
-            hiddenFeatures0
-            hiddenFeatures1
-            -- right
-            hiddenFeatures0
-            hiddenFeatures1
-            -- condition MLP
-            -- waaaait, can I really cram all that back into M??
-            (m + n_ * 2 * dirs * Encoder.h * Encoder.t)
-            h0
-            h1
-            m
-            -- score MLP
-            m
-            h0
-            h1
-            m
-
-        -- print "<r3nn>"
-        -- in action, for batch size I may use >=@8, a bit under the max number of generated samples per type... can I fluff this up if there isn't a clean multiple?
-        hole_expansion_probs <- r3nn r3nn_model symbol_emb symbol_expansions_emb ppt io_feats
-        -- print "</r3nn>"
-        print . show . shape' $ hole_expansion_probs
-        -- print . show . D.shape          $ hole_expansion_probs
-        -- print . show                    $ hole_expansion_probs
-        -- print . show . toList . Just $ hole_expansion_probs
-
-        let (hole_dim, rule_dim) :: (Int, Int) = (0, 1)
-        let rule_idx_by_hole :: Tensor Dev 'D.Int64 '[NumHoles] = asUntyped (F.argmax (F.Dim rule_dim) F.RemoveDim) hole_expansion_probs
-        print . show . shape' $ rule_idx_by_hole
-        -- print . show                    $ rule_idx_by_hole
-        let best_prob_by_hole :: Tensor Dev 'D.Float '[NumHoles] = UnsafeMkTensor $ F.squeezeAll $ gather (toDynamic hole_expansion_probs) rule_dim (D.reshape [num_holes, 1] $ toDynamic rule_idx_by_hole) False
-        print . show . shape' $ best_prob_by_hole
-        print . show                    $ best_prob_by_hole
-        let hole_idx :: Int = D.asValue $ F.argmax (F.Dim 0) F.RemoveDim $ toDynamic best_prob_by_hole
-        print . show                    $ hole_idx
-        let rule_idx :: Int = D.asValue $ D.select (toDynamic rule_idx_by_hole) 0 hole_idx
-        print . show                    $ rule_idx
-        let estimated_probability :: Float = D.asValue $ D.select (D.select (toDynamic hole_expansion_probs) hole_dim hole_idx) 0 rule_idx
-        print . show                    $ estimated_probability
-
-        -- order rules: comes from symbol_expansions_emb, which is just randomly assigned,
-        -- so I don't need to match with anything,
-        -- and can just arbitrarily associate this with any deterministic order of block variants
-        let (rule_str, rule_expr) :: (String, Expr) = variants !! rule_idx
-
-        -- order NumHoles: node_embs. without SrcSpanInfo Expr isn't uniquely Hashable,
-        -- so grab hole lenses by `findHolesExpr` and ensure `node_embs` follows the same order.
-        let (hole_getter, hole_setter) :: (Expr -> Expr, Expr -> Expr -> Expr) = findHolesExpr ppt !! hole_idx
-        -- let hole :: Expr = hole_getter ppt
-        let ppt' = hole_setter ppt rule_expr
-
-        print . show $ (hole_idx, rule_idx, estimated_probability, rule_str, pp ppt')
-        -- TODO: calculate loss to backprop and train?
-        -- sample for best of 100 predictions
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * Enc.T] <- baselineMLPEncoder enc_model io_pairs
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        init_enc_model :: BaselineMLPEncoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h
+        init_r3nn_model :: R3NN m rules <- initR3nn @M @Rules variants batchSize
+        -- train @M @BatchSize @Rules synthesizerConfig taskFnDataset
+        ppt' <- predict variants r3nn_model io_feats ppt
+        pp ppt'
+        hasHoles ppt' `shouldBe` False

@@ -55,6 +55,7 @@ module Synthesis.Types
     hasFn,
     nubPp,
     unList,
+    unTuple,
     unTuple2,
     unEitherError,
     holeType,
@@ -321,12 +322,16 @@ unList = \case
   List _l exps -> exps
   _ -> error "expected list"
 
--- | unpack a list expression
+-- | unpack a tuple expression
+unTuple :: Expr -> [Expr]
+unTuple = \case
+  Tuple _l _boxed exps -> exps
+  _ -> error "expected tuple"
+
+-- | unpack a tuple2 expression
 unTuple2 :: Expr -> (Expr, Expr)
-unTuple2 = \case
-  Tuple _l _boxed exps -> case exps of
-    [a,b] -> (a,b)
-    _ -> error "expected tuple2"
+unTuple2 = unTuple `pipe` \case
+  [a,b] -> (a,b)
   _ -> error "expected tuple2"
 
 -- | unpack an either wrapping function results

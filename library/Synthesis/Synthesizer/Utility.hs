@@ -3,9 +3,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Synthesis.Synthesizer.Utility (
+    learningRate,
+    default_optim,
     Dev,
+    Tnsr,
     getDevice,
     asUntyped,
     asUntyped',
@@ -19,6 +23,10 @@ module Synthesis.Synthesizer.Utility (
     max_char,
     M,
     m,
+    -- T,
+    -- t,
+    BatchSize,
+    batchSize,
     H0,
     h0,
     H1,
@@ -30,6 +38,7 @@ module Synthesis.Synthesizer.Utility (
     padRight,
     unDim,
     shape',
+    stack',
     select',
     rotate,
     -- rotateT,
@@ -37,10 +46,19 @@ module Synthesis.Synthesizer.Utility (
     nodeRule,
     appRule,
     lookupRule,
-    variantSizes,
+    dslVariants,
+    batchTensor,
+    batchOp,
+    batchStatistic,
+    TensorStatistic,
+    meanDim,
+    shuffle,
+    -- combinedOutputs,
+    square,
 ) where
 
 import Prelude hiding (lookup)
+import System.Random (RandomGen)
 import Data.Int (Int64)
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, (!), size, keys, lookup)
@@ -56,9 +74,13 @@ import Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 import qualified Torch.Device                  as D
+import qualified Torch.Optim                   as D
+-- import qualified Torch.Functional.Internal     as D
+import qualified Torch.Functional.Internal     as F
+import qualified Torch.Functional              as F
 
 import Synthesis.Data (Expr, Tp, L)
-import Synthesis.Utility (pp, pp_)
+import Synthesis.Utility (pp, pp_, fisherYates)
 import Synthesis.Ast (genBlockVariants)
 import Synthesis.Hint (exprType)
 
@@ -71,6 +93,17 @@ type Dirs = NumberOfDirections Dir
 dirs :: Int
 dirs = natValI @Dirs
 
+-- | learning rate used in ml optimizer
+learningRate :: Float
+learningRate = 0.001
+
+-- TODO: consider which hyperparams have been / should be shared across networks
+
+-- TODO: switch to Adam
+default_optim = D.GD  -- GD
+--  :: Adam momenta1
+-- init_enc_optim  = mkAdam 0 0.9 0.999 $ flattenParameters init_enc_model
+
 -- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
 -- data Symbol = Variable | Hole
 -- type Symbols = 2
@@ -78,14 +111,26 @@ type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left
 symbols :: Int
 symbols = natValI @Symbols
 
--- actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
+-- | actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
 type MaxChar = 256
 max_char :: Int
 max_char = natValI @MaxChar
 
-type M = 20 -- number of features for R3NN expansions/symbols. must be an even number for H.
+-- | number of features for R3NN expansions/symbols. must be an even number for H.
+type M = 20
 m :: Int
 m = natValI @M
+
+-- -- | T is the maximum string length for any input or output string
+-- -- | use dynamically found values instead...
+-- type T = 20
+-- t :: Int
+-- t = natValI @T
+
+-- ensure this does not overlap with SynthesizerConfig's batchsize
+type BatchSize = 8
+batchSize :: Int
+batchSize = natValI @BatchSize
 
 -- used across a few different MLPs -- does sharing make sense?
 type H0 = 20 -- ?
@@ -104,6 +149,7 @@ hiddenFeatures1 :: Int
 hiddenFeatures1 = natValI @HiddenFeatures1
 
 type Dev = '( 'D.CPU, 0)
+type Tnsr dims = Tensor Dev 'D.Float dims
 
 getDevice :: IO D.Device
 getDevice = do
@@ -155,10 +201,18 @@ asUntyped' f tensor = let
 shape' :: Tensor device dtype shape -> [Int]
 shape' = D.shape . toDynamic
 
+-- | stack alternative with a nicer argument order
+stack' :: Int -> [D.Tensor] -> D.Tensor
+stack' = flip F.stack
+
+-- | cast Int to Int64 (i.e. Torch's Long)
+asLong :: Int -> Int64
+asLong = fromIntegral
+
 -- | `select` alternative that retains the dimension as a 1
 -- | I want this as a built-in, see https://github.com/pytorch/pytorch/issues/34788
 select' :: D.Tensor -> Int -> Int -> D.Tensor
-select' tensor dim idx = D.indexSelect tensor dim $ D.asTensor [(fromIntegral :: Int -> Int64) idx]
+select' tensor dim idx = D.indexSelect tensor dim $ D.asTensor [asLong idx]
 
 -- TODO: figure out if Torch has a built-in for this
 -- | remove the given dimension from a D.Tensor, spreading it out as a list
@@ -216,18 +270,71 @@ lookupRule hm k = case (lookup k hm) of
     Just x -> x
     Nothing -> error $ "the DSL does not contain rule " ++ show k ++ "!"
 
-variantSizes :: HashMap String Expr -> Interpreter ([(String, Expr)], HashMap String Int)
-variantSizes dsl = do
+dslVariants :: HashMap String Expr -> Interpreter [(String, Expr)]
+dslVariants dsl = do
     fn_types :: HashMap String Tp <- exprType `mapM` dsl
     -- liftIO . print $ "fn_types: " ++ pp_ fn_types
-    let variants :: [(String, Expr)] = genBlockVariants maxWildcardDepth fn_types
+    return $ genBlockVariants maxWildcardDepth fn_types
             where maxWildcardDepth = 0  -- no * here
-    -- liftIO . print $ "variants: " ++ pp_ variants
-    let variant_sizes :: HashMap String Int = fromList $ variantInt `fmap` variants
-            where variantInt :: (String, Expr) -> (String, Int) = \(k, expr) -> let
-                        exprs = fnAppNodes expr
-                        str :: String = appRule exprs
-                        i :: Int = length exprs -- - 1 -- num of args
-                    in (str, i)
-    -- liftIO . print $ "variant_sizes: " ++ show variant_sizes
-    return (variants, variant_sizes)
+
+-- | split a (batch-first) tensor into batches (zero-padded for the last one)
+batchTensor :: Int -> D.Tensor -> [D.Tensor]
+batchTensor batchSize tensor = let
+    nDim = 0
+    n = D.shape tensor !! nDim
+    numIters = (n-1) `div` batchSize
+    f :: Int -> D.Tensor = \i -> let
+            from :: Int = (i - 1) * batchSize
+            to   :: Int =  i * batchSize  - 1
+            idxs :: [Int] = [from .. to]
+            paddings :: [Int] = replicate (2 * D.dim tensor + 1) 0 <> [batchSize - n]
+        in D.indexSelect tensor nDim . F.constantPadNd1d paddings 0.0 . D.asTensor $ asLong <$> idxs
+    in f <$> [0 .. numIters]
+
+-- | batch an associative operation for use on tensor batches
+batchOp :: forall shape shape'
+        .  (Tnsr shape -> Tnsr shape') -- (Tnsr '[n, *] -> Tnsr '[*])
+        -> [Tnsr shape] -- Tnsr '[n, *]
+        -> Tnsr shape'   -- Tnsr '[*]
+batchOp f batches = f . UnsafeMkTensor $ stack' 0 $ toDynamic . f <$> batches
+
+-- batchedOp :: (D.Tensor -> D.Tensor) -> D.Tensor -> D.Tensor
+-- batchedOp f = batchOp f . batchTensor
+
+batchStatistic :: (Tnsr shape -> Tnsr '[]) -> (Tnsr '[] -> Tnsr '[]) -> [Tnsr shape] -> Tnsr '[]
+batchStatistic sufficientStatistic summarizer =
+        summarizer . batchOp sufficientStatistic
+
+-- | deprecated, not in use
+data TensorStatistic a b c = Statistic
+    { sufficient :: D.Tensor -> Tnsr '[]
+    , summarizer :: Tnsr '[] -> Tnsr '[]
+    }
+
+-- | calculate the mean over a given dimension (presuming all elements in that dimension 'count', i.e. no variable number of elements)
+-- TODO: replace this with the built-in meanDim, when it hits master
+meanDim :: forall dim shape . (KnownNat dim) => Tnsr shape -> Tnsr (DropValue shape dim)
+meanDim tensor = divScalar n $ sumDim @dim tensor
+    where
+        n = D.size (toDynamic tensor) $ natValI @dim
+
+-- | shuffle a tensor in @dimension
+shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
+shuffle gen dim tensor = (gen', shuffled)
+    where
+        n = D.size tensor dim
+        idxs = [0 .. n-1]
+        (idxs', gen') = fisherYates gen idxs
+        shuffled = D.indexSelect tensor dim $ D.asTensor $ asLong <$> idxs'
+
+-- -- combine i/o lists across type instances and take their outputs
+-- combinedOutputs :: HashMap [Tp] [(Expr, Either String Expr)] -> [Either String Expr]
+-- combinedOutputs type_ios = outputs
+--     where
+--         let io_pairs :: [(Expr, Either String Expr)] =
+--                 join . elems $ type_ios
+--         let outputs :: [Either String Expr] = snd <$> io_pairs
+
+-- | square a tensor, for use in mean-square-error loss
+square :: Tnsr shape -> Tnsr shape
+square = pow (2 :: Int)

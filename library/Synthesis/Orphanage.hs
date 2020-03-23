@@ -588,10 +588,10 @@ instance Store SrcSpan where
     poke = genericPoke
     peek = genericPeek
 
-instance Store Stuff where
+instance Store TaskFnDataset where
     size = genericSize
     poke = genericPoke
     peek = genericPeek
 
--- instance Pretty Stuff where
+-- instance Pretty TaskFnDataset where
 --   pretty = id

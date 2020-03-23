@@ -153,20 +153,16 @@ interpretIO crashOnError cmd =
 -- | meaning I also only know the types at run-time (which is when my programs are constructed).
 fnIoPairs :: Bool -> Int -> Expr -> Expr -> Interpreter [(Expr, Either String Expr)]
 fnIoPairs crashOnError n fn_ast ins = do
-  -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
   let unCurry = genUncurry n
+  -- let cmd = "do; ios :: [(_, Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ ")); return $ show ios"
   let cmd =
         pp $
-          Do
-            l
-            [ Generator
-                l
-                ( PatTypeSig
-                    l
+          Do l
+            [ Generator l
+                ( PatTypeSig l
                     (pvar "ios")
-                    $ TyList l
-                    $ TyTuple
-                      l
+                    $ tyList
+                    $ TyTuple l
                       Boxed
                       [ wildcard,
                         tyApp (tyApp (tyCon "Either") (tyCon "SomeException")) wildcard

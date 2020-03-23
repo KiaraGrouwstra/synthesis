@@ -7,7 +7,7 @@ module Synthesis.Data
     Tp,
     Expr,
     Hole,
-    Stuff (..),
+    TaskFnDataset (..),
     GenerationConfig (..),
     SynthesizerConfig (..),
   )
@@ -52,12 +52,14 @@ type Expr = Exp L
 type Hole = SpecialCon L -- ExprHole
 
 -- | things I wanna transfer between generation and synthesis sessions
-data Stuff = Stuff { fn_types :: HashMap Expr Tp
-                    , fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
-                    , fn_in_type_instantiations :: HashMap Expr [[Tp]]
-                    , rest_instantiation_inputs :: HashMap Tp [Expr]
-                    , datasets :: ([Expr], [Expr], [Expr])
-                    } deriving (Show, Generic)
+data TaskFnDataset = TaskFnDataset
+  { fn_types :: HashMap Expr Tp
+  , fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
+  , fn_in_type_instantiations :: HashMap Expr [[Tp]]
+  , rest_instantiation_inputs :: HashMap Tp [Expr]
+  , datasets :: ([Expr], [Expr], [Expr])
+  , expr_blocks :: [(String, Expr)]
+  } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig
   { filePath :: String
@@ -83,4 +85,9 @@ data GenerationConfig = GenerationConfig
 
 data SynthesizerConfig = SynthesizerConfig
   { filePath :: String
+  , seed :: Int
+  , numEpochs :: Int
+  , modelPath :: String
+  -- , batchSize :: Int
+  , bestOf :: Int
   } deriving (Show, Generic)

@@ -35,6 +35,7 @@ dependencies:
   - unordered-containers
   - ghc-lib-parser
   - random
+  - mtl
   - hasktorch
 
 library:

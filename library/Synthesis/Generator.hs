@@ -7,7 +7,7 @@ module Synthesis.Generator
   )
 where
 
-import Control.Monad (filterM, forM_)
+import Control.Monad (join, filterM, forM_)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy
   ( (!),
@@ -21,7 +21,7 @@ import Data.HashMap.Lazy
     union,
   )
 import qualified Data.HashMap.Lazy as HM
-import Data.List (partition)
+import Data.List (partition, maximum)
 import Data.Store (encode, decodeIO)
 import qualified Data.ByteString as BS
 import System.Random (StdGen, mkStdGen)
@@ -34,7 +34,7 @@ import Synthesis.Ast
 import Synthesis.Orphanage
 import Synthesis.Types
 import Synthesis.TypeGen
-import Synthesis.Data (Expr, Tp, Stuff (..), GenerationConfig (..))
+import Synthesis.Data (Expr, Tp, TaskFnDataset (..), GenerationConfig (..))
 import Synthesis.Configs
 import Synthesis.Utility
 import Util (secondM)
@@ -145,9 +145,8 @@ program = do
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
   let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
-  -- let stuff = (fn_types, fn_in_type_instance_outputs, fn_in_type_instantiations, rest_instantiation_inputs, (train, validation, test))
-  let stuff = Stuff {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test)}
-  liftIO $ BS.writeFile filePath $ encode stuff
+  liftIO $ BS.writeFile filePath $ encode $
+      TaskFnDataset {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test), expr_blocks=expr_blocks}
 
   say "\n\nenumerating function i/o examples:"
   forM_ kept_fns $ \ast -> do
@@ -156,3 +155,9 @@ program = do
     say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
     let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
     say $ pp_ in_type_instance_outputs
+
+  say $ "\nrules: " <> show (length expr_blocks)
+  let ios :: [(Expr, Either String Expr)] =
+          join . elems $ join . elems <$> fn_in_type_instance_outputs
+  let longest_string :: Int = maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
+  say $ "\nmax input/output string length: " <> show longest_string

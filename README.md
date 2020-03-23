@@ -57,3 +57,6 @@ profiterole generator.prof
 questions for NSPS authors:
 - why not concatenate i/o features directly to symbol features?
 - why does the two recursive passes use leaf embeddings tho not branch (production rule) embeddings?
+- is the 'best of 100' mechanic also used during training?
+- what loss function is used?
+- how do they update the models without a backprop-able loss?

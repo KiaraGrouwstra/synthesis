@@ -29,6 +29,12 @@ module Synthesis.Utility
     filterHmM,
     pickKeysSafe,
     nest,
+    batchList,
+    statistic,
+    statistic',
+    Statistic,
+    stat,
+    pipe,
   )
 where
 
@@ -56,6 +62,10 @@ mapTuple = join (***)
 -- | map over of a 3-element tuple
 mapTuple3 :: (a -> b) -> (a, a, a) -> (b, b, b)
 mapTuple3 f (a1, a2, a3) = (f a1, f a2, f a3)
+
+-- -- | map over of a 4-element tuple
+-- mapTuple4 :: (a -> b) -> (a, a, a, a) -> (b, b, b, b)
+-- mapTuple4 f (a1, a2, a3, a4) = (f a1, f a2, f a3, f a4)
 
 -- | convert a list of 3(+) items to a tuple of 3
 tuplify3 :: [a] -> (a, a, a)
@@ -199,3 +209,48 @@ equating p x y = p x == p y
 -- | monadic version of nTimes
 nest :: (Monad m) => Int -> (a -> m a) -> a -> m a
 nest n f x0 = foldM (\x () -> f x) x0 (replicate n ())
+
+-- | split a list into batches of a given size (or less for the last batch)
+-- | deprecated, not in use
+batchList :: Int -> [a] -> [[a]]
+batchList n xs = batchList' n [] xs
+  where
+    batchList' n batches xs = let
+        (batch, rest) = splitAt n xs
+        batches' = batches <> [batch]
+      in case rest of
+          [] -> batches'
+          _  -> batchList' n batches' rest
+
+-- is there a point in this if statistics already constitute most Prelude / HaskTorch functions?
+-- | calculate a statistic for a dataset given an accumulator, a sufficient statistic (fold fn), and a summarizer
+-- | deprecated, not in use
+statistic :: Foldable f => b -> (a -> b -> b) -> (f a -> b -> c) -> f a -> c
+statistic acc sufficientStatistic summarizer xs =
+        summarizer xs $ foldr sufficientStatistic acc xs
+
+-- | calculate a statistic for a dataset given a Statistic
+-- | deprecated, not in use
+statistic' :: Foldable f => Statistic f a b c -> f a -> c
+statistic' st xs =
+        (summarizer st) xs $ foldr (sufficientStatistic st) (acc st) xs
+
+-- | an (associative) statistic measure compatible with online calculation. this generalizes map-reduce to potentially lower memory complexity as sufficient statistics ensure we may just maintain an accumulator rather than a full mapped data structure.
+-- | deprecated, not in use
+data Statistic f a b c = Statistic
+    { acc                 ::  b
+    , sufficientStatistic ::  a  -> b -> b
+    , summarizer          :: Foldable f => f a -> b -> c
+    }
+
+-- | default statistic to override
+-- | deprecated, not in use
+stat = Statistic
+    { acc = undefined
+    , sufficientStatistic = flip const id
+    , summarizer = const id
+    }
+
+-- | flipped composition
+pipe :: (a -> b) -> (b -> c) -> a -> c
+pipe = flip (.)

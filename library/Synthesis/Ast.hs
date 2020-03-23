@@ -39,7 +39,7 @@ genBlockVariants maxWildcardDepth block_types =
 genHoledVariants :: Int -> String -> Tp -> [Expr]
 genHoledVariants maxDepth k tp = let
     genHoledVariants' :: Int -> Tp -> Expr -> [Expr] = \ maxDepth tp expr ->
-      let holed = app expr . expTypeSig holeExpr
+      let holed = app expr . skeleton
       in expr : case tp of
             TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
               TyFun _l a b -> genHoledVariants' maxDepth b $ holed a
@@ -93,7 +93,7 @@ holeExpr = var "undefined"
 
 -- | make a typed hole for a type
 skeleton :: Tp -> Expr
-skeleton = ExpTypeSig l holeExpr
+skeleton = expTypeSig holeExpr
 
 -- | generate an expression for an n-ary uncurry function, e.g. for n=2: `\ fn (a, b) -> fn a b`
 genUncurry :: Int -> Expr
