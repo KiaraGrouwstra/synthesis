@@ -2,18 +2,19 @@
 
 -- | ast manipulation
 module Synthesis.Ast
-  ( skeleton,
-    hasHoles,
-    holeExpr,
-    numAstNodes,
-    letRes,
-    genBlockVariants,
-    genHoledVariants,
-    anyFn,
-    genUncurry,
-    genFnType,
-    genFnInType,
-    genInputs,
+  ( module Synthesis.Ast
+    -- skeleton,
+    -- hasHoles,
+    -- holeExpr,
+    -- numAstNodes,
+    -- letRes,
+    -- genBlockVariants,
+    -- genHoledVariants,
+    -- anyFn,
+    -- genUncurry,
+    -- genFnType,
+    -- genFnInType,
+    -- genInputs,
   )
 where
 
@@ -37,7 +38,7 @@ genBlockVariants maxWildcardDepth block_types =
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
 genHoledVariants :: Int -> String -> Tp -> [Expr]
-genHoledVariants maxDepth k tp = let
+genHoledVariants = let
     genHoledVariants' :: Int -> Tp -> Expr -> [Expr] = \ maxDepth tp expr ->
       let holed = app expr . skeleton
       in expr : case tp of
@@ -49,21 +50,21 @@ genHoledVariants maxDepth k tp = let
               0 -> []
               _ -> genHoledVariants' (maxDepth - 1) tp $ holed wildcard
             _ -> []
-  in genHoledVariants' maxDepth tp $ var k
+  in \ maxDepth k tp -> genHoledVariants' maxDepth tp $ var k
 
--- | generate a function type, to then generate functions matching this type
--- | deprecated, not in use
-genFnType :: Int -> IO Tp -- TyFun
-genFnType nestLimit = randomFnType True True nestLimit empty tyVarCount
-  where
-    tyVarCount :: Int = 0 -- TODO: is this okay?
+-- -- | generate a function type, to then generate functions matching this type
+-- -- | deprecated, not in use
+-- genFnType :: Int -> IO Tp -- TyFun
+-- genFnType nestLimit = randomFnType True True nestLimit empty tyVarCount
+--   where
+--     tyVarCount :: Int = 0 -- TODO: is this okay?
 
--- | generate a parameter type, to then generate functions taking this input
--- | deprecated, not in use
-genFnInType :: Int -> IO Tp -- TyFun
-genFnInType nestLimit = randomType True True nestLimit empty tyVarCount
-  where
-    tyVarCount :: Int = 0 -- TODO: is this okay?
+-- -- | generate a parameter type, to then generate functions taking this input
+-- -- | deprecated, not in use
+-- genFnInType :: Int -> IO Tp -- TyFun
+-- genFnInType nestLimit = randomType True True nestLimit empty tyVarCount
+--   where
+--     tyVarCount :: Int = 0 -- TODO: is this okay?
 
 -- | _ :: (_ -> _)
 anyFn :: Expr

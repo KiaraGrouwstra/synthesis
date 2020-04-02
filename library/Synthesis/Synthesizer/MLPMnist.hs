@@ -14,6 +14,7 @@
 -- {-# LANGUAGE PartialTypeSignatures #-}
 
 module Synthesis.Synthesizer.MLPMnist (
+  -- module Synthesis.Synthesizer.MLPMnist
   -- main,
 ) where
 

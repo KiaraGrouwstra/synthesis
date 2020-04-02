@@ -15,6 +15,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Synthesis.Synthesizer.TypedMLP (
+    -- module Synthesis.Synthesizer.TypedMLP
     -- MLPSpec (..),
     -- MLP (..),
     -- mlp,

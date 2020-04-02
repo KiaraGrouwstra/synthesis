@@ -7,14 +7,15 @@
 {-# LANGUAGE NoStarIsType #-}
 
 module Synthesis.Synthesizer.Encoder (
-    -- NumLayers,
-    Dev,
-    H,
-    h,
-    BaselineMLPEncoderSpec (..),
-    BaselineMLPEncoder,
-    -- baseline_lstm_encoder,
-    baselineMLPEncoder,
+    module Synthesis.Synthesizer.Encoder
+--     -- NumLayers,
+--     Dev,
+--     H,
+--     h,
+--     BaselineMLPEncoderSpec (..),
+--     BaselineMLPEncoder,
+--     -- baseline_lstm_encoder,
+--     baselineMLPEncoder,
 ) where
 
 -- import GHC.Exts (fromList)
@@ -25,14 +26,14 @@ import Data.Char (ord)
 -- import Data.Foldable (foldrM)
 -- import qualified GHC.TypeNats
 import GHC.Generics (Generic)
-import GHC.TypeNats (Nat, KnownNat, Mod, type (*), type (+), type (-))
+import GHC.TypeNats (KnownNat, type (*)) -- , Nat, Mod, type (+), type (-)
 
 import Torch.Typed.Tensor
-import Torch.Typed.Functional
-import Torch.Typed.NN
+-- import Torch.Typed.Functional
+-- import Torch.Typed.NN
 -- import Torch.Typed.Factories
 import Torch.Typed.Aux
-import Torch.HList
+-- import Torch.HList
 -- import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
@@ -41,7 +42,7 @@ import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 -- import qualified Torch.Device                  as D
 -- import qualified Torch.Functional.Internal     as D
-import Torch.Typed.NN.Recurrent.LSTM
+-- import Torch.Typed.NN.Recurrent.LSTM
 -- import Torch.Functional.Internal (stack)
 
 import Synthesis.Data (Expr)
@@ -86,13 +87,14 @@ instance A.Randomizable BaselineMLPEncoderSpec BaselineMLPEncoder where
 
 -- baseline_lstm_encoder
 baselineMLPEncoder
-    :: forall batchSize t
-     . (KnownNat batchSize, KnownNat t)
+    :: forall batch_size t
+     . (KnownNat batch_size, KnownNat t)
     => BaselineMLPEncoder
     -> [(Expr, Either String Expr)]
-    -> IO (Tnsr '[batchSize, 2 * Dirs * H * t])
+    -> IO (Tnsr '[batch_size, 2 * Dirs * H * t])
 baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
-    let t = natValI @t  -- I cannot use dummy values for this as it actually determines tensor lengths...
+    let t_ :: Int = natValI @t  -- I cannot use dummy values for this as it actually determines tensor lengths...
+    let batch_size_ :: Int = natValI @batch_size
     let n_ :: Int = length io_pairs
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
@@ -101,7 +103,7 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- let dropoutSpec :: DropoutSpec = DropoutSpec dropoutRate -- drop-out not mentioned in NSPS
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
     let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip D.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
-    let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t) . second (str2tensor t) <$> str_pairs
+    let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
     -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??
@@ -127,10 +129,10 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --             -- feat_ :: Tnsr '[2 * Dirs * H * t] = reshape '[2 * Dirs * H * t] feat
     --         in feat
     -- -- | We then concatenate the encoding vectors across all I/O pairs to get a vector representation of the entire I/O set.
-    -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
-    -- -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = stack @0 feat_vecs
+    -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
+    -- -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tnsr '[batchSize, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * Dirs * h * t]) feat_vec
 
     -- -- sequential
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -158,10 +160,10 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --                 return (feat : feats, spec_in_, spec_out_)
     -- feat_vecs :: [Tnsr '[2 * Dirs * H * t]] <- foldrM f ([], LSTMWithZerosInitSpec lstm_spec, LSTMWithZerosInitSpec lstm_spec) vec_pairs
     -- -- | We then concatenate the encoding vectors across all I/O pairs to get a vector representation of the entire I/O set.
-    -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
-    -- -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = stack @0 feat_vecs
+    -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
+    -- -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tnsr '[batchSize, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, t as N
     -- let lstm_spec :: LSTMSpec t H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -190,10 +192,10 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- -- feat_vecs :: [Tnsr '[2 * Dirs * H * t]] <- foldrM f ([], LSTMWithZerosInitSpec lstm_spec, LSTMWithZerosInitSpec lstm_spec) vec_pairs
     -- (feat_vecs, _spec_in, _spec_out) :: ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec) <- foldrM f ([], LSTMWithZerosInitSpec lstm_spec, LSTMWithZerosInitSpec lstm_spec) vec_pairs
     -- -- | We then concatenate the encoding vectors across all I/O pairs to get a vector representation of the entire I/O set.
-    -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
-    -- -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = stack @0 feat_vecs
+    -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
+    -- -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tnsr '[batchSize, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- -- sequential: hidden, loop over t
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -227,37 +229,37 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- -- feat_vecs :: [Tnsr '[2 * Dirs * H * t]] <- foldrM f ([], LSTMWithZerosInitSpec lstm_spec, LSTMWithZerosInitSpec lstm_spec) vec_pairs
     -- (feat_vecs, _spec_in, _spec_out) :: ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec) <- foldrM f ([], LSTMWithZerosInitSpec lstm_spec, LSTMWithZerosInitSpec lstm_spec) vec_pairs
     -- -- | We then concatenate the encoding vectors across all I/O pairs to get a vector representation of the entire I/O set.
-    -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
-    -- -- let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] = stack @0 feat_vecs
+    -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = UnsafeMkTensor $ stack' 0 $ toDynamic <$> feat_vecs
+    -- -- let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] = stack @0 feat_vecs
     -- -- flatten results at the end
-    -- let feat_vec_ :: Tnsr '[batchSize, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    -- let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size
-    let stackPad :: [D.Tensor] -> Tnsr '[batchSize, t, MaxChar] =
-            UnsafeMkTensor . F.constantPadNd1d [0, 0, 0, 0, 0, (natValI @batchSize) - n_] 0.0 . stack' 0
-    let  in_vec :: Tnsr '[batchSize, t, MaxChar] =
+    let stackPad :: [D.Tensor] -> Tnsr '[batch_size, t, MaxChar] =
+            UnsafeMkTensor . F.constantPadNd1d [0, 0, 0, 0, 0, batch_size_ - n_] 0.0 . stack' 0
+    let  in_vec :: Tnsr '[batch_size, t, MaxChar] =
             stackPad $ toDynamic . fst <$> vec_pairs
     -- print $ "in_vec: " ++ show (D.shape $ toDynamic in_vec)
-    let out_vec :: Tnsr '[batchSize, t, MaxChar] =
+    let out_vec :: Tnsr '[batch_size, t, MaxChar] =
             stackPad $ toDynamic . snd <$> vec_pairs
     -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
 
     -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
-    let emb_in  :: Tnsr '[batchSize, t, Dirs * H] =
+    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] =
             asUntyped (UntypedMLP.mlp in_model) in_vec
-    let emb_out :: Tnsr '[batchSize, t, Dirs * H] =
+    let emb_out :: Tnsr '[batch_size, t, Dirs * H] =
             asUntyped (UntypedMLP.mlp out_model) out_vec
 
     -- -- TODO: replace this with an untyped lstm
     -- let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
     -- let spec :: Spec = LSTMWithZerosInitSpec lstm_spec
-    -- let lstm_step :: Tnsr '[batchSize, t, MaxChar] -> IO (Tnsr '[batchSize, t, Dirs * H]) = \tensor -> do
+    -- let lstm_step :: Tnsr '[batch_size, t, MaxChar] -> IO (Tnsr '[batch_size, t, Dirs * H]) = \tensor -> do
     --         lstm_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (emb, _hidden, _cell) :: (
-    --                 Tnsr '[batchSize, t, Dirs * H],
-    --                 Tnsr '[Dirs * NumLayers, batchSize, H],
-    --                 Tnsr '[Dirs * NumLayers, batchSize, H])
+    --                 Tnsr '[batch_size, t, Dirs * H],
+    --                 Tnsr '[Dirs * NumLayers, batch_size, H],
+    --                 Tnsr '[Dirs * NumLayers, batch_size, H])
     --                     = lstmWithoutDropout @'BatchFirst lstm_model tensor
     --         return emb
     -- emb_in  <- lstm_step  in_vec
@@ -266,12 +268,12 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
 
     -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    let feat_vec :: Tnsr '[batchSize, t, 2 * Dirs * H] =
+    let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] =
             -- cat @2 $ emb_in :. emb_out :. HNil
             UnsafeMkTensor $ F.cat 2 $ toDynamic <$> [emb_in, emb_out]
     -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
-    let feat_vec_ :: Tnsr '[batchSize, 2 * Dirs * H * t] =
-            asUntyped (D.reshape [n_, 2 * dirs * h * t]) feat_vec
+    let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] =
+            asUntyped (D.reshape [n_, -1]) feat_vec   -- [n_, 2 * dirs * h * t_]
             -- = reshape feat_vec
     -- print $ "feat_vec_: " ++ show (D.shape $ toDynamic feat_vec_)
 

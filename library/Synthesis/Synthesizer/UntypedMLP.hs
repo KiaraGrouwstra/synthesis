@@ -3,15 +3,16 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Synthesis.Synthesizer.UntypedMLP (
-    MLPSpec (..),
-    MLP (..),
-    mlp,
+    module Synthesis.Synthesizer.UntypedMLP
+    -- MLPSpec (..),
+    -- MLP (..),
+    -- mlp,
 ) where
 
 -- import Control.Monad (when)
 import GHC.Generics
-import System.Random (mkStdGen, randoms)
--- import Prelude hiding (exp)
+-- import System.Random (mkStdGen, randoms)
+import Prelude hiding (exp, tanh)
 
 import Torch
 -- import qualified Torch.Typed.Vision as V hiding (getImages')
@@ -44,9 +45,9 @@ mlp :: MLP -> Tensor -> Tensor
 mlp MLP{..} input = 
     logSoftmax 1
     . linear l2
-    . relu
+    . tanh  -- relu
     . linear l1
-    . relu
+    . tanh  -- relu
     . linear l0
     $ input
 

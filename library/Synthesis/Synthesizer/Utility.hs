@@ -4,89 +4,110 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Synthesis.Synthesizer.Utility (
-    learningRate,
-    default_optim,
-    Dev,
-    Tnsr,
-    getDevice,
-    asUntyped,
-    asUntyped',
-    -- availableDevices,
-    Dir,
-    Dirs,
-    dirs,
-    Symbols,
-    symbols,
-    MaxChar,
-    max_char,
-    M,
-    m,
-    -- T,
-    -- t,
-    BatchSize,
-    batchSize,
-    H0,
-    h0,
-    H1,
-    h1,
-    HiddenFeatures0,
-    hiddenFeatures0,
-    HiddenFeatures1,
-    hiddenFeatures1,
-    padRight,
-    unDim,
-    shape',
-    stack',
-    select',
-    rotate,
-    -- rotateT,
-    fnAppNodes,
-    nodeRule,
-    appRule,
-    lookupRule,
-    dslVariants,
-    batchTensor,
-    batchOp,
-    batchStatistic,
-    TensorStatistic,
-    meanDim,
-    shuffle,
-    -- combinedOutputs,
-    square,
-) where
+module Synthesis.Synthesizer.Utility
+ (
+    module Synthesis.Synthesizer.Utility
+--     learningRate,
+--     default_optim,
+--     Dev,
+--     Tnsr,
+--     getDevice,
+--     asUntyped,
+--     asUntyped',
+--     -- availableDevices,
+--     Dir,
+--     Dirs,
+--     dirs,
+--     Symbols,
+--     symbols,
+--     Rules,
+--     rules,
+--     MaxChar,
+--     max_char,
+--     M,
+--     m,
+--     -- T,
+--     -- t,
+--     BatchSize,
+--     batchSize,
+--     H0,
+--     h0,
+--     H1,
+--     h1,
+--     HiddenFeatures0,
+--     hiddenFeatures0,
+--     HiddenFeatures1,
+--     hiddenFeatures1,
+--     padRight,
+--     unDim,
+--     shape',
+--     stack',
+--     select',
+--     rotate,
+--     -- rotateT,
+--     fnAppNodes,
+--     nodeRule,
+--     appRule,
+--     lookupRule,
+--     dslVariants,
+--     batchTensor,
+--     batchOp,
+--     batchStatistic,
+--     TensorStatistic,
+--     meanDim,
+--     shuffle,
+--     -- combinedOutputs,
+--     square,
+--     scan,
+--     cumulative,
+--     assertP,
+--     softmaxAll,
+--     foldLoop,
+--     foldLoop_,
+--     unravelIdx,
+--     indexList,
+--     crossEntropy,
+--     f_sumDim,
+--     setAt,
+    ) where
 
-import Prelude hiding (lookup)
-import System.Random (RandomGen)
+import Prelude hiding (lookup, exp)
+-- import qualified Prelude
+import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
+import Data.Maybe (fromJust)
+import Data.List (findIndex)
 import Data.Hashable (Hashable)
-import Data.HashMap.Lazy (HashMap, fromList, (!), size, keys, lookup)
+import Data.HashMap.Lazy (HashMap, fromList, lookup)
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
-import GHC.TypeNats (Nat, KnownNat)
-import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
+import Control.Monad (void, foldM)
+-- import GHC.TypeNats (KnownNat)
+import Language.Haskell.Interpreter (Interpreter)  -- , lift, liftIO
 import Language.Haskell.Exts.Syntax
 
-import Torch.Typed.Aux (Index, type IndexImpl, natValI)
-import Torch.Typed.Tensor
+import Torch.Typed.Aux (natValI)
+import Torch.Typed.Tensor hiding (dim)
 import Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 import qualified Torch.Device                  as D
 import qualified Torch.Optim                   as D
 -- import qualified Torch.Functional.Internal     as D
-import qualified Torch.Functional.Internal     as F
+import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 
-import Synthesis.Data (Expr, Tp, L)
-import Synthesis.Utility (pp, pp_, fisherYates)
+import Synthesis.Data (Expr, Tp)
+import Synthesis.Utility (pp, fisherYates) -- , pp_
 import Synthesis.Ast (genBlockVariants)
 import Synthesis.Hint (exprType)
 
--- import qualified Torch.Internal.Managed.Type.Context     as ATen
--- import Torch.Internal.Cast (cast0)
--- import System.IO.Unsafe (unsafePerformIO)
+import System.IO.Unsafe (unsafePerformIO)
+import Torch.Internal.Cast
+import qualified Torch.Internal.Managed.Native as ATen
+-- import qualified Torch.Internal.Managed.Type.Context as ATen
 
 type Dir = 'Bidirectional
 type Dirs = NumberOfDirections Dir
@@ -100,6 +121,7 @@ learningRate = 0.001
 -- TODO: consider which hyperparams have been / should be shared across networks
 
 -- TODO: switch to Adam
+default_optim :: D.GD  -- D.Optimizer D.GD
 default_optim = D.GD  -- GD
 --  :: Adam momenta1
 -- init_enc_optim  = mkAdam 0 0.9 0.999 $ flattenParameters init_enc_model
@@ -111,6 +133,10 @@ type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left
 symbols :: Int
 symbols = natValI @Symbols
 
+type Rules = 92     -- Tamandu
+-- rules :: Int
+-- rules = natValI @Rules
+
 -- | actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
 type MaxChar = 256
 max_char :: Int
@@ -118,8 +144,8 @@ max_char = natValI @MaxChar
 
 -- | number of features for R3NN expansions/symbols. must be an even number for H.
 type M = 20
-m :: Int
-m = natValI @M
+-- m :: Int
+-- m = natValI @M
 
 -- -- | T is the maximum string length for any input or output string
 -- -- | use dynamically found values instead...
@@ -203,7 +229,7 @@ shape' = D.shape . toDynamic
 
 -- | stack alternative with a nicer argument order
 stack' :: Int -> [D.Tensor] -> D.Tensor
-stack' = flip F.stack
+stack' = flip I.stack
 
 -- | cast Int to Int64 (i.e. Torch's Long)
 asLong :: Int -> Int64
@@ -263,6 +289,7 @@ nodeRule = appRule . fnAppNodes
 -- | serialize a function application chain as a skeleton
 appRule :: [Expr] -> String
 appRule = \case
+            [] -> error "no fn!"
             fn : args -> unwords $ pp fn : replicate (length args) "_"
 
 lookupRule :: (Eq k, Hashable k, Show k) => HashMap k v -> k -> v
@@ -279,15 +306,15 @@ dslVariants dsl = do
 
 -- | split a (batch-first) tensor into batches (zero-padded for the last one)
 batchTensor :: Int -> D.Tensor -> [D.Tensor]
-batchTensor batchSize tensor = let
+batchTensor batch_size tensor = let
     nDim = 0
     n = D.shape tensor !! nDim
-    numIters = (n-1) `div` batchSize
+    numIters = (n-1) `div` batch_size
     f :: Int -> D.Tensor = \i -> let
-            from :: Int = (i - 1) * batchSize
-            to   :: Int =  i * batchSize  - 1
+            from :: Int = (i - 1) * batch_size
+            to   :: Int =  i * batch_size  - 1
             idxs :: [Int] = [from .. to]
-            paddings :: [Int] = replicate (2 * D.dim tensor + 1) 0 <> [batchSize - n]
+            paddings :: [Int] = replicate (2 * D.dim tensor + 1) 0 <> [batch_size - n]
         in D.indexSelect tensor nDim . F.constantPadNd1d paddings 0.0 . D.asTensor $ asLong <$> idxs
     in f <$> [0 .. numIters]
 
@@ -305,20 +332,20 @@ batchStatistic :: (Tnsr shape -> Tnsr '[]) -> (Tnsr '[] -> Tnsr '[]) -> [Tnsr sh
 batchStatistic sufficientStatistic summarizer =
         summarizer . batchOp sufficientStatistic
 
--- | deprecated, not in use
-data TensorStatistic a b c = Statistic
-    { sufficient :: D.Tensor -> Tnsr '[]
-    , summarizer :: Tnsr '[] -> Tnsr '[]
-    }
+-- -- | deprecated, not in use
+-- data TensorStatistic a b c = Statistic
+--     { sufficient :: D.Tensor -> Tnsr '[]
+--     , summarizer :: Tnsr '[] -> Tnsr '[]
+--     }
 
--- | calculate the mean over a given dimension (presuming all elements in that dimension 'count', i.e. no variable number of elements)
--- TODO: replace this with the built-in meanDim, when it hits master
-meanDim :: forall dim shape . (KnownNat dim) => Tnsr shape -> Tnsr (DropValue shape dim)
-meanDim tensor = divScalar n $ sumDim @dim tensor
-    where
-        n = D.size (toDynamic tensor) $ natValI @dim
+-- -- | calculate the mean over a given dimension (presuming all elements in that dimension 'count', i.e. no variable number of elements)
+-- -- TODO: replace this with the built-in meanDim, when it hits master
+-- meanDim :: forall dim shape . (KnownNat dim) => Tnsr shape -> Tnsr (DropValue shape dim)
+-- meanDim tensor = divScalar n $ f_sumDim @dim tensor
+--     where
+--         n = D.size (toDynamic tensor) $ natValI @dim
 
--- | shuffle a tensor in @dimension
+-- | shuffle a tensor in a given dimension
 shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
 shuffle gen dim tensor = (gen', shuffled)
     where
@@ -338,3 +365,80 @@ shuffle gen dim tensor = (gen', shuffled)
 -- | square a tensor, for use in mean-square-error loss
 square :: Tnsr shape -> Tnsr shape
 square = pow (2 :: Int)
+
+-- | cumulative fold
+scan :: (Foldable t) => a -> (a -> a -> a) -> t a -> [a]
+scan acc f = tail . foldl (\ as a -> as <> [f a (last as)]) [acc]
+
+-- | get cumulative probabilities
+cumulative :: (Num a, Foldable t) => t a -> [a]
+cumulative = scan 0 (+)
+
+-- | randomly pick an item by relative probabilities (should sum to 1).
+categorical :: (RandomGen g, Fractional a, Ord a, Random a, Foldable t) => g -> t a -> Int
+categorical gen probs =
+    fromJust . findIndex (> x) $ cumulative probs
+    where (x, _gen') = random gen
+
+-- | make an assertion thru a predicate
+assertP :: (a -> Bool) -> a -> a
+assertP pred_fn x = assert (pred_fn x) x
+
+-- | apply a softmax over all dimensions
+-- softmaxAll :: Tensor device 'D.Float shape -> Tensor device 'D.Float shape
+-- softmaxAll t = divScalar (toFloat $ sumAll e) e
+--     where e = exp t
+softmaxAll :: D.Tensor -> D.Tensor
+softmaxAll t = ((F.divScalar e) :: Float -> D.Tensor) . D.asValue . F.sumAll $ e
+    where e = F.exp t
+
+-- | loop n-times, retaining state
+foldLoop :: forall a b m . (Num a, Enum a, Monad m) => b -> a -> (b -> a -> m b) -> m b
+foldLoop x count block = foldM block x ([1 .. count] :: [a])
+
+-- | loop n-times, retaining state then discarding it at the end
+foldLoop_ :: forall a b m . (Num a, Enum a, Monad m) => b -> a -> (b -> a -> m b) -> m ()
+foldLoop_ = ((void .) .) . foldLoop
+
+-- | like np.unravel_idx, unravel a flat index (from e.g. argmax_t) to the dimensions of a tensor
+unravelIdx :: D.Tensor -> Int -> [Int]
+unravelIdx t idx = snd . foldr (\ dim_ (idx_, idxs) -> (idx_ `Prelude.div` dim_, idx_ `Prelude.mod` dim_ : idxs)) (idx, []) $ D.shape t
+
+-- | create a reverse index (elements to indices) from a list
+indexList :: (Eq a, Hashable a) => [a] -> HashMap a Int
+indexList xs = fromList $ zip xs [0 .. length xs - 1]
+
+-- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
+crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor
+crossEntropy target dim input = F.nllLoss' (F.logSoftmax dim input) target
+
+-- | TODO: replace with actual F.sumDim
+f_sumDim :: Int -> D.Tensor -> D.Tensor
+-- f_sumDim dim t = I.sumDim t dim False $ D.dtype t
+f_sumDim dim t = foldr F.add (last slices) $ init slices
+    where slices = unDim dim t
+
+-- -- | TODO: replace with actual F.squeezeDim
+f_squeezeDim :: Int -> D.Tensor -> D.Tensor
+f_squeezeDim dim t = unsafePerformIO $ (cast2 ATen.squeeze_tl) t dim
+
+-- | 'setAt' sets the element at the index.
+-- | If the index is negative or exceeds list length, the original list will be returned.
+-- | src: https://hackage.haskell.org/package/ilist-0.4.0.0/docs/src/Data.List.Index.html#setAt
+setAt :: Int -> a -> [a] -> [a]
+setAt i a ls
+  | i < 0 = ls
+  | otherwise = go i ls
+  where
+    go 0 (_:xs) = a : xs
+    go n (x:xs) = x : go (n-1) xs
+    go _ []     = []
+
+-- TODO: import from hasktorch
+f_multinomial_tlb
+  :: D.Tensor
+  -> Int
+  -> Bool
+  -> IO D.Tensor
+f_multinomial_tlb t l b =
+  (cast3 ATen.multinomial_tlb) t l b

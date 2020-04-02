@@ -3,13 +3,14 @@
 
 -- | self-defined types
 module Synthesis.Data
-  ( L,
-    Tp,
-    Expr,
-    Hole,
-    TaskFnDataset (..),
-    GenerationConfig (..),
-    SynthesizerConfig (..),
+  ( module Synthesis.Data
+    -- L,
+    -- Tp,
+    -- Expr,
+    -- Hole,
+    -- TaskFnDataset (..),
+    -- GenerationConfig (..),
+    -- SynthesizerConfig (..),
   )
 where
 
@@ -48,17 +49,17 @@ type Tp = Type L
 -- | specific to l2 with the same type.
 type Expr = Exp L
 
--- | deprecated, not in use
-type Hole = SpecialCon L -- ExprHole
+-- -- | deprecated, not in use
+-- type Hole = SpecialCon L -- ExprHole
 
 -- | things I wanna transfer between generation and synthesis sessions
 data TaskFnDataset = TaskFnDataset
-  { fn_types :: HashMap Expr Tp
-  , fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
-  , fn_in_type_instantiations :: HashMap Expr [[Tp]]
-  , rest_instantiation_inputs :: HashMap Tp [Expr]
+  { fnTypes :: HashMap Expr Tp
+  , fnInTypeInstanceOutputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
+  , fnInTypeInstantiations :: HashMap Expr [[Tp]]
+  , restInstantiationInputs :: HashMap Tp [Expr]
   , datasets :: ([Expr], [Expr], [Expr])
-  , expr_blocks :: [(String, Expr)]
+  , exprBlocks :: [(String, Expr)]
   } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig

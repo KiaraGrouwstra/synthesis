@@ -5,66 +5,67 @@
 
 -- | utility functions specifically related to types
 module Synthesis.Types
-  ( tyCon,
-    tyApp,
-    tyApp_,
-    var,
-    tyVar,
-    qName,
-    l,
-    star,
-    wildcard,
-    expTypeSig,
-    tyFun,
-    letIn,
-    app,
-    appFn,
-    appArg,
-    parseExpr,
-    parseType,
-    undef,
-    iParam,
-    unIPName,
-    typeA,
-    unQName,
-    unName,
-    tyForall,
-    unParseResult,
-    unit,
-    symbol,
-    pvar,
-    ptuple,
-    paren,
-    infixApp,
-    dollar,
-    dot,
-    list,
-    tuple,
-    int,
-    string,
-    con,
-    lambda,
-    tyList,
-    tyParen,
-    cxTuple,
-    cxSingle,
-    cxEmpty,
-    typeSane,
-    fnTpArity,
-    isFn,
-    hasFn,
-    nubPp,
-    unList,
-    unTuple,
-    unTuple2,
-    unEitherError,
-    holeType,
-    fnTypeIO,
-    fnInputTypes,
-    fnTypes,
-    mkExpr,
-    mkExprPair,
-    showPair,
+  ( module Synthesis.Types
+    -- tyCon,
+    -- tyApp,
+    -- tyApp_,
+    -- var,
+    -- tyVar,
+    -- qName,
+    -- l,
+    -- star,
+    -- wildcard,
+    -- expTypeSig,
+    -- tyFun,
+    -- letIn,
+    -- app,
+    -- appFn,
+    -- appArg,
+    -- parseExpr,
+    -- parseType,
+    -- undef,
+    -- iParam,
+    -- unIPName,
+    -- typeA,
+    -- unQName,
+    -- unName,
+    -- tyForall,
+    -- unParseResult,
+    -- unit,
+    -- symbol,
+    -- pvar,
+    -- ptuple,
+    -- paren,
+    -- infixApp,
+    -- dollar,
+    -- dot,
+    -- list,
+    -- tuple,
+    -- int,
+    -- string,
+    -- con,
+    -- lambda,
+    -- tyList,
+    -- tyParen,
+    -- cxTuple,
+    -- cxSingle,
+    -- cxEmpty,
+    -- typeSane,
+    -- fnTpArity,
+    -- isFn,
+    -- hasFn,
+    -- nubPp,
+    -- unList,
+    -- unTuple,
+    -- unTuple2,
+    -- unEitherError,
+    -- holeType,
+    -- fnTypeIO,
+    -- fnInputTypes,
+    -- fnIOTypes,
+    -- mkExpr,
+    -- mkExprPair,
+    -- showPair,
   )
 where
 
@@ -152,12 +153,12 @@ tyVar = TyVar l . Ident l
 tyApp :: Tp -> Tp -> Tp
 tyApp = TyApp l
 
--- | wrap `tyApp` such as to ensure lists get normalized to use tyList
--- | deprecated, not in use -- could be used in randomType to normalize
-tyApp_ :: Tp -> Tp -> Tp
-tyApp_ a b = case pp a of
-  "[]" -> tyList b
-  _ -> tyApp a b
+-- -- | wrap `tyApp` such as to ensure lists get normalized to use tyList
+-- -- | deprecated, not in use -- could be used in randomType to normalize
+-- tyApp_ :: Tp -> Tp -> Tp
+-- tyApp_ a b = case pp a of
+--   "[]" -> tyList b
+--   _ -> tyApp a b
 
 -- | annotate an expression node with a type signature
 expTypeSig :: Expr -> Tp -> Expr
@@ -171,10 +172,10 @@ tyFun = TyFun l
 tyForall :: Maybe [TyVarBind L] -> Maybe (Context L) -> Tp -> Tp
 tyForall = TyForall l
 
--- | star type node: *
--- | deprecated, not in use
-star :: Tp
-star = TyStar l
+-- -- | star type node: *
+-- -- | deprecated, not in use
+-- star :: Tp
+-- star = TyStar l
 
 -- | wildcard type node: _
 wildcard :: Tp
@@ -251,21 +252,21 @@ cxSingle = CxSingle l
 cxEmpty :: Context L
 cxEmpty = CxEmpty l
 
--- | implicit parameter constraint
--- | deprecated, not in use
-iParam :: String -> Tp -> Asst L
-iParam str = IParam l (IPLin l str)
+-- -- | implicit parameter constraint
+-- -- | deprecated, not in use
+-- iParam :: String -> Tp -> Asst L
+-- iParam str = IParam l (IPLin l str)
 
 -- type assertion
 typeA :: QName L -> Tp -> Asst L
 typeA qname tp = ClassA l qname [tp]
 
--- | get the string from an IPName
--- | deprecated, not in use
-unIPName :: IPName L -> String
-unIPName = \case
-    IPDup _l str -> str -- non-linear implicit parameter
-    IPLin _l str -> str -- linear implicit parameter
+-- -- | get the string from an IPName
+-- -- | deprecated, not in use
+-- unIPName :: IPName L -> String
+-- unIPName = \case
+--     IPDup _l str -> str -- non-linear implicit parameter
+--     IPLin _l str -> str -- linear implicit parameter
 
 -- | get the string from a QName
 unQName :: QName L -> String
@@ -367,13 +368,13 @@ parseMode =
         ]
     }
 
--- | this function takes an explicitly typed hole, returning its type
--- | deprecated, not in use
--- TODO: Maybe
-holeType :: Expr -> Tp
-holeType = \case
-  ExpTypeSig _l _exp tp -> tp
-  _ -> error "expected ExpTypeSig!"
+-- -- | this function takes an explicitly typed hole, returning its type
+-- -- | deprecated, not in use
+-- -- TODO: Maybe
+-- holeType :: Expr -> Tp
+-- holeType = \case
+--   ExpTypeSig _l _exp tp -> tp
+--   _ -> error "expected ExpTypeSig!"
 
 -- | parse an expression from a string
 parseExpr :: String -> Expr
@@ -418,8 +419,8 @@ hasFn typ =
         _ -> False
 
 -- | extract the input and output types from a function type as one list
-fnTypes :: Tp -> [Tp]
-fnTypes = (\tpl -> fst tpl ++ [snd tpl]) . fnTypeIO
+fnIOTypes :: Tp -> [Tp]
+fnIOTypes = (\tpl -> fst tpl ++ [snd tpl]) . fnTypeIO
 
 -- | extract the input and output types from a function type
 -- TODO: Maybe
@@ -447,7 +448,7 @@ fnInputTypes = \case
 
 -- | check if a type is sane -- basically we wanna throw out crap like list of function.
 typeSane :: Tp -> Bool
-typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSane <$> fnTypes tp))))
+typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSane <$> fnIOTypes tp))))
   where constraintsSane = \case
           TyForall _l _maybeTyVarBinds maybeContext _typ -> contextOk
             where
@@ -465,31 +466,31 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 _ -> error "unsupported Assist!"
           _ -> True
 
--- | check the effective arity of a function type
--- | deprecated, not in use
-fnTpArity :: Tp -> Int
-fnTpArity = \case
-  TyForall _l _maybeTyVarBinds _maybeContext tp -> f tp
-  TyParen _l a -> f a
-  TyFun _l _a b -> 1 + f b
-  _ -> 0
-  where f = fnTpArity
+-- -- | check the effective arity of a function type
+-- -- | deprecated, not in use
+-- fnTpArity :: Tp -> Int
+-- fnTpArity = \case
+--   TyForall _l _maybeTyVarBinds _maybeContext tp -> f tp
+--   TyParen _l a -> f a
+--   TyFun _l _a b -> 1 + f b
+--   _ -> 0
+--   where f = fnTpArity
 
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]
 nubPp = nubBy (equating pp)
 
--- | turn any value into an expression
--- | deprecated, not in use, except in another deprecated function
-mkExpr :: Show a => a -> Expr
-mkExpr = parseExpr . show
+-- -- | turn any value into an expression
+-- -- | deprecated, not in use, except in another deprecated function
+-- mkExpr :: Show a => a -> Expr
+-- mkExpr = parseExpr . show
 
--- | turn any value pair into an expression pair
--- | deprecated, not in use
-mkExprPair :: (Show a, Show b) => (a, Either c b) -> (Expr, Either c Expr)
-mkExprPair = first mkExpr . second (second mkExpr)
+-- -- | turn any value pair into an expression pair
+-- -- | deprecated, not in use
+-- mkExprPair :: (Show a, Show b) => (a, Either c b) -> (Expr, Either c Expr)
+-- mkExprPair = first mkExpr . second (second mkExpr)
 
--- | turn any value pair into an expression pair
--- | deprecated, not in use
-showPair :: (Show a, Show b) => (a, Either c b) -> (String, Either c String)
-showPair = first show . second (second show)
+-- -- | turn any value pair into an expression pair
+-- -- | deprecated, not in use
+-- showPair :: (Show a, Show b) => (a, Either c b) -> (String, Either c String)
+-- showPair = first show . second (second show)

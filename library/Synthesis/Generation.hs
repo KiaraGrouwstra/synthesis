@@ -3,17 +3,18 @@
 
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation
-  ( fnOutputs,
-    fillHoles,
-    fillHole,
-    genFn,
-    genFns,
-    instantiateTypes,
-    instantiateTypeVars,
-    matchesConstraints,
-    matchesType,
-    typeRelation,
-    dedupeFunctions,
+  ( module Synthesis.Generation
+    -- fnOutputs,
+    -- fillHoles,
+    -- fillHole,
+    -- genFn,
+    -- genFns,
+    -- instantiateTypes,
+    -- instantiateTypeVars,
+    -- matchesConstraints,
+    -- matchesType,
+    -- typeRelation,
+    -- dedupeFunctions,
   )
 where
 
@@ -141,7 +142,7 @@ fnOutputs ::
   -- | for each type instantiation, for each param, the input type as string
   [[Tp]] ->
   Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
-fnOutputs crashOnError instantiation_inputs fn_ast in_instantiations =
+fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
   -- do
   -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs
   -- say $ "fn_str: " ++ pp fn_ast
@@ -163,7 +164,7 @@ fnOutputs crashOnError instantiation_inputs fn_ast in_instantiations =
           -- say $ "n: " ++ show n
           let ins :: [Expr] = list . fmap tuple <$> param_combs
           -- say $ "ins: " ++ pp_ ins
-          fromList . zip in_instantiations <$> mapM (fnIoPairs crashOnError n fn_ast) ins
+          fromList . zip in_instantiations <$> mapM (fnIoPairs crash_on_error n fn_ast) ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 

@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | generator logic
 module Synthesis.Generator
-  ( main,
+  ( module Synthesis.Generator
+    -- main,
   )
 where
 
@@ -20,18 +22,18 @@ import Data.HashMap.Lazy
     toList,
     union,
   )
-import qualified Data.HashMap.Lazy as HM
+-- import qualified Data.HashMap.Lazy as HM
 import Data.List (partition, maximum)
-import Data.Store (encode, decodeIO)
+import Data.Store (encode)  -- , decodeIO
 import qualified Data.ByteString as BS
 import System.Random (StdGen, mkStdGen)
-import Language.Haskell.Interpreter (Interpreter, lift, liftIO)
-import Synthesis.Ast
+import Language.Haskell.Interpreter (Interpreter, liftIO)  -- , lift
+-- import Synthesis.Ast
 import Synthesis.Blocks
 import Synthesis.Generation
 import Synthesis.Hint
 import Synthesis.Ast
-import Synthesis.Orphanage
+import Synthesis.Orphanage ()
 import Synthesis.Types
 import Synthesis.TypeGen
 import Synthesis.Data (Expr, Tp, TaskFnDataset (..), GenerationConfig (..))
@@ -47,25 +49,26 @@ main = runInterpreterMain program
 program :: Interpreter ()
 program = do
   GenerationConfig
-      { filePath = filePath
-      , crashOnError = crashOnError
-      , seed = seed
-      -- type generation
-      , nestLimit = nestLimit
-      , maxInstances = maxInstances
-      -- sample generation
-      , numInputs = numInputs
-      , numMin = numMin
-      , numMax = numMax
-      , listMin = listMin
-      , listMax = listMax
-      -- function generation
-      , maxWildcardDepth = maxWildcardDepth
-      , genMaxHoles = genMaxHoles
-      -- dataset generation
-      , training = training
-      , validation = validation
-      , test = test
+      { ..
+      -- { filePath = filePath
+      -- , crashOnError = crashOnError
+      -- , seed = seed
+      -- -- type generation
+      -- , nestLimit = nestLimit
+      -- , maxInstances = maxInstances
+      -- -- sample generation
+      -- , numInputs = numInputs
+      -- , numMin = numMin
+      -- , numMax = numMax
+      -- , listMin = listMin
+      -- , listMax = listMax
+      -- -- function generation
+      -- , maxWildcardDepth = maxWildcardDepth
+      -- , genMaxHoles = genMaxHoles
+      -- -- dataset generation
+      -- , training = training
+      -- , validation = validation
+      -- , test = test
       } :: GenerationConfig <- liftIO parseGenerationConfig
   let gen :: StdGen = mkStdGen seed
   let split = (training, validation, test)
@@ -145,8 +148,13 @@ program = do
   -- it's kinda weird this splitting is non-monadic, cuz it should be random
   let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
-  liftIO $ BS.writeFile filePath $ encode $
-      TaskFnDataset {fn_types=fn_types, fn_in_type_instance_outputs=fn_in_type_instance_outputs, fn_in_type_instantiations=fn_in_type_instantiations, rest_instantiation_inputs=rest_instantiation_inputs, datasets=(train, validation, test), expr_blocks=expr_blocks}
+  liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
+      fn_types
+      fn_in_type_instance_outputs
+      fn_in_type_instantiations
+      rest_instantiation_inputs
+      (train, validation, test)
+      expr_blocks
 
   say "\n\nenumerating function i/o examples:"
   forM_ kept_fns $ \ast -> do

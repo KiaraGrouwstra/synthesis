@@ -1,5 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- Tasty: <http://documentup.com/feuerbach/tasty>
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
@@ -10,28 +14,30 @@ import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
 import           Control.Exception            (SomeException, try, evaluate)
-import           Data.Word                    (Word64)
+-- import           Data.Word                    (Word64)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.Bifunctor               (first)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), size)
+-- import           Data.Bifunctor               (first)
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
-import           Language.Haskell.Interpreter (as, interpret, typeChecksWithDetails, liftIO)
+import           Language.Haskell.Interpreter (as, interpret, liftIO) -- , typeChecksWithDetails
 import           Util                         (fstOf3)
 
-import           GHC.Exts
-import           GHC.TypeNats
-import           Torch.Random (Generator)
-import           Torch.Functional.Internal (gather)
-import qualified Torch.DType                   as D
+-- import           GHC.Exts
+-- import           GHC.TypeNats
+import           GHC.TypeNats (Mod, type (*))  -- , KnownNat, Nat, Div, type (+), type (-)
+-- import           Torch.Random (Generator)
+-- import           Torch.Functional.Internal (gather)
+-- import qualified Torch.DType                   as D
 import qualified Torch.Tensor                  as D
-import qualified Torch.Device                  as D
-import qualified Torch.Random                  as D
+-- import qualified Torch.Device                  as D
+-- import qualified Torch.Random                  as D
+import qualified Torch.Functional.Internal as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
 import           Torch.Typed.Aux
-import           Torch.TensorOptions
+-- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
 import           Torch.Typed.Factories
 
@@ -47,8 +53,11 @@ import           Synthesis.Data
 import           Synthesis.Utility
 import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
-import qualified Synthesis.Synthesizer.Encoder as Encoder
+import qualified Synthesis.Synthesizer.Encoder as Enc
 import           Synthesis.Synthesizer.R3NN
+import           Synthesis.Synthesizer.NSPS
+import qualified Synthesis.Synthesizer.Distribution as Distribution
+import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 main ∷ IO ()
 main = do
@@ -84,8 +93,8 @@ util = parallel $ do
     it "flatten" $
         flatten (Many [One [1], One [2]]) `shouldBe` [1 :: Int, 2]
 
-    it "flattenTuple" $
-        flattenTuple (DeepTuple (1, SingleTuple (2, 3))) `shouldBe` [1 :: Int, 2, 3]
+    -- it "flattenTuple" $
+    --     flattenTuple (DeepTuple (1, SingleTuple (2, 3))) `shouldBe` [1 :: Int, 2, 3]
 
     it "pick" $ do
         x <- pick [1 :: Int, 2, 3]
@@ -97,8 +106,8 @@ util = parallel $ do
     it "fromKeys" $
         fromKeys show [1 :: Int, 2] `shouldBe` insert 1 "1" (singleton 2 "2")
 
-    it "fromVals" $
-        fromVals show [1 :: Int, 2] `shouldBe` insert "1" 1 (singleton "2" 2)
+    -- it "fromVals" $
+    --     fromVals show [1 :: Int, 2] `shouldBe` insert "1" 1 (singleton "2" 2)
 
     it "fromKeysM" $ do
         x <- fromKeysM (pure . show) [1 :: Int, 2]
@@ -108,28 +117,29 @@ util = parallel $ do
         x <- fromValsM (pure . show) [1 :: Int, 2]
         x `shouldBe` insert "1" 1 (singleton "2" 2)
 
-    it "filterHmM" $ do
-        x <- filterHmM (pure . snd) $ insert "a" True $ singleton "b" False
-        x `shouldBe` singleton "a" True
+    -- it "filterHmM" $ do
+    --     x <- filterHmM (pure . snd) $ insert "a" True $ singleton "b" False
+    --     x `shouldBe` singleton "a" True
 
     it "pickKeys" $ do
         let b = singleton "b" "B"
         pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
 
     it "randomSplit" $ do
-        GenerationConfig { seed = seed } :: GenerationConfig <- liftIO parseGenerationConfig
-        let gen :: StdGen = mkStdGen seed
-        let (train, _validation, _test) = randomSplit gen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
-        length train `shouldBe` 5
+        GenerationConfig {..} :: GenerationConfig <- liftIO parseGenerationConfig
+        let stdGen :: StdGen = mkStdGen seed
+        let (nums_train, _nums_validation, _nums_test) =
+                randomSplit stdGen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
+        length nums_train `shouldBe` 5
 
-    it "batchList" $ do
-        batchList 2 [1,2,3,4,5 :: Int] `shouldBe` [[1,2],[3,4],[5]]
+    -- it "batchList" $ do
+    --     batchList 2 [1,2,3,4,5 :: Int] `shouldBe` [[1,2],[3,4],[5]]
 
-    it "statistic" $ do
-        statistic (0 :: Int) (+) (const id) [1,2,3 :: Int] `shouldBe` 6
-        statistic (0 :: Int) (+) (\ xs i -> i / length xs) [1,2,3 :: Int] `shouldBe` 2
-        -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+) }) [1,2,3 :: Int] `shouldBe` 6
-        -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+), summarizer = (\ xs i -> i / length xs) }) [1,2,3 :: Int] `shouldBe` 2
+    -- it "statistic" $ do
+    --     statistic (0 :: Int) (+) (const id) [1,2,3 :: Int] `shouldBe` 6
+    --     statistic (0 :: Int) (+) (\ xs i -> i `div` length xs) [1,2,3 :: Int] `shouldBe` 2
+    --     -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+) }) [1,2,3 :: Int] `shouldBe` 6
+    --     -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+), summarizer = (\ xs i -> i / length xs) }) [1,2,3 :: Int] `shouldBe` 2
 
 hint ∷ Test
 hint = let
@@ -171,7 +181,7 @@ types ∷ Spec
 types = parallel $ let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
-        str = tyCon "String"
+        -- str = tyCon "String"
     in do
 
     it "var" $
@@ -201,8 +211,8 @@ types = parallel $ let
     it "parseType" $ do
         pp (parseType "a") `shouldBe` "a"
         let s = "(Eq (a -> Bool)) => a"
-        either :: Either SomeException Tp <- try $ evaluate $ parseType s
-        isRight either `shouldBe` False
+        either_ :: Either SomeException Tp <- try $ evaluate $ parseType s
+        isRight either_ `shouldBe` False
 
     it "isFn" $ do
         isFn bl `shouldBe` False
@@ -224,16 +234,16 @@ types = parallel $ let
         -- I guess this means I'd judge HaskTorch's Typed functions as insane, but
         -- for the purpose of program synthesis, for the moment let's say they are.
 
-    it "fnTpArity" $ do
-        fnTpArity bl `shouldBe` 0
-        fnTpArity (parseType "forall a . (Enum a) => (Int -> Bool) -> a -> Bool") `shouldBe` 2
+    -- it "fnTpArity" $ do
+    --     fnTpArity bl `shouldBe` 0
+    --     fnTpArity (parseType "forall a . (Enum a) => (Int -> Bool) -> a -> Bool") `shouldBe` 2
 
-    it "mkExpr" $ do
-        pp (mkExpr (1 :: Int)) `shouldBe` "1"
+    -- it "mkExpr" $ do
+    --     pp (mkExpr (1 :: Int)) `shouldBe` "1"
 
-    it "mkExprPair" $ do
-        let either' :: Either String Bool = Right True
-        pp_ (mkExprPair (1 :: Int, either')) `shouldBe` "(\"1\", Right (\"True\"))"
+    -- it "mkExprPair" $ do
+    --     let either' :: Either String Bool = Right True
+    --     pp_ (mkExprPair (1 :: Int, either')) `shouldBe` "(\"1\", Right (\"True\"))"
 
 typeGen ∷ Spec
 typeGen = parallel $ let
@@ -323,13 +333,13 @@ ast = parallel $ let
                 , listMin = listMin
                 , listMax = listMax
                 } :: GenerationConfig <- liftIO parseGenerationConfig
-        let gen :: StdGen = mkStdGen seed
+        let stdGen :: StdGen = mkStdGen seed
         let intRange = (numMin, numMax)
         let listLengths = (listMin, listMax)
         -- Bool
-        pp <$> (genInputs gen intRange listLengths 10 bl) `shouldContain` ["True"]
+        pp <$> (genInputs stdGen intRange listLengths 10 bl) `shouldContain` ["True"]
         -- [Bool]
-        let lists = genInputs gen intRange listLengths 10 $ tyList bl
+        let lists = genInputs stdGen intRange listLengths 10 $ tyList bl
         (length . nubPp . concat . fmap unList) lists `shouldBe` 2
 
     it "genHoledVariants" $ do
@@ -463,15 +473,17 @@ gen = let
 
     ]
 
-type BatchSize = 3
 -- dummy values to trick the compiler
 type T = 42
-type NumHoles = 123
-type Rules = 456
--- type NumLeaves = 789
 
 synthesizer ∷ Spec
 synthesizer = parallel $ do
+
+    it "unravelIdx" $ do
+        unravelIdx (D.asTensor [ [0.3, 0.2], [0.4, 0.1 :: Float] ]) 2 `shouldBe` [1, 0]
+
+    it "cumulative" $ do
+        cumulative [1,2,3] `shouldBe` [1,3,6 :: Int]
 
     it "nodeRule" $ do
         nodeRule (parseExpr "f") `shouldBe` "f"
@@ -487,17 +499,36 @@ synthesizer = parallel $ do
         -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
         -- rotateT r `shouldBe` ?
 
-    it "baseline encoder" $ do
-        let batchSize = natValI @BatchSize
+    it "nsps" $ do
+        let batch_size :: Int = natValI @BatchSize
         -- let seed' :: Int = 123
         let dsl = blockAsts
         variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * Enc.T] <- baselineMLPEncoder enc_model io_pairs
-        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         init_enc_model :: BaselineMLPEncoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h
-        init_r3nn_model :: R3NN m rules <- initR3nn @M @Rules variants batchSize
-        -- train @M @BatchSize @Rules synthesizerConfig taskFnDataset
-        ppt' <- predict variants r3nn_model io_feats ppt
-        pp ppt'
-        hasHoles ppt' `shouldBe` False
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineMLPEncoder init_enc_model io_pairs
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        init_r3nn_model :: R3NN M Rules <- A.sample $ initR3nn @M @Rules @T variants batch_size
+        hole_expansion_probs <- runR3nn @T init_r3nn_model ppt io_feats
+        (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
+        putStrLn $ pp ppt'
+        -- hasHoles ppt' `shouldBe` False
+    
+    it "transfer lenses" $ do
+        let xpr  = parseExpr "(undefined :: a) (bar (undefined :: b))"
+        let xpr' = parseExpr "foo (baz boo)"
+        let getters = fst <$> findHolesExpr xpr
+        length getters `shouldBe` 2
+        let [gtr1, gtr2] = getters
+        pp (gtr1 xpr') `shouldBe` "foo"
+        pp (gtr2 xpr') `shouldBe` "boo"
+
+    it "categorical" $ do
+        t :: Tnsr '[2, 3] <- abs <$> randn
+        x <- Distribution.sample (Categorical.fromProbs $ toDynamic t) [1]
+        D.shape x `shouldBe` [1,2]
+
+    it "sampleIdxs" $ do
+        let t = D.asTensor $ [[0.0, 0.0], [1.0, 0.0 :: Float]]
+        idxs <- sampleIdxs t
+        D.asValue (foldl (\ t' idx -> D.select t' 0 idx) t idxs) `shouldBe` (1.0 :: Float)

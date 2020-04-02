@@ -37,6 +37,7 @@ dependencies:
   - random
   - mtl
   - hasktorch
+  - libtorch-ffi
 
 library:
   dependencies:

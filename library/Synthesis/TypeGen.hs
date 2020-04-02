@@ -5,20 +5,21 @@
 
 -- | functions related to type generation
 module Synthesis.TypeGen
-  ( randomType,
-    randomFnType,
-    tyCon,
-    tyApp,
-    genTypes,
-    findTypeVars,
-    fillTypeVars,
-    mergeTyVars,
-    unParseResult,
-    typeSane,
-    isFn,
-    hasFn,
-    nubPp,
-    unList,
+  ( module Synthesis.TypeGen
+    -- randomType,
+    -- randomFnType,
+    -- tyCon,
+    -- tyApp,
+    -- genTypes,
+    -- findTypeVars,
+    -- fillTypeVars,
+    -- mergeTyVars,
+    -- unParseResult,
+    -- typeSane,
+    -- isFn,
+    -- hasFn,
+    -- nubPp,
+    -- unList,
   )
 where
 
@@ -63,6 +64,7 @@ import Synthesis.Utility
 import Synthesis.Blocks (typesByArity)
 
 -- | randomly generate a type
+-- | deprecated, not in use
 randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 randomType allowAbstract allowFns nestLimit typeVars tyVarCount = do
     -- type variables

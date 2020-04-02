@@ -1,6 +1,7 @@
 module Synthesis.Configs
-  ( parseGenerationConfig,
-    parseSynthesizerConfig,
+  ( module Synthesis.Configs
+    -- parseGenerationConfig,
+    -- parseSynthesizerConfig,
   )
 where
 

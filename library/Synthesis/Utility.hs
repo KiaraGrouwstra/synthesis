@@ -1,42 +1,42 @@
 
 -- | utility functions
 module Synthesis.Utility
-  ( Item (..),
-    NestedTuple (..),
-    flatten,
-    pick,
-    mapKeys,
-    groupByVal,
-    fromKeys,
-    fromVals,
-    flattenTuple,
-    mapTuple,
-    mapTuple3,
-    tuplify3,
-    untuple3,
-    while,
-    pp,
-    pp_,
-    pickKeys,
-    composeSetters,
-    fisherYates,
-    randomSplit,
-    flipOrder,
-    equating,
-    fromKeysM,
-    fromValsM,
-    ppMap,
-    filterHmM,
-    pickKeysSafe,
-    nest,
-    batchList,
-    statistic,
-    statistic',
-    Statistic,
-    stat,
-    pipe,
-  )
-where
+  ( module Synthesis.Utility
+    -- Item (..),
+    -- NestedTuple (..),
+    -- flatten,
+    -- pick,
+    -- mapKeys,
+    -- groupByVal,
+    -- fromKeys,
+    -- fromVals,
+    -- flattenTuple,
+    -- mapTuple,
+    -- mapTuple3,
+    -- tuplify3,
+    -- untuple3,
+    -- while,
+    -- pp,
+    -- pp_,
+    -- pickKeys,
+    -- composeSetters,
+    -- fisherYates,
+    -- randomSplit,
+    -- flipOrder,
+    -- equating,
+    -- fromKeysM,
+    -- fromValsM,
+    -- ppMap,
+    -- filterHmM,
+    -- pickKeysSafe,
+    -- nest,
+    -- batchList,
+    -- statistic,
+    -- statistic',
+    -- Statistic,
+    -- stat,
+    -- pipe,
+  ) where
 
 import Control.Arrow ((***))
 import Control.Monad (filterM, join, foldM)
@@ -55,7 +55,6 @@ import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
 import System.Random (RandomGen(..), randomR, randomRIO)
 
 -- | map over both elements of a tuple
--- | deprecated, not in use
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple = join (***)
 
@@ -87,21 +86,21 @@ flatten (Many x) = concatMap flatten x
 -- | a homogeneous nested tuple
 data NestedTuple a = SingleTuple (a, a) | DeepTuple (a, NestedTuple a)
 
--- | flatten a nested tuple
--- | deprecated, not in use
-flattenTuple :: NestedTuple a -> [a]
-flattenTuple = \case
-  SingleTuple tpl -> biList tpl
-  DeepTuple (x, xs) -> x : flattenTuple xs
+-- -- | flatten a nested tuple
+-- -- | deprecated, not in use
+-- flattenTuple :: NestedTuple a -> [a]
+-- flattenTuple = \case
+--   SingleTuple tpl -> biList tpl
+--   DeepTuple (x, xs) -> x : flattenTuple xs
 
 -- | randomly pick an item from a list
 pick :: [a] -> IO a
 pick xs = (xs !!) <$> randomRIO (0, length xs - 1)
 
--- | map over the keys of a hashmap
--- | deprecated, not in use
-mapKeys :: (Hashable k, Eq k, Hashable k_, Eq k_) => (k -> k_) -> HashMap k v -> HashMap k_ v
-mapKeys fn = fromList . fmap (first fn) . toList
+-- -- | map over the keys of a hashmap
+-- -- | deprecated, not in use
+-- mapKeys :: (Hashable k, Eq k, Hashable k_, Eq k_) => (k -> k_) -> HashMap k v -> HashMap k_ v
+-- mapKeys fn = fromList . fmap (first fn) . toList
 
 -- | group a list of k/v pairs by values, essentially inverting the original HashMap
 groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
@@ -115,10 +114,10 @@ fromKeys fn ks = fromList . zip ks $ fn <$> ks
 fromKeysM :: (Monad m, Hashable k, Eq k) => (k -> m v) -> [k] -> m (HashMap k v)
 fromKeysM fn ks = sequence . fromList . zip ks $ fn <$> ks
 
--- | create a HashMap by mapping over a list of values
--- | deprecated, not in use
-fromVals :: (Hashable k, Eq k) => (v -> k) -> [v] -> HashMap k v
-fromVals fn vs = fromList $ zip (fn <$> vs) vs
+-- -- | create a HashMap by mapping over a list of values
+-- -- | deprecated, not in use
+-- fromVals :: (Hashable k, Eq k) => (v -> k) -> [v] -> HashMap k v
+-- fromVals fn vs = fromList $ zip (fn <$> vs) vs
 
 -- | create a monadic HashMap by mapping over a list of values
 fromValsM :: (Monad m, Hashable k, Eq k) => (v -> m k) -> [v] -> m (HashMap k v)
@@ -128,12 +127,11 @@ fromValsM fn vs = do
 
 -- filter a HashMap by a monadic predicate
 
--- | deprecated, not in use
-filterHmM :: (Monad m, Hashable k, Eq k) => ((k, v) -> m Bool) -> HashMap k v -> m (HashMap k v)
-filterHmM p = fmap fromList . filterM p . toList
+-- -- | deprecated, not in use
+-- filterHmM :: (Monad m, Hashable k, Eq k) => ((k, v) -> m Bool) -> HashMap k v -> m (HashMap k v)
+-- filterHmM p = fmap fromList . filterM p . toList
 
 -- | while a predicate holds, perform a monadic operation starting from an initial value
--- | deprecated, not in use
 while :: Monad m => (a -> Bool) -> (a -> m a) -> a -> m a
 while praed funktion x
   | praed x = do
@@ -149,10 +147,10 @@ pp = prettyPrint
 pp_ :: PP.Pretty a => a -> String
 pp_ = show . PP.pretty
 
--- | `show` drop-in for HashMap with Pretty keys.
--- | deprecated, not in use
-ppMap :: (Pretty k, Show v) => HashMap k v -> String
-ppMap = show . fmap (first pp) . toList
+-- -- | `show` drop-in for HashMap with Pretty keys.
+-- -- | deprecated, not in use
+-- ppMap :: (Pretty k, Show v) => HashMap k v -> String
+-- ppMap = show . fmap (first pp) . toList
 
 -- | pick some keys from a hashmap
 pickKeys :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
@@ -195,12 +193,12 @@ randomSplit gen splits xs =
       ns :: (Int, Int, Int) = mapTuple3 (round . (fromIntegral n *)) splits
    in tuplify3 $ fst $ splitPlaces gen (untuple3 ns) xs
 
--- | flip an Ordering
--- | deprecated, not in use
-flipOrder :: Ordering -> Ordering
-flipOrder GT = LT
-flipOrder LT = GT
-flipOrder EQ = EQ
+-- -- | flip an Ordering
+-- -- | deprecated, not in use
+-- flipOrder :: Ordering -> Ordering
+-- flipOrder GT = LT
+-- flipOrder LT = GT
+-- flipOrder EQ = EQ
 
 -- | mapped equality check
 equating :: Eq a => (b -> a) -> b -> b -> Bool
@@ -210,46 +208,47 @@ equating p x y = p x == p y
 nest :: (Monad m) => Int -> (a -> m a) -> a -> m a
 nest n f x0 = foldM (\x () -> f x) x0 (replicate n ())
 
--- | split a list into batches of a given size (or less for the last batch)
--- | deprecated, not in use
-batchList :: Int -> [a] -> [[a]]
-batchList n xs = batchList' n [] xs
-  where
-    batchList' n batches xs = let
-        (batch, rest) = splitAt n xs
-        batches' = batches <> [batch]
-      in case rest of
-          [] -> batches'
-          _  -> batchList' n batches' rest
+-- -- | split a list into batches of a given size (or less for the last batch)
+-- -- | deprecated, not in use
+-- batchList :: Int -> [a] -> [[a]]
+-- batchList n xs = let
+--   batchList' n batches xs =
+--     case rest of
+--       [] -> batches'
+--       _  -> batchList' n batches' rest
+--     where
+--       (batch, rest) = splitAt n xs
+--       batches' = batches <> [batch]
+--   in batchList' n [] xs
 
--- is there a point in this if statistics already constitute most Prelude / HaskTorch functions?
--- | calculate a statistic for a dataset given an accumulator, a sufficient statistic (fold fn), and a summarizer
--- | deprecated, not in use
-statistic :: Foldable f => b -> (a -> b -> b) -> (f a -> b -> c) -> f a -> c
-statistic acc sufficientStatistic summarizer xs =
-        summarizer xs $ foldr sufficientStatistic acc xs
+-- -- is there a point in this if statistics already constitute most Prelude / HaskTorch functions?
+-- -- | calculate a statistic for a dataset given an accumulator, a sufficient statistic (fold fn), and a summarizer
+-- -- | deprecated, not in use
+-- statistic :: Foldable f => b -> (a -> b -> b) -> (f a -> b -> c) -> f a -> c
+-- statistic acc sufficientStatistic summarizer xs =
+--         summarizer xs $ foldr sufficientStatistic acc xs
 
--- | calculate a statistic for a dataset given a Statistic
--- | deprecated, not in use
-statistic' :: Foldable f => Statistic f a b c -> f a -> c
-statistic' st xs =
-        (summarizer st) xs $ foldr (sufficientStatistic st) (acc st) xs
+-- -- | calculate a statistic for a dataset given a Statistic
+-- -- | deprecated, not in use
+-- statistic' :: Foldable f => Statistic f a b c -> f a -> c
+-- statistic' st xs =
+--         (summarizer st) xs $ foldr (sufficientStatistic st) (acc st) xs
 
--- | an (associative) statistic measure compatible with online calculation. this generalizes map-reduce to potentially lower memory complexity as sufficient statistics ensure we may just maintain an accumulator rather than a full mapped data structure.
--- | deprecated, not in use
-data Statistic f a b c = Statistic
-    { acc                 ::  b
-    , sufficientStatistic ::  a  -> b -> b
-    , summarizer          :: Foldable f => f a -> b -> c
-    }
+-- -- | an (associative) statistic measure compatible with online calculation. this generalizes map-reduce to potentially lower memory complexity as sufficient statistics ensure we may just maintain an accumulator rather than a full mapped data structure.
+-- -- | deprecated, not in use
+-- data Statistic f a b c = Statistic
+--     { acc                 ::  b
+--     , sufficientStatistic ::  a  -> b -> b
+--     , summarizer          :: Foldable f => f a -> b -> c
+--     }
 
--- | default statistic to override
--- | deprecated, not in use
-stat = Statistic
-    { acc = undefined
-    , sufficientStatistic = flip const id
-    , summarizer = const id
-    }
+-- -- | default statistic to override
+-- -- | deprecated, not in use
+-- stat = Statistic
+--     { acc = undefined
+--     , sufficientStatistic = flip const id
+--     , summarizer = const id
+--     }
 
 -- | flipped composition
 pipe :: (a -> b) -> (b -> c) -> a -> c

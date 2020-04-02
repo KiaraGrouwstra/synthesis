@@ -1,8 +1,9 @@
 module Synthesis.Blocks
-  ( blockAsts,
-    fnAsts,
-    constants,
-    typesByArity,
+  ( module Synthesis.Blocks
+    -- blockAsts,
+    -- fnAsts,
+    -- constants,
+    -- typesByArity,
   )
 where
 
@@ -88,41 +89,41 @@ constantsTamandu =
     $ insert "false" "False"
     $ singleton "zero" "0 :: Int"
 
--- | task functions specifically aimed at trying my synthesizers on another paper's algorithm.
--- | the point here is to ensure I'd put these in the test set, while deduping any equivalent functions out of my training set.
--- | I'm now leaning toward instead comparing to other papers by running them on my dataset instead of me running on theirs though.
--- | in that case I should no longer need this anymore.
--- | deprecated, not in use
-_tasks :: HashMap String String
-_tasks = tasksTamandu
+-- -- | task functions specifically aimed at trying my synthesizers on another paper's algorithm.
+-- -- | the point here is to ensure I'd put these in the test set, while deduping any equivalent functions out of my training set.
+-- -- | I'm now leaning toward instead comparing to other papers by running them on my dataset instead of me running on theirs though.
+-- -- | in that case I should no longer need this anymore.
+-- -- | deprecated, not in use
+-- _tasks :: HashMap String String
+-- _tasks = tasksTamandu
 
--- | benchmark tasks provided by the Tamandu dataset.
--- | functionality implemented from: https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/benchmark.ml
--- | deprecated, not in use
-tasksTamandu :: HashMap String String
-tasksTamandu =
-  insert "drop" "drop"
-    $ insert "droplast" "init"
-    $ insert "dropmax" "\\xs -> filter (maximum xs /=) xs"
-    $ insert "factorial" "product . flip take [1..]"
-    $ insert "isEven" "\\i -> mod i 2 == (0 :: Int)" -- https://stackoverflow.com/a/36735375/1502035
-    $ insert "last" "last"
-    $ insert "mapAdd" "\\n -> map (+ n)"
-    $ insert "mapDouble" "map (* (2 :: Int))"
-    $ insert "multfirst" "\\xs -> replicate (length xs) (head xs)"
-    $ insert "multlast" "\\xs -> replicate (length xs) (last xs)" -- solution from paper
-    $ insert "nth" "(!!)"
-    $ insert "stutter" "concatMap (replicate 2)"
-    $
-    -- TODO: the below task functions are also blocks... I guess for the task versions the identically named blocks must specifically be excluded then?
-    insert "append" "(++)"
-    $ insert "concat" "concat"
-    $ insert "enumFromTo" "enumFromTo"
-    $ insert "enumTo" "\\i -> [1..i]"
-    $ insert "isNil" "null" -- test!
-    $ insert "length" "length"
-    $ insert "maximum" "maximum"
-    $ insert "member" "elem"
-    $ insert "replicate" "replicate"
-    $ insert "reverse" "reverse"
-    $ singleton "sum" "sum"
+-- -- | benchmark tasks provided by the Tamandu dataset.
+-- -- | functionality implemented from: https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/benchmark.ml
+-- -- | deprecated, not in use
+-- tasksTamandu :: HashMap String String
+-- tasksTamandu =
+--   insert "drop" "drop"
+--     $ insert "droplast" "init"
+--     $ insert "dropmax" "\\xs -> filter (maximum xs /=) xs"
+--     $ insert "factorial" "product . flip take [1..]"
+--     $ insert "isEven" "\\i -> mod i 2 == (0 :: Int)" -- https://stackoverflow.com/a/36735375/1502035
+--     $ insert "last" "last"
+--     $ insert "mapAdd" "\\n -> map (+ n)"
+--     $ insert "mapDouble" "map (* (2 :: Int))"
+--     $ insert "multfirst" "\\xs -> replicate (length xs) (head xs)"
+--     $ insert "multlast" "\\xs -> replicate (length xs) (last xs)" -- solution from paper
+--     $ insert "nth" "(!!)"
+--     $ insert "stutter" "concatMap (replicate 2)"
+--     $
+--     -- TODO: the below task functions are also blocks... I guess for the task versions the identically named blocks must specifically be excluded then?
+--     insert "append" "(++)"
+--     $ insert "concat" "concat"
+--     $ insert "enumFromTo" "enumFromTo"
+--     $ insert "enumTo" "\\i -> [1..i]"
+--     $ insert "isNil" "null" -- test!
+--     $ insert "length" "length"
+--     $ insert "maximum" "maximum"
+--     $ insert "member" "elem"
+--     $ insert "replicate" "replicate"
+--     $ insert "reverse" "reverse"
+--     $ singleton "sum" "sum"

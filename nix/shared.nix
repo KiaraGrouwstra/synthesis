@@ -3,7 +3,7 @@
 let
   haskTorchSrc = builtins.fetchGit {
     url = https://github.com/hasktorch/hasktorch;
-    rev = "354fb2520065067c7527dc155e05f04d398f7d75";
+    rev = "f0fb0ad859aab6fdc21084154dda3c9656fabd4f";
     ref = "master";
   };
 
@@ -21,7 +21,8 @@ let
                       (haskellPackagesOld.callCabal2nix
                         "synthesis"
                         ../.
-                        { hasktorch = haskellPackagesNew."hasktorch_${postfix}"
+                        { hasktorch    = haskellPackagesNew.   "hasktorch_${postfix}"
+                        ; libtorch-ffi = haskellPackagesNew."libtorch-ffi_${postfix}"
                         ; }
                       );
                   };
