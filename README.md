@@ -26,26 +26,26 @@ nix-shell
 hpack --force
 
 # basic commands
-cabal new-build
-cabal new-test
-cabal new-repl lib:synthesis
-cabal new-run generator   -- --help
-cabal new-run synthesizer -- --help
+cabal v1-build
+cabal v1-test
+cabal v1-repl lib:synthesis
+cabal v1-run generator   -- --help
+cabal v1-run synthesizer -- --help
 
 # command-line auto-complete
 # bash
-cabal new-run generator   -- --bash-completion-script `cabal new-exec which generator` >> ~/.bash_completion
-cabal new-run synthesizer -- --bash-completion-script `cabal new-exec which synthesizer` >> ~/.bash_completion
+cabal v1-run generator   -- --bash-completion-script `cabal v1-exec which generator` >> ~/.bash_completion
+cabal v1-run synthesizer -- --bash-completion-script `cabal v1-exec which synthesizer` >> ~/.bash_completion
 # fish
-cabal new-run generator   -- --fish-completion-script (cabal new-exec which generator) > ~/.config/fish/completions/generator.fish
-cabal new-run synthesizer -- --fish-completion-script (cabal new-exec which synthesizer) > ~/.config/fish/completions/synthesizer.fish
+cabal v1-run generator   -- --fish-completion-script (cabal v1-exec which generator) > ~/.config/fish/completions/generator.fish
+cabal v1-run synthesizer -- --fish-completion-script (cabal v1-exec which synthesizer) > ~/.config/fish/completions/synthesizer.fish
 
 # Generate documentation.
-cabal new-build --enable-documentation
+cabal v1-build --enable-documentation
 
 # Profile
-cabal new-build --enable-profiling --ghc-options="-fno-prof-auto"
-`cabal new-exec which generator` +RTS -p
+cabal v1-build --enable-profiling --ghc-options="-fno-prof-auto"
+`cabal v1-exec which generator` +RTS -p
 
 # viz
 stack install ghc-prof-flamegraph
@@ -56,6 +56,3 @@ profiterole generator.prof
 
 questions for NSPS authors:
 - why not concatenate i/o features directly to symbol features?
-
-TODO:
-- don't actually predict, just compare predicted to intended then move on using a (random?) correct prediction
