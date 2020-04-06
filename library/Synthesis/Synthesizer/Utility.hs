@@ -75,6 +75,7 @@ module Synthesis.Synthesizer.Utility
 
 import Prelude hiding (lookup, exp)
 -- import qualified Prelude
+import GHC.TypeNats (type (+)) -- , KnownNat, Nat, Mod, type (*), type (-)
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
@@ -129,9 +130,12 @@ default_optim = D.GD  -- GD
 -- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
 -- data Symbol = Variable | Hole
 -- type Symbols = 2
-type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
-symbols :: Int
-symbols = natValI @Symbols
+type LhsSymbols = 1 -- just Expression in our lambda-calculus DSL
+-- type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
+-- symbols :: Int
+-- symbols = natValI @Symbols
+type RhsSymbols = 36  -- Tamandu
+type Symbols = LhsSymbols + RhsSymbols
 
 type Rules = 92     -- Tamandu
 -- rules :: Int
@@ -408,6 +412,7 @@ unravelIdx t idx = snd . foldr (\ dim_ (idx_, idxs) -> (idx_ `Prelude.div` dim_,
 indexList :: (Eq a, Hashable a) => [a] -> HashMap a Int
 indexList xs = fromList $ zip xs [0 .. length xs - 1]
 
+-- TODO: replace with built-in
 -- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
 crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor
 crossEntropy target dim input = F.nllLoss' (F.logSoftmax dim input) target

@@ -21,7 +21,7 @@ module Synthesis.Synthesizer.NSPS (
 import System.Random (StdGen, mkStdGen)
 -- import Data.List (null)
 import Data.Foldable (foldrM)
-import Data.HashMap.Lazy (HashMap, (!), elems)
+import Data.HashMap.Lazy (HashMap, (!), elems) -- , size
 import Control.Monad (join, replicateM, forM, forM_)
 import Prelude hiding (abs)
 import           GHC.Exts
@@ -68,20 +68,20 @@ import           Synthesis.Synthesizer.Encoder
 import qualified Synthesis.Synthesizer.Encoder as Enc
 import           Synthesis.Synthesizer.R3NN
 
-data NSPSSpec (m :: Nat) (rules :: Nat) where
-  NSPSSpec :: forall m rules
-     . { encoderSpec :: BaselineMLPEncoderSpec, r3nnSpec :: R3NNSpec m rules }
-    -> NSPSSpec m rules
+data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) where
+  NSPSSpec :: forall m symbols rules
+     . { encoderSpec :: BaselineMLPEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules }
+    -> NSPSSpec m symbols rules
  deriving (Show, Eq)
 
-data NSPS (m :: Nat) (rules :: Nat)  where
-  NSPS :: forall m rules
-        . { encoder :: BaselineMLPEncoder, r3nn :: R3NN m rules }
-       -> NSPS m rules
+data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat)  where
+  NSPS :: forall m symbols rules
+        . { encoder :: BaselineMLPEncoder, r3nn :: R3NN m symbols rules }
+       -> NSPS m symbols rules
  deriving (Show, Generic)
 
-instance ( KnownNat m, KnownNat rules )
-  => A.Parameterized (NSPS m rules) where
+instance ( KnownNat m, KnownNat symbols, KnownNat rules )
+  => A.Parameterized (NSPS m symbols rules) where
   flattenParameters NSPS{..} = A.flattenParameters encoder
                             <> A.flattenParameters r3nn
   replaceOwnParameters NSPS{..} = do
@@ -89,12 +89,13 @@ instance ( KnownNat m, KnownNat rules )
     r3nn'    <- A.replaceOwnParameters r3nn
     return $ NSPS{ r3nn = r3nn', encoder = encoder' }
 
-instance ( KnownNat m, KnownNat rules )
-  => A.Randomizable (NSPSSpec m rules) (NSPS m rules) where
+instance ( KnownNat m, KnownNat symbols, KnownNat rules )
+  => A.Randomizable (NSPSSpec m symbols rules) (NSPS m symbols rules) where
     sample NSPSSpec {..} = NSPS
             <$> A.sample encoderSpec
             <*> A.sample r3nnSpec
 
+-- TODO: can't put this in Utility right now as it'd create a circular dependency with Categorical... still need to resolve.
 -- | use a Categorical distribution to sample indices from a probability tensor
 sampleIdxs :: D.Tensor -> IO [Int]
 sampleIdxs t = do
@@ -137,7 +138,7 @@ predictHole variants ppt hole_expansion_probs = do
     -- let (hole_dim, rule_dim) :: (Int, Int) = (0, 1)
 --     let (hole_idx, rule_idx) :: (Int, Int) = argmaxExpansion hole_expansion_probs
 
-    [hole_idx, rule_idx] :: [Int] <- sampleIdxs $ toDynamic hole_expansion_probs
+    [hole_idx, rule_idx] :: [Int] <- sampleIdxs . softmaxAll . toDynamic $ hole_expansion_probs
 
 --     putStrLn . show $ (hole_idx, rule_idx)
     -- let estimated_probability :: Float = D.asValue $
@@ -176,8 +177,9 @@ superviseHole variantMap num_holes task_fn ppt = do
     return ppt'
 
 -- | calculate the loss for a PPT given hole/rule expansion probabilities then fill a random non-terminal leaf node as per `task_fn`
-fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr, D.Tensor)
+fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr, Tnsr '[num_holes, rules])
 fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
+    let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     let [num_holes, rules] :: [Int] = shape' hole_expansion_probs
     -- let rules :: Int = natValI @rules
     ppt' :: Expr <- superviseHole variantMap num_holes task_fn ppt
@@ -191,9 +193,31 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
                         gold_rule_idx :: Int = (ruleIdxs !) . nodeRule . getter $ task_fn
                         rule_probs :: Tnsr '[rules] = UnsafeMkTensor . D.asTensor . setAt gold_rule_idx 1.0 $ zeroes
                     in rule_probs
-    let loss :: Tnsr '[num_holes, rules] = abs $ hole_expansion_probs `sub` gold_rule_probs
+    -- let loss :: Tnsr '[num_holes, rules] = abs $ hole_expansion_probs `sub` gold_rule_probs
+    -- let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy (toDynamic gold_rule_probs) rule_dim $ toDynamic hole_expansion_probs
+    let holes_left = num_holes - 1
+    -- return (holes_left, ppt', toDynamic loss)
+    -- let target = t
+    return (holes_left, ppt', gold_rule_probs)
 
-    return (num_holes-1, ppt', toDynamic loss)
+-- | calculate the loss by comparing the predicted expansions to the intended programs
+calcLoss :: forall m symbols rules batchSize t . (KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, 2 * Dirs * Enc.H * t] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
+calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
+    let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
+    (_zero, _program, golds, predictions) :: (Int, Expr, [D.Tensor], [D.Tensor]) <- let
+            --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
+            fill = \(_num_holes, ppt, golds, predictions) -> do
+                    predicted <- runR3nn @symbols (r3nn model) symbolIdxs ppt io_feats
+                    (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
+                    return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
+            in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, skeleton taskType, [], [])     -- hasHoles
+    -- return $ pp task_fn == pp program
+    -- let loss :: Tnsr '[] = UnsafeMkTensor . F.mean . F.cat 0 $ losses
+    let gold_rule_probs :: D.Tensor = F.cat 0 golds
+    let hole_expansion_probs :: D.Tensor = F.cat 0 predictions
+    let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+
+    return loss
 
 -- -- for each task fn I think the stats I may want include:
 -- -- total samples, number correct/wrong, ratio correct/wrong,
@@ -210,7 +234,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
 --   -> Tensor Dev 'D.Float '[]
 -- errorCount prediction = Torch.Typed.Tensor.toDType @D.Float . sumAll . ne (argmax @1 @DropDim prediction)
 
-train :: forall m batchSize rules t n_train n_validation n_test . (KnownNat m, KnownNat batchSize, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> IO ()  -- Interpreter ()
+train :: forall m batchSize symbols rules t n_train n_validation n_test . (KnownNat m, KnownNat batchSize, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> IO ()  -- Interpreter ()
 train SynthesizerConfig{..} TaskFnDataset{..} = do
     let rules :: Int = natValI @rules
 
@@ -220,7 +244,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let set_list = untuple3 datasets
     forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
         putStrLn $ k <> ": " <> show (length dataset)
-    -- TODO: use validation
     let [train_set, validation_set, test_set] :: [[Expr]] = set_list
     let all_sets :: [Expr] = join set_list
     -- let [n_train, n_validation, n_test] :: [Int] = assertP (== [natValI @n_train, natValI @n_validation, natValI @n_test]) $ length <$> set_list
@@ -235,7 +258,9 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- block_fn_types :: HashMap String Tp <- interpretUnsafe $ mapM exprType dsl
     -- assert our (hole-variant) blocks match their static length
     -- variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
-    let variants :: [(String, Expr)] = assertP ((== rules) . length) $ exprBlocks
+    let variants :: [(String, Expr)] = assertP ((== rules) . length) exprBlocks
+    let symbols :: Int = assertP (== natValI @symbols) $ natValI @LhsSymbols + length dslSymbols
+    putStrLn $ "symbols : " <> show symbols <> ", rules: " <> show rules
     -- (symbol_emb, rule_emb) <- initEmbeds device seed $ length variants
     let lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
     -- let lr :: D.Tensor = D.asTensor learningRate
@@ -251,6 +276,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- then take their outputs
     let task_outputs :: HashMap Expr [Either String Expr] =
             fmap snd <$> task_io_pairs
+    let symbolIdxs :: HashMap String Int = indexList $ "undefined" : dslSymbols
     let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
     -- -- TODO: by task fn create a hashmap from holes to expansion vectors. this implies hashable lenses tho...?
     -- taskFnExpansion :: HashMap Expr (HashMap HoleLens? (Tnsr '[rules])) = fromList . flip fromKeys all_sets $ \expr -> fromList $ (\hole -> (_holeLens?, rulesTensor?)) <$> findHolesExpr expr
@@ -262,51 +288,26 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     putStrLn $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
-    let encoder_spec :: BaselineMLPEncoderSpec = BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h
-    let r3nn_spec :: R3NNSpec m rules = initR3nn @m @rules @t variants batchSize
-    -- init_r3nn_model :: R3NN m rules <- initR3nn gen variants batchSize
-    -- init_r3nn_model :: R3NN m rules <- initR3nn seed variants batchSize
-    -- init_r3nn_model :: R3NN m rules <- initR3nn @m @rules @t variants batchSize
-    init_model :: NSPS m rules <- A.sample $ NSPSSpec @m @rules encoder_spec r3nn_spec
-    --  :: Adam momenta1
-    -- let init_enc_optim  = mkAdam 0 0.9 0.999 $ flattenParameters init_enc_model
-    -- let init_r3nn_optim = mkAdam 0 0.9 0.999 $ flattenParameters init_r3nn_model
-    -- let init_enc_optim  = default_optim
-    -- let init_r3nn_optim = default_optim
+    let encoder_spec :: BaselineMLPEncoderSpec = BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h -- dropoutRate
+    let r3nn_spec :: R3NNSpec m symbols rules = initR3nn @m @symbols @rules @t variants batchSize
+    init_model :: NSPS m symbols rules <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
+    -- :: D.Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
     let init_optim :: D.GD = default_optim
-    -- let init = (init_model, init_optim)
 
-    foldLoop_ (stdGen, init_model, init_optim) numEpochs $ \(gen, model_, optim_) epoch -> do
+    foldLoop_ (stdGen, init_model, init_optim) numEpochs $ \ (gen, model_, optim_) epoch -> do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
         -- TRAIN LOOP
 
-        -- -- TODO: replace with batched loop
-        -- let model :: R3NN m rules = init_model
-        -- let optim = init_optim
-
-        -- corrects :: Tnsr '[n_train] <- fmap (UnsafeMkTensor . F.toDType D.Float . D.asTensor) $ 
-        -- Tnsr '[*]?
-        -- TODO: let loss :: D.Tensor = crossEntropy target dim input
         let foldrM_ x xs f = foldrM f x xs
-        (train_losses, model', optim') :: ([D.Tensor], NSPS m rules, D.GD) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
+        (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules, D.GD) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             putStrLn $ "task_fn: " <> pp task_fn
 
-            let taskType :: Tp = task_expr_types                ! task_fn
-            -- let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
+            let taskType :: Tp = task_expr_types ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
-                    task_io_pairs                               ! task_fn
-            -- let target_outputs :: [Either String Expr] =
-            --         task_outputs                                ! task_fn
-
+                    task_io_pairs ! task_fn
             io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineMLPEncoder (encoder model) target_io_pairs
-            (_zero, _program, losses) :: (Int, Expr, [D.Tensor]) <- let
-                    --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
-                    fill = \(_num_holes, ppt, losses) ->
-                            fmap (\(n, p, loss) -> (n, p, loss : losses)) $ join $ fillHoleTrain variantMap ruleIdxs task_fn ppt <$> runR3nn @t (r3nn model) ppt io_feats
-                    in while (\(num_holes, _, _) -> num_holes > 0) fill (1 :: Int, skeleton taskType, [])     -- hasHoles
-            -- return $ pp task_fn == pp program
-            let loss :: Tnsr '[] = UnsafeMkTensor . F.mean . F.cat 0 $ losses
+            loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -317,25 +318,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
         -- TEST
 
-        -- let tensor :: Tnsr '[n_test, *] = ? $ test_set
-        -- let n :: Int = (shape tensor !! 0)  -- n_test?
-        -- let tensor' = snd . shuffle 0 gen $ tensor
-        -- let batches :: [Tnsr '[batchSize, *]] = batchTensor batchSize tensor'
-        -- let meanLoss' :: Tnsr '[] = batchStatistic sum (/ realToFrac n) batches  -- first meanDim sampleDim but for variable lengths
-
-        -- (loss_test, err_test) <- foldLoop (0,0) test_iters $ \(org_loss, org_err) i -> do
-        --     (loss, err) <- computeLossAndErrorCount @batchSize (forward enc_model' False) i test_set
-        --     return (org_loss + toFloat loss, org_err + toFloat err)
-
-        -- forM_ test_set $ \task_fn -> do
-
-        -- TODO: figure out if I can mini-batch my loop...
-        -- let task_batches = batchList batchSize train_set'
-        -- forM task_batches $ \batch -> do
-        -- forM batch $ \task_fn -> do
-        -- train_set' `forM_` \task_fn -> do
-
-        errors_test :: Tnsr '[n_test] <- fmap (UnsafeMkTensor . F.toDType D.Float . D.asTensor) $ forM test_set $ \task_fn -> do
+        -- TODO: only run test stuff once every couple epochs since it seems way heavier than the train loop?
+        test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
             let taskType :: Tp = task_expr_types                ! task_fn
             let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
@@ -343,27 +327,24 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_outputs :: [Either String Expr] =
                     task_outputs                                ! task_fn
 
-            -- forM_ target_io_pairs $ \io_pair -> do
-            -- let io_batches = batchList batchSize target_io_pairs
-            -- forM_ io_batches $ \batch -> do
             io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineMLPEncoder (encoder model') target_io_pairs
-            -- putStrLn . show . shape' $ io_feats
+            loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
 
             -- sample for best of 100 predictions
             sample_matches :: [Bool] <- replicateM bestOf $ do
                 -- TODO: use these ExprTypeSig type annotations
                 -- TODO: split io_feats and taskType based on param type instance combo 
                 (_zero, program) :: (Int, Expr) <- let
-                        --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
+                        --  :: (Int, Expr) -> IO (Int, Expr)
                         fill = \(_num_holes, ppt) ->
-                                join $ predictHole variants ppt <$> runR3nn @t (r3nn model') ppt io_feats
+                                join $ predictHole variants ppt <$> runR3nn @symbols (r3nn model') symbolIdxs ppt io_feats
                         in while ((> 0) . fst) fill (1 :: Int, skeleton taskType)     -- hasHoles
 
                 prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
                         -- crash_on_error=False is slower but lets me check if it compiles
                         compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
                                 n :: Int = length $ unTuple $ ins !! 0
-                            in interpretUnsafe $ fnIoPairs False n program $ list ins
+                            in interpretUnsafe $ fnIoPairs True n program $ list ins
                     in compileInput `mapM` type_ins
                 let prediction_io_pairs :: [(Expr, Either String Expr)] =
                         join . elems $ prediction_type_ios
@@ -386,24 +367,18 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
             let best_works :: Bool = or sample_matches
             -- let score :: Float = max sample_matches
-            return $ not best_works
+            return (not best_works, loss)
 
-        -- let error_rate_test :: Tnsr '[] = mean errors_test
-        let error_rate_test :: Tnsr '[] = asUntyped F.mean errors_test
+        let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
+        let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
 
         -- REST
 
         putStrLn
-            $  "Epoch: "
-            <> show epoch
-            <> ". Train loss: "
-            <> show loss_train
-            -- statistic (zeros :: Tnsr '[0, ?]) sufficientStatistic summarizer test_set
-            -- wait, reducing separate tensor rows feels antithetical to a parallel lib
-            -- <> ". Test loss: "
-            -- <> show (loss_test / realToFrac n_test)
-            <> ". Test error-rate: "
-            <> show error_rate_test
+            $  "Epoch: "                <> show epoch
+            <> ". Train loss: "         <> show loss_train
+            <> ". Test loss: "          <> show loss_test
+            <> ". Test error-rate: "    <> show err_test
         
         D.save (D.toDependent <$> A.flattenParameters model') modelPath
         return (gen', model', optim')

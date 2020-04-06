@@ -9,6 +9,8 @@ where
 import Data.ByteString.Char8 (pack)
 -- import qualified Data.ByteString.Char8 as BS
 import Data.HashMap.Lazy (HashMap, toList)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Hashable (Hashable (..))
 import Data.Store (Store (..)) -- , Size (..), Peek, Poke
 import Data.Store.Internal (genericSize, genericPeek, genericPoke)
@@ -179,6 +181,11 @@ instance (Pretty l, Pretty r) => Pretty (Either l r) where
   pretty = unsafeViaShow . \case
     Left l -> pretty "Left (" <> pretty l <> pretty ")"
     Right r -> pretty "Right (" <> pretty r <> pretty ")"
+
+
+-- | ensure I can print sets
+instance (Pretty a) => Pretty (Set a) where
+  pretty = pretty . Set.toList
 
 -- -- serialization
 -- instance (Eq k, Hashable k, Store k, Store a) => Store (HashMap k a) where

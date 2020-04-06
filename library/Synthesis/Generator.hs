@@ -21,6 +21,7 @@ import Data.HashMap.Lazy
     mapWithKey,
     toList,
     union,
+    size,
   )
 -- import qualified Data.HashMap.Lazy as HM
 import Data.List (partition, maximum)
@@ -149,6 +150,7 @@ program = do
   let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
   -- TODO: save/load task function data to separate generation/synthesis
   liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
+      (keys blockAsts)
       fn_types
       fn_in_type_instance_outputs
       fn_in_type_instantiations
@@ -164,6 +166,7 @@ program = do
     let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
     say $ pp_ in_type_instance_outputs
 
+  say $ "\nsymbols: " <> show (1 + size blockAsts)
   say $ "\nrules: " <> show (length expr_blocks)
   let ios :: [(Expr, Either String Expr)] =
           join . elems $ join . elems <$> fn_in_type_instance_outputs

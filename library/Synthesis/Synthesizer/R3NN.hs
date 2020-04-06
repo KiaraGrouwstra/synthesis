@@ -20,7 +20,7 @@ module Synthesis.Synthesizer.R3NN (
 
 -- import Data.Word (Word64)
 -- import Data.Bifunctor (second)
-import Data.HashMap.Lazy (HashMap, fromList) -- , (!), size, keys, lookup
+import Data.HashMap.Lazy (HashMap, fromList, (!)) -- , size, keys, lookup
 import Control.Arrow ((&&&))
 import Control.Monad ((=<<), join)
 -- import Control.Monad.State.Strict (StateT(..))
@@ -72,12 +72,10 @@ import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 data R3NNSpec
     (m :: Nat)
     -- (m :: KnownNat)
+    (symbols :: Nat)
     (rules :: Nat)
  where
-  R3NNSpec
-    :: forall
-        m
-        rules
+  R3NNSpec :: forall m symbols rules
      . {
         -- gen :: Generator,
         variant_sizes :: HashMap String Int,    -- dsl
@@ -88,19 +86,16 @@ data R3NNSpec
         rightH0 :: Int,
         rightH1 :: Int
         }
-    -> R3NNSpec
-        m
-        rules
+    -> R3NNSpec m symbols rules
  deriving (Show, Eq)
 
 data R3NN
     (m     :: Nat)
+    (symbols :: Nat)
     (rules :: Nat)
  where
   R3NN
-    :: forall
-        m
-        rules
+    :: forall m symbols rules
     -- htan activation
      . { condition_model :: UntypedMLP.MLP
                             -- TypedMLP.MLP
@@ -119,21 +114,20 @@ data R3NN
        , right_nnets :: HashMap String UntypedMLP.MLP
         -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
         -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
-    --    , symbol_emb            :: Parameter Dev 'D.Float '[Symbols, m]  -- NSPS's phi   -- A.Parameter
+    --    , symbol_emb            :: Parameter Dev 'D.Float '[symbols, m]  -- NSPS's phi   -- A.Parameter
        , symbol_emb            :: A.Parameter
         -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
     --    , rule_emb :: Parameter Dev 'D.Float '[rules  , m]  -- NSPS's omega -- A.Parameter
        , rule_emb :: A.Parameter
         }
-    -> R3NN
-        m
-        rules
+    -> R3NN m symbols rules
  deriving (Show, Generic)
 
 instance ( KnownNat m
+         , KnownNat symbols
          , KnownNat rules
          )
-  => A.Parameterized (R3NN m rules) where
+  => A.Parameterized (R3NN m symbols rules) where
   flattenParameters R3NN{..} = [ symbol_emb
                                , rule_emb
                                 ]
@@ -151,17 +145,18 @@ instance ( KnownNat m
 -- instance ( KnownNat m
 --          , KnownNat rules
 --          )
---   => Parameterized (R3NN m rules) '[ Parameter Dev D.Float [Symbols, m], Parameter Dev D.Float [rules, m] ]
+--   => Parameterized (R3NN m rules) '[ Parameter Dev D.Float [symbols, m], Parameter Dev D.Float [rules, m] ]
 
 instance ( KnownNat m
+         , KnownNat symbols
          , KnownNat rules
          )
-  => A.Randomizable (R3NNSpec m rules)
-                    (R3NN     m rules)
+  => A.Randomizable (R3NNSpec m symbols rules)
+                    (R3NN     m symbols rules)
  where
     sample R3NNSpec {..} = do
         -- gen :: Generator <- D.mkGenerator device $ fromIntegral seed
-        symbol_emb :: Tnsr '[Symbols, m] <- randn
+        symbol_emb :: Tnsr '[symbols, m] <- randn
         rule_emb :: Tnsr '[rules, m] <- randn  -- Rules isn't necessarily static so no macros...
         join . return $ R3NN
             -- condition_model
@@ -196,18 +191,9 @@ instance ( KnownNat m
                 -- (rule_emb, _gen'') :: (D.Tensor, Generator) = D.randn [natValI @rules, m] tensorOptions gen'
 
 
---     symbol_emb :: Tnsr '[Symbols, M] <- randn
---     -- let (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
---     -- say $ "symbol_emb: " ++ show (shape' symbol_emb)
---     -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
---     -- rule_emb :: Tnsr '[Rules, M] <- randn  -- Rules isn't necessarily static so no macros...
---     -- let (rule_emb, _gen'') :: (D.Tensor, Generator) = D.randn [Rules, m] tensorOptions gen'
---     let (rule_emb, _gen') :: (Tnsr '[Rules, M], Generator) =
---             first UnsafeMkTensor $ D.randn [n_rules, m] tensorOptions gen
-
 -- | initialize R3NN spec
-initR3nn :: forall m rules t . (KnownNat m, KnownNat rules, KnownNat t) => [(String, Expr)] -> Int -> (R3NNSpec m rules)
-initR3nn variants batch_size = R3NNSpec @m @rules
+initR3nn :: forall m symbols rules t . (KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t) => [(String, Expr)] -> Int -> (R3NNSpec m symbols rules)
+initR3nn variants batch_size = R3NNSpec @m @symbols @rules
         variant_sizes
         -- condition
         (UntypedMLP.MLPSpec conditionIn h0 h1 m)
@@ -253,7 +239,8 @@ initR3nn variants batch_size = R3NNSpec @m @rules
 -- | the inner product between the production rule representation and the
 -- | global-tree representation of the leaf-level non-terminal node.
 runR3nn
-    :: forall t m rules batch_size num_holes
+    :: forall symbols t m rules batch_size num_holes
+    . ( KnownNat symbols )
     -- . ( KnownNat t )
     -- KnownNat m,
     -- KnownNat batch_size,
@@ -261,13 +248,15 @@ runR3nn
     -- KnownNat num_nodes,   -- Let N be the current non-leaf (rule) nodes of the PPT.??
     -- KnownNat num_holes,
     -- KnownNat rules)       -- Let E be the set of all valid expansions in a PPT.
-    -- => R3NN m rules
-    .  R3NN m rules
+    -- => R3NN m symbols rules
+    => R3NN m symbols rules
+    -> HashMap String Int
     -> Expr
     -> Tnsr '[batch_size, 2 * Dirs * Enc.H * t]
     -> IO (Tnsr '[num_holes, rules])
 runR3nn
     R3NN{..}
+    symbolIdxs
     ppt
     io_feats
     = do
@@ -289,31 +278,31 @@ runR3nn
             asUntyped (D.reshape [-1]) io_feats   -- [n * 2 * dirs * Enc.h * t]
             -- reshape '[batch_size * 2 * Dirs * Enc.H * t] io_feats
     print $ "io_feats': " ++ show (shape' io_feats')
-    -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `Symbols` instead of `NumLeaves`
+    -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `symbols` instead of `NumLeaves`
     -- untyped as num_leaves is dynamic
     -- (toDynamic leaf_embs)
     -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, stack' 0 (replicate (shape' leaf_embs !! 0) (toDynamic io_feats'))]
     -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, stack' 0 (replicate (shape' leaf_embs !! 0) io_feats')]
     -- let stacked_io = stack 0 $ replicate symbols io_feats'
     -- print $ "stacked_io: " ++ show (shape' stacked_io)
-    let conditioned :: Tnsr '[Symbols, m + batch_size * 2 * Dirs * Enc.H * t] =
+    let conditioned :: Tnsr '[symbols, m + batch_size * 2 * Dirs * Enc.H * t] =
             -- UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
             UnsafeMkTensor $ F.cat 1 [D.toDependent symbol_emb, stacked_io]
-            where stacked_io = stack' 0 $ toDynamic <$> replicate symbols io_feats' -- n
+            where stacked_io = stack' 0 $ toDynamic <$> replicate (natValI @symbols) io_feats' -- n
     print $ "conditioned: " ++ show (shape' conditioned)
     -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
     -- The conditioning network can be either a multi-layer feedforward network,
-    -- -- let conditioned' :: Tnsr '[Symbols, m] = TypedMLP.mlp condition_model train conditioned
-    let conditioned' :: Tnsr '[Symbols, m] =
+    -- -- let conditioned' :: Tnsr '[symbols, m] = TypedMLP.mlp condition_model train conditioned
+    let conditioned' :: Tnsr '[symbols, m] =
             asUntyped (UntypedMLP.mlp condition_model) conditioned
     -- or a bidirectional LSTM network running over tree leaves.
     -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
-    -- let conditioned' :: Tnsr '[Symbols, Dirs * H] = emb
+    -- let conditioned' :: Tnsr '[symbols, Dirs * H] = emb
     --     where
     --         let (emb, hidden, cell) :: (
-    --                 Tnsr '[Symbols, 1, Dirs * H],
-    --                 Tnsr '[Dirs * NumLayers, Symbols, H],
-    --                 Tnsr '[Dirs * NumLayers, Symbols, H])
+    --                 Tnsr '[symbols, 1, Dirs * H],
+    --                 Tnsr '[Dirs * NumLayers, symbols, H],
+    --                 Tnsr '[Dirs * NumLayers, symbols, H])
     --                     = lstmWithDropout @'BatchFirst condition_model conditioned
     print $ "conditioned': " ++ show (shape' conditioned')
 
@@ -331,12 +320,6 @@ runR3nn
     -- | We now do a standard recursive bottom-to-top, RHS→LHS pass on the network, by going up the tree and applying f_R(n) for every non-leaf node n∈N on its RHS node representations (see Figure 3(a)).
     -- | These networks f_R(n) produce a node representation which is input into the parent’s rule network and so on until we reach the root node.
     -- | Once at the root node, we effectively have a fixed-dimensionality global tree representation ϕ(root) for the start symbol.
-    -- print $ "nodeRule ppt: " ++ show (nodeRule ppt)
-    -- my DSL doesn't currently distinguish symbols so just prep it up-front
-    let expr_slice :: Tnsr '[1, m] =
-            asUntyped (\t -> select' t 0 0) conditioned'  -- symbol_emb
-            -- select @0 @0 conditioned'  -- this removes the dimension...
-    
     let root_emb :: Tnsr '[1, m] = let
                 traverseTree :: Expr -> Tnsr '[1, m] = \expr -> let
                         f = traverseTree
@@ -344,8 +327,13 @@ runR3nn
                         Paren _l xpr -> f xpr
                         Let _l _binds xpr -> f xpr
                         ExpTypeSig _l xpr _tp -> f xpr
-                        Con _l _qname -> expr_slice
-                        Var _l _qname -> expr_slice
+                        -- Con _l _qname -> expr_slice
+                        Var _l qname -> let idx = case qname of
+                                                UnQual _l name -> case name of
+                                                    Ident _l str -> symbolIdxs ! str
+                                                    _ -> error $ "unexpected Name: " ++ show name
+                                                _ -> error $ "unexpected QName: " ++ show qname
+                                            in UnsafeMkTensor $ select' (D.toDependent symbol_emb) 0 idx
                         App _l _exp1 _exp2 -> let
                                 tensors :: [Tnsr '[1, m]] = f <$> fnAppNodes expr
                                 nnet = UntypedMLP.mlp $ lookupRule left_nnets $ nodeRule expr
@@ -378,7 +366,7 @@ runR3nn
                         Paren _l xpr -> f xpr
                         Let _l _binds xpr -> f xpr
                         ExpTypeSig _l xpr _tp -> f xpr
-                        Con _l _qname -> []  -- terminal leaf, discard embedding
+                        -- Con _l _qname -> []  -- terminal leaf, discard embedding
                         Var _l qname -> case qname of
                             -- Special _l specialCon -> case specialCon of
                             --     ExprHole _l -> [node_emb]
@@ -439,11 +427,14 @@ runR3nn
             asUntyped (F.matmul $ toDynamic node_embs') . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
     print $ "scores: " ++ show (shape' scores)
 
-    -- | probabilities to every valid expansion in the current PPT.
-    -- | The probability of expansion e is simply the exponentiated normalized sum over all scores: π(e) = e^(z_e) / (∑_{e′∈E} e^{z_e′}).
-    let hole_expansion_probs :: Tnsr '[num_holes, rules] =
-            asUntyped softmaxAll scores
-    print $ "hole_expansion_probs: " ++ show (shape' hole_expansion_probs)
+    return scores
+    -- delay softmax in favor of combining them into `binary_cross_entropy_with_logits` for numerical stability (log-sum-exp trick)
 
-    -- TODO: zero-mask non-compiling expansions? ensure penalized by loss?
-    return hole_expansion_probs
+    -- -- | probabilities to every valid expansion in the current PPT.
+    -- -- | The probability of expansion e is simply the exponentiated normalized sum over all scores: π(e) = e^(z_e) / (∑_{e′∈E} e^{z_e′}).
+    -- let hole_expansion_probs :: Tnsr '[num_holes, rules] =
+    --         asUntyped softmaxAll scores
+    -- print $ "hole_expansion_probs: " ++ show (shape' hole_expansion_probs)
+
+    -- -- TODO: zero-mask non-compiling expansions? ensure penalized by loss?
+    -- return hole_expansion_probs

@@ -46,7 +46,7 @@ program = do
     taskFnDataset :: TaskFnDataset <- liftIO $ decodeIO bs
 
     -- liftIO $ printTaskFns taskFnDataset train_set
-    liftIO $ train @M @BatchSize @Rules @T @N_train @N_validation @N_test synthesizer_config taskFnDataset
+    liftIO $ train @M @BatchSize @Symbols @Rules @T @N_train @N_validation @N_test synthesizer_config taskFnDataset
 
 -- -- | print info on task functions
 -- -- | deprecated, not in use

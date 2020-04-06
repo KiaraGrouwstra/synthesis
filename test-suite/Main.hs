@@ -499,7 +499,7 @@ synthesizer = parallel $ do
         -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
         -- rotateT r `shouldBe` ?
 
-    it "nsps" $ do
+    it "predictHole" $ do
         let batch_size :: Int = natValI @BatchSize
         -- let seed' :: Int = 123
         let dsl = blockAsts
