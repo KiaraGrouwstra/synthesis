@@ -92,4 +92,5 @@ data SynthesizerConfig = SynthesizerConfig
   , modelPath :: String
   -- , batchSize :: Int
   , bestOf :: Int
+  , dropoutRate :: Double
   } deriving (Show, Generic)

@@ -505,8 +505,8 @@ synthesizer = parallel $ do
         let dsl = blockAsts
         variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        init_enc_model :: BaselineMLPEncoder <- A.sample $ BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineMLPEncoder init_enc_model io_pairs
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec max_char h0 h1 $ dirs * Enc.h
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         init_r3nn_model :: R3NN M Rules <- A.sample $ initR3nn @M @Rules @T variants batch_size
         hole_expansion_probs <- runR3nn @T init_r3nn_model ppt io_feats

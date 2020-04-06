@@ -41,6 +41,7 @@ import qualified Torch.NN                      as A
 import           Torch.Typed.Aux
 -- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
+import           Torch.Typed.NN
 -- import           Torch.Typed.Parameter
 import           Torch.Typed.Factories
 -- import           Torch.Typed.Optim
@@ -64,19 +65,19 @@ import           Synthesis.Hint
 import           Synthesis.Types
 -- import           Synthesis.TypeGen
 import           Synthesis.Synthesizer.Utility
-import           Synthesis.Synthesizer.Encoder
+import           Synthesis.Synthesizer.Encoder -- hiding (dropoutRate)
 import qualified Synthesis.Synthesizer.Encoder as Enc
 import           Synthesis.Synthesizer.R3NN
 
 data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) where
   NSPSSpec :: forall m symbols rules
-     . { encoderSpec :: BaselineMLPEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules }
+     . { encoderSpec :: BaselineLstmEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules }
     -> NSPSSpec m symbols rules
  deriving (Show, Eq)
 
 data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat)  where
   NSPS :: forall m symbols rules
-        . { encoder :: BaselineMLPEncoder, r3nn :: R3NN m symbols rules }
+        . { encoder :: BaselineLstmEncoder, r3nn :: R3NN m symbols rules }
        -> NSPS m symbols rules
  deriving (Show, Generic)
 
@@ -288,7 +289,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     putStrLn $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
-    let encoder_spec :: BaselineMLPEncoderSpec = BaselineMLPEncoderSpec max_char h0 h1 $ dirs * Enc.h -- dropoutRate
+    let encoder_spec :: BaselineLstmEncoderSpec = BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec m symbols rules = initR3nn @m @symbols @rules @t variants batchSize
     init_model :: NSPS m symbols rules <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     -- :: D.Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
@@ -306,7 +307,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let taskType :: Tp = task_expr_types ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineMLPEncoder (encoder model) target_io_pairs
+            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder (encoder model) target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -327,7 +328,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_outputs :: [Either String Expr] =
                     task_outputs                                ! task_fn
 
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineMLPEncoder (encoder model') target_io_pairs
+            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder (encoder model') target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
 
             -- sample for best of 100 predictions

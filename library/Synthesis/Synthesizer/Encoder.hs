@@ -12,10 +12,10 @@ module Synthesis.Synthesizer.Encoder (
 --     Dev,
 --     H,
 --     h,
---     BaselineMLPEncoderSpec (..),
---     BaselineMLPEncoder,
+--     BaselineLstmEncoderSpec (..),
+--     BaselineLstmEncoder,
 --     -- baseline_lstm_encoder,
---     baselineMLPEncoder,
+--     baselineLstmEncoder,
 ) where
 
 -- import GHC.Exts (fromList)
@@ -27,9 +27,10 @@ import Data.Char (ord)
 -- import qualified GHC.TypeNats
 import GHC.Generics (Generic)
 import GHC.TypeNats (KnownNat, type (*)) -- , Nat, Mod, type (+), type (-)
+import Util (fstOf3)
 
 import Torch.Typed.Tensor
--- import Torch.Typed.Functional
+import Torch.Typed.Functional
 -- import Torch.Typed.NN
 -- import Torch.Typed.Factories
 import Torch.Typed.Aux
@@ -42,57 +43,61 @@ import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 -- import qualified Torch.Device                  as D
 -- import qualified Torch.Functional.Internal     as D
--- import Torch.Typed.NN.Recurrent.LSTM
+import Torch.Typed.NN.Recurrent.LSTM
 -- import Torch.Functional.Internal (stack)
 
 import Synthesis.Data (Expr)
 import Synthesis.Utility (pp) -- , pp_
 import Synthesis.Synthesizer.Utility -- (Dev, Dir, Dirs, asUntyped', padRight, select', rotate) -- rotateT
-import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
+-- import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 
--- type NumLayers = 3 -- ?
+type NumLayers = 3 -- ?
 
 -- | H is the topmost LSTM hidden dimension
 type H = 30 -- ?
 h :: Int
 h = natValI @H
 
--- dropoutRate :: Double
--- dropoutRate = 0.0
+data BaselineLstmEncoderSpec = BaselineLstmEncoderSpec {
+        -- dropoutRate :: Double
+        lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
+    } deriving (Show)  -- , Eq
 
--- type Spec = LSTMWithInitSpec MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-
-data BaselineMLPEncoderSpec = BaselineMLPEncoderSpec {
-    inFeats :: Int,
-    hidden0 :: Int,
-    hidden1 :: Int,
-    outFeats :: Int
-    } deriving (Show, Eq)
-
-data BaselineMLPEncoder = BaselineMLPEncoder {
-    in_model :: UntypedMLP.MLP,
-    out_model :: UntypedMLP.MLP
+data BaselineLstmEncoder = BaselineLstmEncoder {
+    in_model  :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
+    out_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
     } deriving (Show, Generic)
 
-instance A.Parameterized BaselineMLPEncoder
+instance () => A.Parameterized (BaselineLstmEncoder) where
+  flattenParameters BaselineLstmEncoder{..} = []
+        --    A.flattenParameters  in_model
+        -- ++ A.flattenParameters out_model
+  replaceOwnParameters = pure
+--   replaceOwnParameters BaselineLstmEncoder{..} = do
+--     out_model' <- A.replaceOwnParameters out_model
+--     in_model'  <- A.replaceOwnParameters  in_model
+--     return $ BaselineLstmEncoder
+--                  {  in_model =  in_model'
+--                  , out_model = out_model'
+--                  }
 
-instance A.Randomizable BaselineMLPEncoderSpec BaselineMLPEncoder where
-    sample BaselineMLPEncoderSpec {..} = BaselineMLPEncoder
+instance A.Randomizable BaselineLstmEncoderSpec BaselineLstmEncoder where
+    sample BaselineLstmEncoderSpec {..} = BaselineLstmEncoder
         <$> A.sample spec
         <*> A.sample spec
-            where spec = UntypedMLP.MLPSpec inFeats hidden0 hidden1 outFeats
+            where spec = LSTMWithZerosInitSpec lstmSpec
 
 -- | 5.1.1 Baseline LSTM encoder
 -- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
 
 -- baseline_lstm_encoder
-baselineMLPEncoder
+baselineLstmEncoder
     :: forall batch_size t
      . (KnownNat batch_size, KnownNat t)
-    => BaselineMLPEncoder
+    => BaselineLstmEncoder
     -> [(Expr, Either String Expr)]
     -> IO (Tnsr '[batch_size, 2 * Dirs * H * t])
-baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
+baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     let t_ :: Int = natValI @t  -- I cannot use dummy values for this as it actually determines tensor lengths...
     let batch_size_ :: Int = natValI @batch_size
     let n_ :: Int = length io_pairs
@@ -100,7 +105,6 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
     -- | Our first I/O encoding network involves running two separate deep bidirectional LSTM networks for processing the input and the output string in each example pair.
-    -- let dropoutSpec :: DropoutSpec = DropoutSpec dropoutRate -- drop-out not mentioned in NSPS
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
     let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip D.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
@@ -116,7 +120,7 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --                 (Tnsr '[1, t, Dirs * H],
     --                 Tnsr '[Dirs * NumLayers, 1, H],
     --                 Tnsr '[Dirs * NumLayers, 1, H])
-    --                     = lstmWithoutDropout @'BatchFirst in_lstm tensor_in
+    --                     = lstmWithDropout @'BatchFirst in_lstm tensor_in
     --             (emb_out, hidden_out, cell_out) ::
     --                 (Tnsr '[1, t, Dirs * H],
     --                 Tnsr '[Dirs * NumLayers, 1, H],
@@ -142,7 +146,7 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --             Tnsr '[1, t, Dirs * H],
     --             Tnsr '[Dirs * NumLayers, H],
     --             Tnsr '[Dirs * NumLayers, H])
-    --                 = lstmWithoutDropout @'BatchFirst lstm tensor
+    --                 = lstmWithDropout @'BatchFirst lstm tensor
     --         let spec_ = LSTMWithConstInitSpec lstm_spec cell hidden
     --         return (emb, spec_)
     -- let f :: (Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])
@@ -173,7 +177,7 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --                 Tnsr '[t, 1, Dirs * H],
     --                 Tnsr '[Dirs * NumLayers, t, H],
     --                 Tnsr '[Dirs * NumLayers, t, H])
-    --                     = lstmWithoutDropout @'BatchFirst lstm tensor
+    --                     = lstmWithDropout @'BatchFirst lstm tensor
     --         let spec_ :: Spec = LSTMWithConstInitSpec lstm_spec cell hidden
     --         let last_hidden :: Tnsr '[Dirs, t, H] = assert (dirs == 2) $ stack @0 (select @0 @(NumLayers - 1) hidden :. select @0 @NumLayers hidden :. HNil)  -- is it really the last two?
     --         return (last_hidden, spec_)
@@ -206,7 +210,7 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
     --                 Tnsr '[1, 1, Dirs * H],
     --                 Tnsr '[Dirs * NumLayers, 1, H],
     --                 Tnsr '[Dirs * NumLayers, 1, H])
-    --                     = lstmWithoutDropout @'BatchFirst lstm tensor
+    --                     = lstmWithDropout @'BatchFirst lstm tensor
     --         let spec_ :: Spec = LSTMWithConstInitSpec lstm_spec cell hidden
     --         let last_hidden :: Tnsr '[Dirs, 1, H] = assert (dirs == 2) $ stack @0 (select @0 @(Dirs * (NumLayers-1)) hidden :. select @0 @(Dirs * NumLayers - 1) hidden :. HNil)  -- last two?
     --         -- let last_hidden :: Tnsr '[Dirs, 1, H] = assert (dirs == 2) $ stack @0 (select @0 @((Dirs-1) * NumLayers - 1) hidden :. select @0 @(Dirs * NumLayers - 1) hidden :. HNil)  -- last interspersed?
@@ -245,25 +249,10 @@ baselineMLPEncoder BaselineMLPEncoder{..} io_pairs = do
             stackPad $ toDynamic . snd <$> vec_pairs
     -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
 
-    -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
-    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] =
-            asUntyped (UntypedMLP.mlp in_model) in_vec
-    let emb_out :: Tnsr '[batch_size, t, Dirs * H] =
-            asUntyped (UntypedMLP.mlp out_model) out_vec
+    let lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
+    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
+    let emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
 
-    -- -- TODO: replace this with an untyped lstm
-    -- let lstm_spec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
-    -- let spec :: Spec = LSTMWithZerosInitSpec lstm_spec
-    -- let lstm_step :: Tnsr '[batch_size, t, MaxChar] -> IO (Tnsr '[batch_size, t, Dirs * H]) = \tensor -> do
-    --         lstm_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
-    --         let (emb, _hidden, _cell) :: (
-    --                 Tnsr '[batch_size, t, Dirs * H],
-    --                 Tnsr '[Dirs * NumLayers, batch_size, H],
-    --                 Tnsr '[Dirs * NumLayers, batch_size, H])
-    --                     = lstmWithoutDropout @'BatchFirst lstm_model tensor
-    --         return emb
-    -- emb_in  <- lstm_step  in_vec
-    -- emb_out <- lstm_step out_vec
     -- print $ "emb_in: " ++ show (D.shape $ toDynamic emb_in)
     -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
 

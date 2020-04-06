@@ -132,6 +132,11 @@ synthesizerConfig = SynthesizerConfig
         <> value 100
         <> showDefault
         <> help "Number of functions to sample from the model for each latent function and set of input/output examples that we test on, determining success based on the best from this sample." )
+    <*> option auto
+        ( long "dropoutRate"
+        <> value 0.0    -- drop-out not mentioned in NSPS
+        <> showDefault
+        <> help "drop-out rate for the encoder LSTM" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
