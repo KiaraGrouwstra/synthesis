@@ -38,6 +38,7 @@ import qualified Torch.Serialize               as D
 import qualified Torch.Autograd                as D
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
+import           Torch.Typed.NN.Recurrent.LSTM
 import           Torch.Typed.Aux
 -- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
@@ -73,7 +74,7 @@ data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) where
   NSPSSpec :: forall m symbols rules
      . { encoderSpec :: BaselineLstmEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules }
     -> NSPSSpec m symbols rules
- deriving (Show, Eq)
+ deriving (Show)   -- , Eq
 
 data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat)  where
   NSPS :: forall m symbols rules
@@ -202,13 +203,13 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (holes_left, ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules batchSize t . (KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, 2 * Dirs * Enc.H * t] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
+calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, 2 * Dirs * Enc.H * t] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
 calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_zero, _program, golds, predictions) :: (Int, Expr, [D.Tensor], [D.Tensor]) <- let
             --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
             fill = \(_num_holes, ppt, golds, predictions) -> do
-                    predicted <- runR3nn @symbols (r3nn model) symbolIdxs ppt io_feats
+                    predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt io_feats
                     (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
             in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, skeleton taskType, [], [])     -- hasHoles
@@ -290,7 +291,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
     -- MODELS
     let encoder_spec :: BaselineLstmEncoderSpec = BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec m symbols rules = initR3nn @m @symbols @rules @t variants batchSize
+    let r3nn_spec :: R3NNSpec m symbols rules = initR3nn @m @symbols @rules @t variants batchSize dropoutRate
     init_model :: NSPS m symbols rules <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     -- :: D.Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
     let init_optim :: D.GD = default_optim
@@ -307,7 +308,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let taskType :: Tp = task_expr_types ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder (encoder model) target_io_pairs
+            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model) target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -328,7 +329,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_outputs :: [Either String Expr] =
                     task_outputs                                ! task_fn
 
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder (encoder model') target_io_pairs
+            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model') target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
 
             -- sample for best of 100 predictions
@@ -338,7 +339,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                 (_zero, program) :: (Int, Expr) <- let
                         --  :: (Int, Expr) -> IO (Int, Expr)
                         fill = \(_num_holes, ppt) ->
-                                join $ predictHole variants ppt <$> runR3nn @symbols (r3nn model') symbolIdxs ppt io_feats
+                                join $ predictHole variants ppt <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
                         in while ((> 0) . fst) fill (1 :: Int, skeleton taskType)     -- hasHoles
 
                 prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let

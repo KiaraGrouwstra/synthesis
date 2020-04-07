@@ -9,6 +9,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.R3NN (
     module Synthesis.Synthesizer.R3NN
@@ -26,24 +27,25 @@ import Control.Monad ((=<<), join)
 -- import Control.Monad.State.Strict (StateT(..))
 import Language.Haskell.Exts.Syntax
 import GHC.Generics (Generic)
-import GHC.TypeNats (KnownNat, Nat, type (*), type (+))  -- , Mod, Div, type (-)
+import GHC.TypeNats (KnownNat, Nat, Div, type (*), type (+))  -- , Mod, type (-)
+import Util (fstOf3)
 
 import Torch.Typed.Tensor
 import Torch.Typed.Functional
--- import Torch.Typed.NN
+import Torch.Typed.NN
 import Torch.Typed.Aux
 -- import Torch.Typed.Parameter
 -- import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
 import Torch.Autograd -- (IndependentTensor(..))
 -- import Torch.TensorOptions
--- import Torch.Typed.NN.Recurrent.LSTM
+import Torch.Typed.NN.Recurrent.LSTM
 -- import Torch.HList
 -- import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
 import qualified Torch.Tensor                  as D
--- import qualified Torch.DType                   as D
+import qualified Torch.DType                   as D
 -- import qualified Torch.Device                  as D
 -- import qualified Torch.Functional.Internal     as D
 -- import qualified Torch.Random                  as D
@@ -69,6 +71,13 @@ import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
 -- dropoutRate :: Double
 -- dropoutRate = 0.0 -- drop-out not mentioned in NSPS
 
+type NumLayers = 3 -- ?
+
+-- | H is the topmost LSTM hidden dimension
+-- type H = 30 -- ?
+-- h :: Int
+-- h = natValI @H
+
 data R3NNSpec
     (m :: Nat)
     -- (m :: KnownNat)
@@ -80,14 +89,16 @@ data R3NNSpec
         -- gen :: Generator,
         variant_sizes :: HashMap String Int,    -- dsl
         conditionSpec :: UntypedMLP.MLPSpec,
-        scoreSpec     :: UntypedMLP.MLPSpec,
+        -- conditionSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev,
+        -- scoreSpec :: LSTMSpec m m NumLayers Dir 'D.Float Dev,
+        scoreSpec :: LSTMSpec m (Div m Dirs) NumLayers Dir 'D.Float Dev,
         leftH0  :: Int,
         leftH1  :: Int,
         rightH0 :: Int,
         rightH1 :: Int
         }
     -> R3NNSpec m symbols rules
- deriving (Show, Eq)
+ deriving (Show)  -- , Eq
 
 data R3NN
     (m     :: Nat)
@@ -100,8 +111,8 @@ data R3NN
      . { condition_model :: UntypedMLP.MLP
                             -- TypedMLP.MLP
                             -- LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-       , score_model :: UntypedMLP.MLP
-                            -- LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+       , score_model :: LSTMWithInit m (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
+    --    , score_model :: LSTMWithInit m m NumLayers Dir 'ConstantInitialization 'D.Float Dev
         -- For every production rule r∈R, a deep neural network f_r which takes as
         -- input a vector x∈R^Q⋅M, with Q being the number of symbols on the RHS of
         -- the production rule r, and outputs a vector y∈R^M.
@@ -163,7 +174,7 @@ instance ( KnownNat m
             <$> A.sample conditionSpec
             -- (LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate)
             -- score_model
-            <*> A.sample scoreSpec
+            <*> A.sample (LSTMWithZerosInitSpec scoreSpec)
             -- (TypedMLP.MLPSpec
             --         @(m + batch_size * 2 * Dirs * Enc.H * t) @m
             --         @H0 @H1
@@ -192,13 +203,19 @@ instance ( KnownNat m
 
 
 -- | initialize R3NN spec
-initR3nn :: forall m symbols rules t . (KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t) => [(String, Expr)] -> Int -> (R3NNSpec m symbols rules)
-initR3nn variants batch_size = R3NNSpec @m @symbols @rules
+initR3nn :: forall m symbols rules t
+         . (KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t)
+         => [(String, Expr)]
+         -> Int
+         -> Double
+         -> (R3NNSpec m symbols rules)
+initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules
         variant_sizes
         -- condition
         (UntypedMLP.MLPSpec conditionIn h0 h1 m)
         -- score
-        (UntypedMLP.MLPSpec           m h0 h1 m)
+        -- (UntypedMLP.MLPSpec           m h0 h1 m)
+        (LSTMSpec $ DropoutSpec dropoutRate)
         -- left
         hiddenFeatures0
         hiddenFeatures1
@@ -239,8 +256,8 @@ initR3nn variants batch_size = R3NNSpec @m @symbols @rules
 -- | the inner product between the production rule representation and the
 -- | global-tree representation of the leaf-level non-terminal node.
 runR3nn
-    :: forall symbols t m rules batch_size num_holes
-    . ( KnownNat symbols )
+    :: forall symbols m t rules batch_size num_holes
+    . ( KnownNat symbols, KnownNat m )
     -- . ( KnownNat t )
     -- KnownNat m,
     -- KnownNat batch_size,
@@ -400,8 +417,16 @@ runR3nn
     -- OPTIONAL
     -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
     -- this should be an LSTM but for MLP an untyped implementation is available now so let's try that first...
+    -- Tnsr '[batch_size, t, Dirs * H] =
+    -- '[num_holes, m]
+    -- scoreSpec :: LSTMSpec m H NumLayers Dir 'D.Float Dev,
     let node_embs' :: Tnsr '[num_holes, m] =
-            asUntyped (UntypedMLP.mlp score_model) node_embs
+    -- let node_embs' :: Tnsr '[num_holes, Div m 2 * 2] =
+            -- asUntyped (UntypedMLP.mlp score_model) node_embs
+            -- squeezeAll . 
+            -- reshape '[num_holes, Div m 2 * 2] .
+            asUntyped (D.reshape . D.shape . toDynamic $ node_embs) . 
+            fstOf3 . lstmWithDropout @'BatchFirst score_model $ unsqueeze @0 node_embs
     -- damnit, given num_holes is dynamic (may differ by expression, unless I fix some max?),
     -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
     -- TODO: convert from 2d to 3d for input and back for output...

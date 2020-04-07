@@ -18,7 +18,7 @@ import           Control.Exception            (SomeException, try, evaluate)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 -- import           Data.Bifunctor               (first)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!))
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
 import           Language.Haskell.Interpreter (as, interpret, liftIO) -- , typeChecksWithDetails
@@ -40,6 +40,8 @@ import           Torch.Typed.Aux
 -- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
 import           Torch.Typed.Factories
+import           Torch.Typed.NN
+import           Torch.Typed.NN.Recurrent.LSTM
 
 import           Synthesis.Ast
 import           Synthesis.Configs
@@ -61,19 +63,22 @@ import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 main ∷ IO ()
 main = do
-    -- unlike Tasy, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen]
+    -- -- unlike Tasty, HUnit's default printer is illegible,
+    -- -- but helps ensure the Interpreter is run only once...
+    -- void $ runTestTT $ TestList [hint, gen]
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
+    -- -- Tasty HSpec
+    -- util_ <- testSpec "Utility" util
+    -- types_ <- testSpec "Types" types
+    -- typeGen_ <- testSpec "TypeGen" typeGen
+    -- find_ <- testSpec "FindHoles" find
+    -- ast_ <- testSpec "Ast" ast
+    -- synthesizer_ <- testSpec "Synthesizer" synthesizer
+    -- let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
+    -- defaultMain tree
+
     synthesizer_ <- testSpec "Synthesizer" synthesizer
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
-    defaultMain tree
+    defaultMain synthesizer_
 
 util ∷ Spec
 util = parallel $ do
@@ -473,6 +478,7 @@ gen = let
 
     ]
 
+type NumHoles = 1
 -- dummy values to trick the compiler
 type T = 42
 
@@ -505,11 +511,13 @@ synthesizer = parallel $ do
         let dsl = blockAsts
         variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec max_char h0 h1 $ dirs * Enc.h
+        let dropout :: Double = 0.0
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropout
         io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        init_r3nn_model :: R3NN M Rules <- A.sample $ initR3nn @M @Rules @T variants batch_size
-        hole_expansion_probs <- runR3nn @T init_r3nn_model ppt io_feats
+        init_r3nn_model :: R3NN M Symbols Rules <- A.sample $ initR3nn @M @Symbols @Rules @T variants batch_size dropout
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M init_r3nn_model symbolIdxs ppt io_feats
         (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
         putStrLn $ pp ppt'
         -- hasHoles ppt' `shouldBe` False
