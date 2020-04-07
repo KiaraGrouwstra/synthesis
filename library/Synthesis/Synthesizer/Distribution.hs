@@ -58,7 +58,7 @@ clamp_probs probs =
 probs_to_logits :: Bool -> D.Tensor -> D.Tensor  -- is_binary=False
 probs_to_logits is_binary probs =
     if is_binary
-        then F.log10 ps_clamped `F.sub` F.log1p (F.mulScalar ps_clamped (-1.0 :: Float))
+        then F.log10 ps_clamped `F.sub` F.log1p (F.mulScalar (-1.0 :: Float) ps_clamped)
         else F.log10 ps_clamped
     where ps_clamped = clamp_probs probs
 

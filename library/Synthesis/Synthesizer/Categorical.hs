@@ -50,8 +50,8 @@ instance Distribution Categorical where
     expand d batch_shape' = fromProbs $ F.expand (probs d) False (param_shape d)
         where param_shape d' = batch_shape' <> [num_events d']
     support d = Constraints.integerInterval 0 $ (num_events d) - 1
-    mean d = F.divScalar (D.ones (extended_shape d []) D.float_opts) (0.0 :: Float)  -- all NaN
-    variance d = F.divScalar (D.ones (extended_shape d []) D.float_opts) (0.0 :: Float)  -- all NaN
+    mean d = F.divScalar (0.0 :: Float) (D.ones (extended_shape d []) D.float_opts)  -- all NaN
+    variance d = F.divScalar (0.0 :: Float) (D.ones (extended_shape d []) D.float_opts)  -- all NaN
     sample d sample_shape = do
         let probs_2d = D.reshape [-1, (num_events d)] $ probs d
         samples_2d <- F.transpose2D <$> f_multinomial_tlb probs_2d (product sample_shape) True
@@ -60,7 +60,7 @@ instance Distribution Categorical where
         value' = I.unsqueeze (F.toDType D.Int64 value) (-1 :: Int)
         value'' = D.select value' (-1) 0
         in f_squeezeDim (-1) $ I.gather (logits d) (-1 :: Int) value'' False
-    entropy d = F.mulScalar (f_sumDim (-1) p_log_p) (-1.0 :: Float)
+    entropy d = F.mulScalar (-1.0 :: Float) (f_sumDim (-1) p_log_p)
             where p_log_p = logits d `F.mul` probs d
     enumerate_support d do_expand = 
         (if do_expand then \t -> F.expand t False ([-1] <> batch_shape d) else id) values

@@ -38,13 +38,11 @@ import Torch.Typed.Aux
 -- import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
-import qualified Torch.Functional.Internal     as D
+import qualified Torch.Functional.Internal     as I
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 -- import qualified Torch.Device                  as D
--- import qualified Torch.Functional.Internal     as D
 import Torch.Typed.NN.Recurrent.LSTM
--- import Torch.Functional.Internal (stack)
 
 import Synthesis.Data (Expr)
 import Synthesis.Utility (pp) -- , pp_
@@ -106,7 +104,7 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
     -- | Our first I/O encoding network involves running two separate deep bidirectional LSTM networks for processing the input and the output string in each example pair.
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip D.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
+    let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
     -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
 

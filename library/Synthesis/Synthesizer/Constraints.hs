@@ -85,7 +85,7 @@ halfOpenInterval lower_bound upper_bound tensor = (tensor `F.ge` fullLike' lower
         where logical_and = F.mul
 
 simplex :: Constraint
-simplex tensor = F.allDim (greaterThanEq 0.0 tensor) (-1) False `logical_and` (lessThan 1e-6 $ F.abs $ summed `F.sub` D.onesLike summed)
+simplex tensor = F.allDim (-1) False (greaterThanEq 0.0 tensor) `logical_and` (lessThan 1e-6 $ F.abs $ summed `F.sub` D.onesLike summed)
         where
             logical_and = F.mul
             summed = f_sumDim (-1) tensor
@@ -107,4 +107,4 @@ unitInterval       :: Constraint
 unitInterval       = interval 0.0 1.0
 
 fullLike' :: (Scalar a) => a -> D.Tensor -> D.Tensor
-fullLike' i t = F.mulScalar (D.onesLike t) i
+fullLike' i = F.mulScalar i . D.onesLike

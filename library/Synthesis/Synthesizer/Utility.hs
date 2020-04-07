@@ -56,7 +56,6 @@ module Synthesis.Synthesizer.Utility
 --     batchOp,
 --     batchStatistic,
 --     TensorStatistic,
---     meanDim,
 --     shuffle,
 --     -- combinedOutputs,
 --     square,
@@ -342,13 +341,6 @@ batchStatistic sufficientStatistic summarizer =
 --     , summarizer :: Tnsr '[] -> Tnsr '[]
 --     }
 
--- -- | calculate the mean over a given dimension (presuming all elements in that dimension 'count', i.e. no variable number of elements)
--- -- TODO: replace this with the built-in meanDim, when it hits master
--- meanDim :: forall dim shape . (KnownNat dim) => Tnsr shape -> Tnsr (DropValue shape dim)
--- meanDim tensor = divScalar n $ f_sumDim @dim tensor
---     where
---         n = D.size (toDynamic tensor) $ natValI @dim
-
 -- | shuffle a tensor in a given dimension
 shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
 shuffle gen dim tensor = (gen', shuffled)
@@ -393,7 +385,7 @@ assertP pred_fn x = assert (pred_fn x) x
 -- softmaxAll t = divScalar (toFloat $ sumAll e) e
 --     where e = exp t
 softmaxAll :: D.Tensor -> D.Tensor
-softmaxAll t = ((F.divScalar e) :: Float -> D.Tensor) . D.asValue . F.sumAll $ e
+softmaxAll t = F.divScalar ((D.asValue $ F.sumAll e) :: Float) e
     where e = F.exp t
 
 -- | loop n-times, retaining state
@@ -419,13 +411,11 @@ crossEntropy target dim input = F.nllLoss' (F.logSoftmax dim input) target
 
 -- | TODO: replace with actual F.sumDim
 f_sumDim :: Int -> D.Tensor -> D.Tensor
--- f_sumDim dim t = I.sumDim t dim False $ D.dtype t
-f_sumDim dim t = foldr F.add (last slices) $ init slices
-    where slices = unDim dim t
+f_sumDim dim t = I.sumDim t dim False $ D.dtype t
 
 -- -- | TODO: replace with actual F.squeezeDim
 f_squeezeDim :: Int -> D.Tensor -> D.Tensor
-f_squeezeDim dim t = unsafePerformIO $ (cast2 ATen.squeeze_tl) t dim
+f_squeezeDim dim t = I.squeezeDim t dim
 
 -- | 'setAt' sets the element at the index.
 -- | If the index is negative or exceeds list length, the original list will be returned.
