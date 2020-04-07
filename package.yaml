@@ -38,6 +38,7 @@ dependencies:
   - mtl
   - hasktorch
   - libtorch-ffi
+  - ghc-typelits-knownnat
 
 library:
   dependencies:
