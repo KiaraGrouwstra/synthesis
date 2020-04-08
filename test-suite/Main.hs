@@ -63,22 +63,22 @@ import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 main ∷ IO ()
 main = do
-    -- -- unlike Tasty, HUnit's default printer is illegible,
-    -- -- but helps ensure the Interpreter is run only once...
-    -- void $ runTestTT $ TestList [hint, gen]
+    -- unlike Tasty, HUnit's default printer is illegible,
+    -- but helps ensure the Interpreter is run only once...
+    void $ runTestTT $ TestList [hint, gen]
 
-    -- -- Tasty HSpec
-    -- util_ <- testSpec "Utility" util
-    -- types_ <- testSpec "Types" types
-    -- typeGen_ <- testSpec "TypeGen" typeGen
-    -- find_ <- testSpec "FindHoles" find
-    -- ast_ <- testSpec "Ast" ast
-    -- synthesizer_ <- testSpec "Synthesizer" synthesizer
-    -- let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
-    -- defaultMain tree
-
+    -- Tasty HSpec
+    util_ <- testSpec "Utility" util
+    types_ <- testSpec "Types" types
+    typeGen_ <- testSpec "TypeGen" typeGen
+    find_ <- testSpec "FindHoles" find
+    ast_ <- testSpec "Ast" ast
     synthesizer_ <- testSpec "Synthesizer" synthesizer
-    defaultMain synthesizer_
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
+    defaultMain tree
+
+    -- synthesizer_ <- testSpec "Synthesizer" synthesizer
+    -- defaultMain synthesizer_
 
 util ∷ Spec
 util = parallel $ do
