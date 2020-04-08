@@ -154,7 +154,7 @@ program = do
         let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
         say $ pp_ in_type_instance_outputs
 
-    let numSymbols = 1 + length dslSymbols
+    let numSymbols = 1 + size blockAsts
     say $ "\nsymbols: " <> show numSymbols
     let numRules = length expr_blocks
     say $ "\nrules: " <> show numRules
