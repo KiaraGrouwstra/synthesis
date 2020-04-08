@@ -7,80 +7,69 @@ import Synthesis.Data
 -- | synthesized types, categorized by arity
 typesByArity :: HashMap Int [String]
 typesByArity =
-  insert 1 ["[]"] $
-  singleton 0 ["Bool", "Int"]
+  -- insert 1 ["[]"] $
+  -- singleton 0 ["Bool", "Int"]
+  singleton 0 ["Int"]
 
+-- | building blocks
 -- | cf. NSPS: A DSL can be considered a context-free grammar with a start symbol S and a
 -- | set of non-terminals with corresponding expansion rules. The (partial)
 -- | grammar derivations or trees correspond to (partial) programs.
 -- | `blockAsts` fits that as my only symbol is hole, and these
 -- | blocks (augmented with holed variants) are its expansion rules.
 blockAsts :: HashMap String Expr
-blockAsts = fnAsts `union` constants
-
--- | building blocks
-fnAsts :: HashMap String Expr
+blockAsts = blockAstsTamandu
 -- -- | functions used for testing
--- fnAsts = insert "not_" "\\b -> not b" $
--- -- fnAsts = insert "not" "\\b -> not b :: Bool -> Bool" $
--- -- fnAsts = insert "not" "\\(b :: Bool) -> not b" $
--- -- fnAsts = insert "not" "\\b -> let _b = (b :: Bool) in not b" $
+-- blockAsts = insert "not_" "\\b -> not b" $
+-- -- blockAsts = insert "not" "\\b -> not b :: Bool -> Bool" $
+-- -- blockAsts = insert "not" "\\(b :: Bool) -> not b" $
+-- -- blockAsts = insert "not" "\\b -> let _b = (b :: Bool) in not b" $
 -- -- alternative to ScopedTypeVariables: https://stackoverflow.com/q/14540704/1502035
 --                 insert "not" "not" $
 --                 -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
 --                 singleton "id" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
-fnAsts = fnAstsTamandu
 
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/builtin.ml
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm
-fnAstsTamandu :: HashMap String Expr
-fnAstsTamandu =
+blockAstsTamandu :: HashMap String Expr
+blockAstsTamandu =
   fmap parseExpr
-    $ insert "const" "const"
-    $ insert "flip" "flip"
-    $ insert "not" "not"
+    -- $ insert "nil" "[]"
+    -- $ insert "true" "True"
+    -- $ insert "false" "False"
+    $ insert "zero" "0 :: Int"
+    -- $ insert "flip" "flip"
+    -- $ insert "not" "not"
     $ insert "isZero" "(== (0 :: Int))"
-    $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"  -- "\\f -> foldNatNat (const f)"
-    $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
+    -- $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"  -- "\\f -> foldNatNat (const f)"
+    -- $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
     $ insert "add" "(+)" -- test!
     $ insert "mul" "(*)"
     $ insert "div" "div"
-    $ insert "max" "max" -- Int: for fractions use (/)
-    $ insert "eq" "(==)"
-    $ insert "neq" "(/=)" -- Tamandu restricts this to Int
-    $ insert "con" "(:)" -- Tamandu restricts this to Int
-    $ insert "head" "head"
-    $ insert "tail" "tail"
-    $ insert "isNil" "null"
-    $ insert "map" "map"
-    $ insert "foldr" "foldr" -- list-specific, unlike fmap
-    $ insert "foldl" "foldl"
-    $ insert "filter" "filter"
-    $ insert "length" "length"
-    $ insert "append" "(++)"
-    $ insert "reverse" "reverse"
-    $ insert "replicate" "replicate"
-    $ insert "concat" "concat"
-    $ insert "sum" "sum"
-    $ insert "prod" "product"
-    $ insert "maximum" "maximum"
-    $ insert "member" "elem"
-    $ insert "enumTo" "\\i -> [1..i]"
-    $ insert "enumFromTo" "enumFromTo"
-    $ singleton "succ" "succ"
-
--- | non-function blocks
-constants :: HashMap String Expr
-constants = constantsTamandu
-
--- | non-function blocks provided in the Tamandu dataset
-constantsTamandu :: HashMap String Expr
-constantsTamandu =
-  fmap parseExpr
-    $ insert "nil" "[]"
-    $ insert "true" "True"
-    $ insert "false" "False"
-    $ singleton "zero" "0 :: Int"
+    -- $ insert "max" "max" -- Int: for fractions use (/)
+    -- $ insert "eq" "(==)"
+    -- $ insert "neq" "(/=)" -- Tamandu restricts this to Int
+    -- $ insert "con" "(:)" -- Tamandu restricts this to Int
+    -- $ insert "head" "head"
+    -- $ insert "tail" "tail"
+    -- $ insert "isNil" "null"
+    -- $ insert "map" "map"
+    -- $ insert "foldr" "foldr" -- list-specific, unlike fmap
+    -- $ insert "foldl" "foldl"
+    -- $ insert "filter" "filter"
+    -- $ insert "length" "length"
+    -- $ insert "append" "(++)"
+    -- $ insert "reverse" "reverse"
+    -- $ insert "replicate" "replicate"
+    -- $ insert "concat" "concat"
+    -- $ insert "sum" "sum"
+    -- $ insert "prod" "product"
+    -- $ insert "maximum" "maximum"
+    -- $ insert "member" "elem"
+    -- $ insert "enumTo" "\\i -> [1..i]"
+    -- $ insert "enumFromTo" "enumFromTo"
+    -- $ insert "succ" "succ"
+    $ singleton "const" "const"
 
 -- -- | task functions specifically aimed at trying my synthesizers on another paper's algorithm.
 -- -- | the point here is to ensure I'd put these in the test set, while deduping any equivalent functions out of my training set.
