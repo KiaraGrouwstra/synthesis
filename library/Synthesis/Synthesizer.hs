@@ -36,13 +36,16 @@ type N_test = 333
 -- | run our program in the interpreter
 program :: Interpreter ()
 program = do
-    synthesizer_config :: SynthesizerConfig <- liftIO parseSynthesizerConfig
-    let SynthesizerConfig{..} = synthesizer_config
+    cfg :: SynthesizerConfig <- liftIO parseSynthesizerConfig
+    say $ show cfg
+    let SynthesizerConfig{..} = cfg
     bs :: BS.ByteString <- liftIO $ BS.readFile filePath
     taskFnDataset :: TaskFnDataset <- liftIO $ decodeIO bs
+    let TaskFnDataset{..} = taskFnDataset
+    say $ show generationCfg
 
     -- liftIO $ printTaskFns taskFnDataset train_set
-    liftIO $ train @M @BatchSize @Symbols @Rules @T @N_train @N_validation @N_test synthesizer_config taskFnDataset
+    liftIO $ train @M @BatchSize @Symbols @Rules @T @N_train @N_validation @N_test cfg taskFnDataset
 
 -- -- | print info on task functions
 -- -- | deprecated, not in use

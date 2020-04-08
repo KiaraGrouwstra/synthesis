@@ -268,8 +268,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- let lr :: D.Tensor = D.asTensor learningRate
 
     -- pre-calculate DSL stuff
-    task_expr_types :: HashMap Expr Tp <-
-            interpretUnsafe $ exprType `fromKeysM` all_sets
     let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
             fmap (fmap fst) <$> fnInTypeInstanceOutputs
     -- combine i/o lists across type instances
@@ -286,7 +284,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
-    let longest_string :: Int = assertP (== natValI @t) . maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
+    let longest_string :: Int = assertP (== natValI @t) longestString
     putStrLn $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
@@ -305,7 +303,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
         (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules, D.GD) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             putStrLn $ "task_fn: " <> pp task_fn
 
-            let taskType :: Tp = task_expr_types ! task_fn
+            let taskType :: Tp = fnTypes ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
             io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model) target_io_pairs
@@ -322,7 +320,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
         -- TODO: only run test stuff once every couple epochs since it seems way heavier than the train loop?
         test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
-            let taskType :: Tp = task_expr_types                ! task_fn
+            let taskType :: Tp = fnTypes                ! task_fn
             let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs                               ! task_fn
@@ -343,9 +341,9 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                         in while ((> 0) . fst) fill (1 :: Int, skeleton taskType)     -- hasHoles
 
                 prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                        -- crash_on_error=False is slower but lets me check if it compiles
                         compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
                                 n :: Int = length $ unTuple $ ins !! 0
+                            -- crash_on_error=False is slower but lets me check if it compiles
                             in interpretUnsafe $ fnIoPairs True n program $ list ins
                     in compileInput `mapM` type_ins
                 let prediction_io_pairs :: [(Expr, Either String Expr)] =

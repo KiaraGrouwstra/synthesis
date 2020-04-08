@@ -595,6 +595,16 @@ instance Store SrcSpan where
     poke = genericPoke
     peek = genericPeek
 
+instance Store GenerationConfig where
+    size = genericSize
+    poke = genericPoke
+    peek = genericPeek
+
+instance Store SynthesizerConfig where
+    size = genericSize
+    poke = genericPoke
+    peek = genericPeek
+
 instance Store TaskFnDataset where
     size = genericSize
     poke = genericPoke

@@ -61,7 +61,7 @@ genFns maxHoles expr_blocks block_asts =
 fillHoles :: Int -> HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter [Expr]
 fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
   (partial, candidates) <- fillHole block_asts used_blocks expr_blocks expr
-  say $ "partial: " <> pp_ partial
+  -- say $ "partial: " <> pp_ partial
   rest <- case maxHoles of
     0 -> return []
     _ -> mapM (\(inserted, used, _lets) -> fillHoles (maxHoles - 1) block_asts used expr_blocks inserted) partial
