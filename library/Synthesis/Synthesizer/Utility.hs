@@ -5,75 +5,13 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ImplicitParams #-}
 
-module Synthesis.Synthesizer.Utility
- (
-    module Synthesis.Synthesizer.Utility
---     learningRate,
---     default_optim,
---     Dev,
---     Tnsr,
---     getDevice,
---     asUntyped,
---     asUntyped',
---     -- availableDevices,
---     Dir,
---     Dirs,
---     dirs,
---     Symbols,
---     symbols,
---     Rules,
---     rules,
---     MaxChar,
---     max_char,
---     M,
---     m,
---     -- T,
---     -- t,
---     BatchSize,
---     batchSize,
---     H0,
---     h0,
---     H1,
---     h1,
---     HiddenFeatures0,
---     hiddenFeatures0,
---     HiddenFeatures1,
---     hiddenFeatures1,
---     padRight,
---     unDim,
---     shape',
---     stack',
---     select',
---     rotate,
---     -- rotateT,
---     fnAppNodes,
---     nodeRule,
---     appRule,
---     lookupRule,
---     dslVariants,
---     batchTensor,
---     batchOp,
---     batchStatistic,
---     TensorStatistic,
---     shuffle,
---     -- combinedOutputs,
---     square,
---     scan,
---     cumulative,
---     assertP,
---     softmaxAll,
---     foldLoop,
---     foldLoop_,
---     unravelIdx,
---     indexList,
---     crossEntropy,
---     f_sumDim,
---     setAt,
-    ) where
+module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
 
 import Prelude hiding (lookup, exp)
 -- import qualified Prelude
+import GHC.Stack
 import GHC.TypeNats (type (+)) -- , KnownNat, Nat, Mod, type (*), type (-)
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
@@ -133,10 +71,7 @@ type LhsSymbols = 1 -- just Expression in our lambda-calculus DSL
 -- type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
 -- symbols :: Int
 -- symbols = natValI @Symbols
-type RhsSymbols = 36  -- Tamandu
-type Symbols = LhsSymbols + RhsSymbols
 
-type Rules = 92     -- Tamandu
 -- rules :: Int
 -- rules = natValI @Rules
 
@@ -223,8 +158,9 @@ asUntyped' :: forall device dtype shape device' dtype' shape'
 asUntyped' f tensor = let
         untyped = f . toDynamic $ tensor
         tensor' = UnsafeMkTensor untyped
-        check = D.shape untyped == optionsRuntimeShape @shape' @dtype' @device'
-        in assert check tensor'
+        check = D.shape . toDynamic
+        gold = optionsRuntimeShape @shape' @dtype' @device'
+        in assertEqBy check gold tensor'
 
 -- | get the run-time shape of a typed tensor
 shape' :: Tensor device dtype shape -> [Int]
@@ -377,8 +313,21 @@ categorical gen probs =
     where (x, _gen') = random gen
 
 -- | make an assertion thru a predicate
-assertP :: (a -> Bool) -> a -> a
-assertP pred_fn x = assert (pred_fn x) x
+assertP :: (?loc :: CallStack, Show a) => (a -> Bool) -> a -> a
+-- assertP pred_fn x = assert (pred_fn x) x     -- assert is disabled by default
+assertP pred_fn x = case pred_fn x of
+    True -> x
+    False -> error $ "assertP failed on input: " <> show x <> "\n" <> prettyCallStack ?loc
+
+-- | assert an equality check by a mapper function
+assertEqBy :: (?loc :: CallStack, Show b, Eq b) => (a -> b) -> b -> a -> a
+assertEqBy fn gold x = let x' = fn x in case x' == gold of
+    True -> x
+    False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " ):\n" <> prettyCallStack ?loc
+
+-- | assert an equality check -- yields a nicer stack trace than assertP
+assertEq :: (?loc :: CallStack, Show a, Eq a) => a -> a -> a
+assertEq = assertEqBy id
 
 -- | apply a softmax over all dimensions
 -- softmaxAll :: Tensor device 'D.Float shape -> Tensor device 'D.Float shape
@@ -407,7 +356,7 @@ indexList xs = fromList $ zip xs [0 .. length xs - 1]
 -- TODO: replace with built-in
 -- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
 crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor
-crossEntropy target dim input = F.nllLoss' (F.logSoftmax dim input) target
+crossEntropy target dim input = F.nllLoss' target (F.logSoftmax dim input)
 
 -- | TODO: replace with actual F.sumDim
 f_sumDim :: Int -> D.Tensor -> D.Tensor
@@ -417,17 +366,17 @@ f_sumDim dim t = I.sumDim t dim False $ D.dtype t
 f_squeezeDim :: Int -> D.Tensor -> D.Tensor
 f_squeezeDim dim t = I.squeezeDim t dim
 
--- | 'setAt' sets the element at the index.
--- | If the index is negative or exceeds list length, the original list will be returned.
--- | src: https://hackage.haskell.org/package/ilist-0.4.0.0/docs/src/Data.List.Index.html#setAt
-setAt :: Int -> a -> [a] -> [a]
-setAt i a ls
-  | i < 0 = ls
-  | otherwise = go i ls
-  where
-    go 0 (_:xs) = a : xs
-    go n (x:xs) = x : go (n-1) xs
-    go _ []     = []
+-- -- | 'setAt' sets the element at the index.
+-- -- | If the index is negative or exceeds list length, the original list will be returned.
+-- -- | src: https://hackage.haskell.org/package/ilist-0.4.0.0/docs/src/Data.List.Index.html#setAt
+-- setAt :: Int -> a -> [a] -> [a]
+-- setAt i a ls
+--   | i < 0 = ls
+--   | otherwise = go i ls
+--   where
+--     go 0 (_:xs) = a : xs
+--     go n (x:xs) = x : go (n-1) xs
+--     go _ []     = []
 
 -- TODO: import from hasktorch
 f_multinomial_tlb

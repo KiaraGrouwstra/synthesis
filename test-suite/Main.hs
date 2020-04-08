@@ -14,11 +14,12 @@ import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
 import           Control.Exception            (SomeException, try, evaluate)
+import           Data.Int                     (Int64)
 -- import           Data.Word                    (Word64)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 -- import           Data.Bifunctor               (first)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys)
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
 import           Language.Haskell.Interpreter (as, interpret, liftIO) -- , typeChecksWithDetails
@@ -26,7 +27,7 @@ import           Util                         (fstOf3)
 
 -- import           GHC.Exts
 -- import           GHC.TypeNats
-import           GHC.TypeNats (Mod, type (*))  -- , KnownNat, Nat, Div, type (+), type (-)
+import           GHC.TypeNats (Mod, type (+), type (*))  -- , KnownNat, Nat, Div, type (-)
 -- import           Torch.Random (Generator)
 -- import           Torch.Functional.Internal (gather)
 -- import qualified Torch.DType                   as D
@@ -65,7 +66,7 @@ main ∷ IO ()
 main = do
     -- unlike Tasty, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen]
+    void $ runTestTT $ TestList [hint, gen, synthesizer]
 
     -- Tasty HSpec
     util_ <- testSpec "Utility" util
@@ -74,11 +75,9 @@ main = do
     find_ <- testSpec "FindHoles" find
     ast_ <- testSpec "Ast" ast
     synthesizer_ <- testSpec "Synthesizer" synthesizer
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synthesizer_]
+    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util]
     defaultMain tree
-
-    -- synthesizer_ <- testSpec "Synthesizer" synthesizer
-    -- defaultMain synthesizer_
 
 util ∷ Spec
 util = parallel $ do
@@ -294,7 +293,7 @@ typeGen = parallel $ let
         mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
 
 find ∷ Spec
-find = -- do
+find = do
 
     it "findHolesExpr" $ do
         -- let expr = parseExpr "(_ :: Int -> Bool)"
@@ -310,6 +309,15 @@ find = -- do
         let xpr = hole_setter expr holeExpr
         -- pp xpr `shouldBe` "(_)"
         pp xpr `shouldBe` "(undefined)"
+
+    it "findHolesExpr: transfer lenses" $ do
+        let xpr  = parseExpr "(undefined :: a) (bar (undefined :: b))"
+        let xpr' = parseExpr "foo (baz boo)"
+        let getters = fst <$> findHolesExpr xpr
+        length getters `shouldBe` 2
+        let [gtr1, gtr2] = getters
+        pp (gtr1 xpr') `shouldBe` "foo"
+        pp (gtr2 xpr') `shouldBe` "boo"
 
 ast ∷ Spec
 ast = parallel $ let
@@ -480,12 +488,8 @@ gen = let
 
     ]
 
-type NumHoles = 1
--- dummy values to trick the compiler
-type T = 42
-
-synthesizer ∷ Spec
-synthesizer = parallel $ do
+synth_util ∷ Spec
+synth_util = parallel $ do
 
     it "unravelIdx" $ do
         unravelIdx (D.asTensor [ [0.3, 0.2], [0.4, 0.1 :: Float] ]) 2 `shouldBe` [1, 0]
@@ -507,38 +511,124 @@ synthesizer = parallel $ do
         -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
         -- rotateT r `shouldBe` ?
 
-    it "predictHole" $ do
-        let batch_size :: Int = natValI @BatchSize
-        -- let seed' :: Int = 123
-        let dsl = blockAsts
-        variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
-        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        let dropout :: Double = 0.0
-        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropout
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
-        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        init_r3nn_model :: R3NN M Symbols Rules <- A.sample $ initR3nn @M @Symbols @Rules @T variants batch_size dropout
-        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
-        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M init_r3nn_model symbolIdxs ppt io_feats
-        (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
-        putStrLn $ pp ppt'
-        -- hasHoles ppt' `shouldBe` False
-    
-    it "transfer lenses" $ do
-        let xpr  = parseExpr "(undefined :: a) (bar (undefined :: b))"
-        let xpr' = parseExpr "foo (baz boo)"
-        let getters = fst <$> findHolesExpr xpr
-        length getters `shouldBe` 2
-        let [gtr1, gtr2] = getters
-        pp (gtr1 xpr') `shouldBe` "foo"
-        pp (gtr2 xpr') `shouldBe` "boo"
-
     it "categorical" $ do
         t :: Tnsr '[2, 3] <- abs <$> randn
         x <- Distribution.sample (Categorical.fromProbs $ toDynamic t) [1]
         D.shape x `shouldBe` [1,2]
 
     it "sampleIdxs" $ do
-        let t = D.asTensor $ [[0.0, 0.0], [1.0, 0.0 :: Float]]
+        let t = D.asTensor [[0.0, 0.0], [1.0, 0.0 :: Float]]
         idxs <- sampleIdxs t
         D.asValue (foldl (\ t' idx -> D.select t' 0 idx) t idxs) `shouldBe` (1.0 :: Float)
+
+    it "crossEntropy" $ do
+        let rule_dim = 1
+        let gold_rule_probs = D.asTensor [ 8 :: Int64 ]
+        let hole_expansion_probs = D.asTensor [[0.2606, -7.2186e-2, 0.4544 :: Float]]
+        let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+        toFloat loss > 0.0 `shouldBe` True
+
+type NumHoles = 1
+type RhsSymbols = 3
+type Rules = 4
+type T = 20
+type Symbols = LhsSymbols + RhsSymbols
+
+synthesizer ∷ Test
+synthesizer = let
+        numHoles     :: Int = natValI @NumHoles
+        rules        :: Int = natValI @Rules
+        t            :: Int = natValI @T
+        symbols      :: Int = natValI @Symbols
+
+        dropOut :: Double = 0.0
+        dsl = fmap parseExpr
+                $ insert "nil" "[]"
+                $ insert "not" "not"
+                $ singleton "true" "True"
+    in TestList
+
+    [ TestLabel "baselineLstmEncoder" $ TestCase $ do
+        -- io_pairs for task fn `trues :: Int -> [Bool]`
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
+        D.shape (toDynamic io_feats) `shouldBe` [batchSize, 2 * dirs * Enc.h * t]
+
+    , TestLabel "runR3nn" $ TestCase $ do
+        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
+        init_r3nn_model :: R3NN M Symbols Rules <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M init_r3nn_model symbolIdxs ppt io_feats
+        D.shape (toDynamic hole_expansion_probs) `shouldBe` [numHoles, rules]
+
+    , TestLabel "predictHole" $ TestCase $ do
+        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        -- putStrLn $ "expr_blocks: " <> pp_ expr_blocks
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        -- putStrLn $ "variants: " <> pp_ variants
+        -- io_pairs for task fn `trues :: Int -> [Bool]`
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        -- putStrLn $ "init_enc_model: " <> show init_enc_model
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
+        -- putStrLn $ "io_feats: " <> show io_feats
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        init_r3nn_model :: R3NN M Symbols Rules <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        -- putStrLn $ "init_r3nn_model: " <> show init_r3nn_model
+        -- putStrLn $ "keys: " <> (show . keys . left_nnets $ init_r3nn_model)
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        -- putStrLn $ "symbolIdxs: " <> show symbolIdxs
+        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M init_r3nn_model symbolIdxs ppt io_feats
+        (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
+        -- putStrLn $ pp ppt'
+        hasHoles ppt' `shouldBe` False
+
+    , TestLabel "superviseHole" $ TestCase $ do
+        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variantMap :: HashMap String Expr = fromList variants
+        let task_fn :: Expr = parseExpr "not (not True)"
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        ppt' :: Expr <- superviseHole variantMap numHoles task_fn ppt
+        pp ppt' `shouldBe` pp ppt
+
+    , TestLabel "fillHoleTrain" $ TestCase $ do
+        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variantMap :: HashMap String Expr = fromList variants
+        let task_fn :: Expr = parseExpr "not (not True)"
+        let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
+        let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
+        init_r3nn_model :: R3NN M Symbols Rules <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M init_r3nn_model symbolIdxs ppt io_feats
+        (_zero, task_fn', gold) :: (Int, Expr, Tnsr '[NumHoles]) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
+        pp task_fn' `shouldBe` pp task_fn
+        D.shape (toDynamic gold) `shouldBe` [numHoles]
+
+    , TestLabel "calcLoss" $ TestCase $ do
+        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variantMap :: HashMap String Expr = fromList variants
+        let task_fn :: Expr = parseExpr "not (not True)"
+        taskType :: Tp <- interpretUnsafe $ exprType task_fn
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        let encoder_spec :: BaselineLstmEncoderSpec = BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        let r3nn_spec :: R3NNSpec M Symbols Rules = initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        init_model :: NSPS M Symbols Rules <- A.sample $ NSPSSpec @M @Symbols @Rules encoder_spec r3nn_spec
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder (encoder init_model) io_pairs
+        let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
+        loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs init_model io_feats variantMap ruleIdxs
+        toFloat loss > 0.0 `shouldBe` True
+
+    ]

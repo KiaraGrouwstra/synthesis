@@ -10,13 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Synthesis.Synthesizer.NSPS (
-    module Synthesis.Synthesizer.NSPS
-    -- NSPSSpec (..),
-    -- NSPS,
-    -- predictHole,
-    -- train,
-) where
+module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 
 import System.Random (StdGen, mkStdGen)
 -- import Data.List (null)
@@ -47,6 +41,7 @@ import           Torch.Typed.NN
 import           Torch.Typed.Factories
 -- import           Torch.Typed.Optim
 import           Torch.Typed.Functional
+import           Torch.Typed.Autograd
 -- import           Torch.Typed.Serialize
 -- import Torch.Distributions.Distribution
 -- import qualified Torch.Distributions.Categorical as Categorical
@@ -137,6 +132,7 @@ sampleIdxs t = do
 -- | fill a non-terminal leaf node in a PPT given hole/rule expansion probabilities
 predictHole :: forall num_holes rules . [(String, Expr)] -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr)
 predictHole variants ppt hole_expansion_probs = do
+    -- putStrLn "predictHole"
     -- let (hole_dim, rule_dim) :: (Int, Int) = (0, 1)
 --     let (hole_idx, rule_idx) :: (Int, Int) = argmaxExpansion hole_expansion_probs
 
@@ -168,56 +164,59 @@ predictHole variants ppt hole_expansion_probs = do
 -- | fill a random non-terminal leaf node as per `task_fn`
 superviseHole :: HashMap String Expr -> Int -> Expr -> Expr -> IO Expr
 superviseHole variantMap num_holes task_fn ppt = do
+    -- putStrLn "superviseHole"
     -- randomly pick a hole -- probably a good way to uniformly cover all scenarios...?
     -- technically holes closer to the root may go thru more rounds tho, creating more opportunities to randomly get picked
     hole_idx' :: Tensor Dev 'D.Int64 '[] <- randint 0 num_holes
+    -- putStrLn $ "hole_idx': " <> show hole_idx'
     let hole_idx :: Int = toInt hole_idx'
+    -- putStrLn $ "hole_idx: " <> show hole_idx
     let (hole_getter, hole_setter) :: (Expr -> Expr, Expr -> Expr -> Expr) =
             findHolesExpr ppt !! hole_idx
     let rule_expr :: Expr = (variantMap !) . nodeRule . hole_getter $ task_fn
+    -- putStrLn $ "rule_expr: " <> show rule_expr
     let ppt' :: Expr = hole_setter ppt rule_expr
+    -- putStrLn $ "ppt': " <> show ppt'
     return ppt'
 
 -- | calculate the loss for a PPT given hole/rule expansion probabilities then fill a random non-terminal leaf node as per `task_fn`
-fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr, Tnsr '[num_holes, rules])
+fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr, Tnsr '[num_holes])
 fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
+    -- putStrLn "fillHoleTrain"
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
-    let [num_holes, rules] :: [Int] = shape' hole_expansion_probs
-    -- let rules :: Int = natValI @rules
+    let [num_holes, _rules] :: [Int] = shape' hole_expansion_probs
     ppt' :: Expr <- superviseHole variantMap num_holes task_fn ppt
-    -- putStrLn . show $ (hole_idx, pp ppt')
-
     -- supervise with task program to calculate the loss of the predicted hole/rule expansion probabilities for this PPT
-    let zeroes :: [Float] = replicate rules 0.0
     -- iterate over holes to get the loss for each
-    let gold_rule_probs :: Tnsr '[num_holes, rules] = UnsafeMkTensor . stack' 0 $ toDynamic . getGold <$> findHolesExpr ppt
-            where getGold (getter, _setter) = let
-                        gold_rule_idx :: Int = (ruleIdxs !) . nodeRule . getter $ task_fn
-                        rule_probs :: Tnsr '[rules] = UnsafeMkTensor . D.asTensor . setAt gold_rule_idx 1.0 $ zeroes
-                    in rule_probs
-    -- let loss :: Tnsr '[num_holes, rules] = abs $ hole_expansion_probs `sub` gold_rule_probs
-    -- let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy (toDynamic gold_rule_probs) rule_dim $ toDynamic hole_expansion_probs
+    let gold_rule_probs :: Tnsr '[num_holes] = UnsafeMkTensor . D.asTensor $ getGold . fst <$> findHolesExpr ppt
+            where getGold = \gtr -> (ruleIdxs !) . nodeRule . gtr $ task_fn
+    -- putStrLn $ "gold_rule_probs: " <> show gold_rule_probs
     let holes_left = num_holes - 1
-    -- return (holes_left, ppt', toDynamic loss)
-    -- let target = t
     return (holes_left, ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
 calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, 2 * Dirs * Enc.H * t] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
 calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
+    -- putStrLn "calcLoss"
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_zero, _program, golds, predictions) :: (Int, Expr, [D.Tensor], [D.Tensor]) <- let
             --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
             fill = \(_num_holes, ppt, golds, predictions) -> do
                     predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt io_feats
+                    -- putStrLn $ "predicted: " <> show predicted
                     (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
             in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, skeleton taskType, [], [])     -- hasHoles
     -- return $ pp task_fn == pp program
     -- let loss :: Tnsr '[] = UnsafeMkTensor . F.mean . F.cat 0 $ losses
+    -- putStrLn $ "golds: " <> show golds
+    -- putStrLn $ "predictions: " <> show predictions
     let gold_rule_probs :: D.Tensor = F.cat 0 golds
+    -- putStrLn $ "gold_rule_probs: " <> show gold_rule_probs
     let hole_expansion_probs :: D.Tensor = F.cat 0 predictions
+    -- putStrLn $ "hole_expansion_probs: " <> show hole_expansion_probs
     let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+    -- putStrLn $ "loss: " <> show loss
 
     return loss
 
@@ -244,11 +243,12 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
     -- datasets
     let set_list = untuple3 datasets
-    forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
-        putStrLn $ k <> ": " <> show (length dataset)
+    -- forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
+    --     putStrLn $ k <> ": " <> show (length dataset)
     let [train_set, validation_set, test_set] :: [[Expr]] = set_list
     let all_sets :: [Expr] = join set_list
-    -- let [n_train, n_validation, n_test] :: [Int] = assertP (== [natValI @n_train, natValI @n_validation, natValI @n_test]) $ length <$> set_list
+    let [n_train, n_validation, n_test] :: [Int] = assertEq (length <$> set_list) [natValI @n_train, natValI @n_validation, natValI @n_test]
+    putStrLn $ "n_train : " <> show n_train <> ", n_validation: " <> show n_validation <> ", n_test: " <> show n_test
 
     -- misc
     -- device <- getDevice
@@ -259,9 +259,9 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- let dsl = blockAsts
     -- block_fn_types :: HashMap String Tp <- interpretUnsafe $ mapM exprType dsl
     -- assert our (hole-variant) blocks match their static length
-    -- variants :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
-    let variants :: [(String, Expr)] = assertP ((== rules) . length) exprBlocks
-    let symbols :: Int = assertP (== natValI @symbols) $ natValI @LhsSymbols + length dslSymbols
+    let expr_blocks :: [(String, Expr)] = assertEqBy length rules exprBlocks
+    let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+    let symbols :: Int = assertEq (natValI @LhsSymbols + length dslSymbols) $ natValI @symbols
     putStrLn $ "symbols : " <> show symbols <> ", rules: " <> show rules
     -- (symbol_emb, rule_emb) <- initEmbeds device seed $ length variants
     let lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
@@ -280,11 +280,11 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
     -- -- TODO: by task fn create a hashmap from holes to expansion vectors. this implies hashable lenses tho...?
     -- taskFnExpansion :: HashMap Expr (HashMap HoleLens? (Tnsr '[rules])) = fromList . flip fromKeys all_sets $ \expr -> fromList $ (\hole -> (_holeLens?, rulesTensor?)) <$> findHolesExpr expr
-    -- TODO: check if variants actually has holed versions as string keys. if not this'll just go boom.
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
-    let longest_string :: Int = assertP (== natValI @t) longestString
+    putStrLn $ show $ natValI @t
+    let longest_string :: Int = assertEq longestString $ natValI @t
     putStrLn $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
@@ -304,17 +304,23 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             putStrLn $ "task_fn: " <> pp task_fn
 
             let taskType :: Tp = fnTypes ! task_fn
+            -- putStrLn $ "taskType: " <> pp taskType
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
+            -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model) target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
+            -- putStrLn $ "loss: " <> show loss
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
+            -- putStrLn $ "newParam"
             let model' = A.replaceParameters model newParam
+            -- putStrLn $ "model'"
             return (toDynamic loss : train_losses, model', optim')
 
         -- aggregating over task fns, which in turn had separately aggregated over any holes encountered across the different synthesis steps (so multiple times for a hole encountered across various PPTs along the way). this is fair, right?
         let loss_train :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ train_losses
+        -- putStrLn $ "loss_train: " <> show loss_train
 
         -- TEST
 

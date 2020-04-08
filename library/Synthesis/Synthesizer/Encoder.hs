@@ -6,17 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
 
-module Synthesis.Synthesizer.Encoder (
-    module Synthesis.Synthesizer.Encoder
---     -- NumLayers,
---     Dev,
---     H,
---     h,
---     BaselineLstmEncoderSpec (..),
---     BaselineLstmEncoder,
---     -- baseline_lstm_encoder,
---     baselineLstmEncoder,
-) where
+module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
 
 -- import GHC.Exts (fromList)
 import Data.Bifunctor (first, second)
@@ -88,7 +78,6 @@ instance A.Randomizable BaselineLstmEncoderSpec BaselineLstmEncoder where
 -- | 5.1.1 Baseline LSTM encoder
 -- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
 
--- baseline_lstm_encoder
 baselineLstmEncoder
     :: forall batch_size t
      . (KnownNat batch_size, KnownNat t)
@@ -96,7 +85,7 @@ baselineLstmEncoder
     -> [(Expr, Either String Expr)]
     -> IO (Tnsr '[batch_size, 2 * Dirs * H * t])
 baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
-    let t_ :: Int = natValI @t  -- I cannot use dummy values for this as it actually determines tensor lengths...
+    let t_ :: Int = natValI @t
     let batch_size_ :: Int = natValI @batch_size
     let n_ :: Int = length io_pairs
 
@@ -250,7 +239,6 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     let lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
     let emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
     let emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
-
     -- print $ "emb_in: " ++ show (D.shape $ toDynamic emb_in)
     -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
 

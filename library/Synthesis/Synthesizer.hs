@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE TypeOperators #-}
 
 -- | synthesizer logic
 module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
@@ -10,6 +12,7 @@ module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
 --     ( HashMap,
 --       (!),
 --     )
+import GHC.TypeNats (type (+))
 import Data.Store (decodeIO)
 import qualified Data.ByteString as BS
 import Language.Haskell.Interpreter (Interpreter, liftIO)
@@ -27,11 +30,15 @@ import Synthesis.Synthesizer.NSPS
 main :: IO ()
 main = runInterpreterMain program
 
--- dummy values to trick the compiler
-type T = 42
-type N_train = 111
-type N_validation = 222
-type N_test = 333
+-- type RhsSymbols = 36  -- Tamandu
+-- type Rules = 92     -- Tamandu
+type Rules = 15
+type T = 14
+type N_train = 11
+type N_validation = 2
+type N_test = 11
+type RhsSymbols = 6
+type Symbols = LhsSymbols + RhsSymbols
 
 -- | run our program in the interpreter
 program :: Interpreter ()
@@ -43,6 +50,7 @@ program = do
     taskFnDataset :: TaskFnDataset <- liftIO $ decodeIO bs
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
+    -- say $ show taskFnDataset
 
     -- liftIO $ printTaskFns taskFnDataset train_set
     liftIO $ train @M @BatchSize @Symbols @Rules @T @N_train @N_validation @N_test cfg taskFnDataset
