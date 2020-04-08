@@ -255,6 +255,7 @@ typeGen = parallel $ let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
         str = tyCon "String"
+        types_by_arity = insert 1 ["[]"] (singleton 0 ["Bool", "Int"])
     in do
 
     it "findTypeVars" $ do
@@ -269,16 +270,16 @@ typeGen = parallel $ let
 
     it "randomType" $ do
         GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
-        tp <- randomType False False nestLimit empty 0
+        tp <- randomType types_by_arity False False nestLimit empty 0
         [tyCon "Bool", tyCon "Int"] `shouldContain` [tp]
 
     it "randomFnType" $ do
         GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
-        tp <- randomFnType False False nestLimit empty 0
+        tp <- randomFnType types_by_arity False False nestLimit empty 0
         [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
 
     it "genTypes" $ do
-        hm <- genTypes 0 10
+        hm <- genTypes types_by_arity 0 10
         hm ! 0 `shouldContain` [bl]
 
     it "fillTypeVars" $ do
@@ -356,6 +357,7 @@ gen = let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
         tp = tyFun bl bl
+        types_by_arity = insert 1 ["[]"] (singleton 0 ["Bool", "Int"])
     in TestList
 
     [ TestLabel "fnOutputs" $ TestCase $ do
@@ -394,39 +396,39 @@ gen = let
         let lst_ = tyCon "[]"
         -- a => Set a
         let set_ s = tyApp (tyCon "Set") $ tyCon s
-        l1 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyApp (tyCon "Set") $ tyVar "b")
+        l1 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyApp (tyCon "Set") $ tyVar "b")
         (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        l2 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Num") a]) $ tyFun a $ tyFun a a)
+        l2 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Num") a]) $ tyFun a $ tyFun a a)
         (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypes (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a)
+        l3 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a)
         (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
         -- Foldable t => t Bool -> Bool
-        l4 <- interpretUnsafe $ instantiateTypes (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") a]) $ tyFun (tyApp a bl) bl)
+        l4 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") a]) $ tyFun (tyApp a bl) bl)
         (pp <$> l4) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl])
         -- Foldable t => t a -> Bool
         let t = tyVar "t"
-        l5 <- interpretUnsafe $ instantiateTypes (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") t]) $ tyFun (tyApp t a) bl)
+        l5 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") t]) $ tyFun (tyApp t a) bl)
         (pp <$> l5) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl, tyFun (tyApp lst_ int_) bl])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
         let lst_ = tyCon "[]"
         -- without type constraint
-        l1 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [])
+        l1 <- interpretUnsafe $ instantiateTypeVars types_by_arity (singleton 0 [bl, int_]) $ singleton "a" (0, [])
         l1 `shouldBe` [singleton "a" bl, singleton "a" int_]
         -- with type constraint
-        l2 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Num"])
+        l2 <- interpretUnsafe $ instantiateTypeVars types_by_arity (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Num"])
         l2 `shouldBe` [singleton "a" int_]
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypeVars (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Ord"])
+        l3 <- interpretUnsafe $ instantiateTypeVars types_by_arity (singleton 0 [bl, int_]) $ singleton "a" (0, [tyCon "Ord"])
         l3 `shouldBe` [singleton "a" bl, singleton "a" int_]
         -- Foldable t => t Bool -> Bool
-        l4 <- interpretUnsafe $ instantiateTypeVars (insert 1 [lst_] $ singleton 0 [bl, int_]) $ singleton "t" (1, [tyCon "Foldable"])
+        l4 <- interpretUnsafe $ instantiateTypeVars types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) $ singleton "t" (1, [tyCon "Foldable"])
         l4 `shouldBe` [singleton "t" lst_]
         -- Foldable t => t a -> Bool
-        l5 <- interpretUnsafe $ instantiateTypeVars (insert 1 [lst_] $ singleton 0 [bl, int_]) $ insert "a" (0, []) $ singleton "t" (1, [tyCon "Foldable"])
+        l5 <- interpretUnsafe $ instantiateTypeVars types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) $ insert "a" (0, []) $ singleton "t" (1, [tyCon "Foldable"])
         pp_ l5 `shouldBe` pp_ [insert "a" bl (singleton "t" lst_), insert "a" int_ (singleton "t" lst_)]
 
     , TestLabel "typeRelation" $ TestCase $ do

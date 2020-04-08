@@ -68,7 +68,7 @@ program = do
     say "\ntask_types:"
     say $ pp_ task_types
     -- generated types we will use for instantiating type variables
-    fill_types :: HashMap Int [Tp] <- liftIO $ genTypes nestLimit maxInstances
+    fill_types :: HashMap Int [Tp] <- liftIO $ genTypes typesByArity nestLimit maxInstances
     say "\nfill_types:"
     say $ pp_ fill_types
     let fn_input_types :: HashMap Expr [Tp] = fnInputTypes <$> fn_types
@@ -79,13 +79,13 @@ program = do
     say $ pp_ input_types
     -- split the input types for our programs into functions vs other -- then instantiate others.
     let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
-    let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes fill_types)
+    let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes typesByArity fill_types)
     (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest) $ first nubPp fns_rest
     say "\nparam_fn_types:"
     say $ pp_ param_fn_types
     say "\nrest_type_instantiations:"
     say $ pp_ rest_type_instantiations
-    task_instantiations :: [[Tp]] <- instantiateTypes fill_types `mapM` task_types
+    task_instantiations :: [[Tp]] <- instantiateTypes typesByArity fill_types `mapM` task_types
     -- for each function type, a list of type instantiations
     let type_fn_instantiations :: HashMap Tp [Tp] = fromList $ zip task_types task_instantiations
     say "\ntype_fn_instantiations:"

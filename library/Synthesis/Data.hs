@@ -5,9 +5,9 @@
 module Synthesis.Data (module Synthesis.Data) where
 
 import Data.HashMap.Lazy (HashMap)
-import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax
+import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
 
 -- these verbose types annoy me so let's alias them
 

@@ -40,7 +40,6 @@ import Synthesis.TypeGen
 import Synthesis.Data
 import Synthesis.Utility
 -- import Synthesis.Configs
-import Synthesis.Blocks (typesByArity)
 import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly sample a generated function, and see what types end up coming out.
@@ -156,17 +155,17 @@ fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 
 -- | generate any combinations of a polymorphic type filled using a list of concrete types
-instantiateTypes :: HashMap Int [Tp] -> Tp -> Interpreter [Tp]
-instantiateTypes tps tp = fmap (fillTypeVars tp) <$> instantiateTypeVars tps (findTypeVars tp)
+instantiateTypes :: HashMap Int [String] -> HashMap Int [Tp] -> Tp -> Interpreter [Tp]
+instantiateTypes types_by_arity tps tp = fmap (fillTypeVars tp) <$> instantiateTypeVars types_by_arity tps (findTypeVars tp)
 
 -- | instantiate type variables
-instantiateTypeVars :: HashMap Int [Tp] -> HashMap String (Int, [Tp]) -> Interpreter [HashMap String Tp]
-instantiateTypeVars tpsByArity variableConstraints = do
-  let tpArity :: HashMap Tp Int = fromList $ concat $ fmap (\(i, strs) -> (,i) . tyCon <$> strs) $ toList typesByArity
+instantiateTypeVars :: HashMap Int [String] -> HashMap Int [Tp] -> HashMap String (Int, [Tp]) -> Interpreter [HashMap String Tp]
+instantiateTypeVars types_by_arity instTpsByArity variableConstraints = do
+  let tpArity :: HashMap Tp Int = fromList $ concat $ fmap (\(i, strs) -> (,i) . tyCon <$> strs) $ toList types_by_arity
   let keyArities :: HashMap String Int = fst <$> variableConstraints
   let arities :: [Int] = elems keyArities
   let ks :: [String] = keys variableConstraints
-  let combs :: [[Tp]] = (\tps -> sequence $ replicate (length ks) tps) $ concat $ elems $ tpsByArity
+  let combs :: [[Tp]] = (\tps -> sequence $ replicate (length ks) tps) $ concat $ elems $ instTpsByArity
   let combs_ :: [[Tp]] = filter (\tps -> ((tpArity !) <$> tps) == arities) combs
   let maps :: [HashMap String Tp] = fromList . zip ks <$> combs_
   let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k, v) -> let (arity, tps) = variableConstraints ! k in matchesConstraints arity v tps) . toList

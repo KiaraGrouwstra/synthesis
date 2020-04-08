@@ -44,12 +44,11 @@ import Language.Haskell.Exts.Syntax
 import Synthesis.Data hiding (nestLimit, maxInstances)
 import Synthesis.Types
 import Synthesis.Utility
-import Synthesis.Blocks (typesByArity)
 
 -- | randomly generate a type
 -- | deprecated, not in use
-randomType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
-randomType allowAbstract allowFns nestLimit typeVars tyVarCount = do
+randomType :: HashMap Int [String] -> Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
+randomType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount = do
     -- type variables
     -- TODO: allow generating new type vars
     let tyVarName :: String = "t" ++ show tyVarCount -- TODO: make this random?
@@ -57,16 +56,16 @@ randomType allowAbstract allowFns nestLimit typeVars tyVarCount = do
     let tpVars :: [IO Tp] = return . tyVar <$> keys typeVars
     let abstracts :: [IO Tp] = if allowAbstract then [tpVar] else []
     -- functions
-    let gen_fn :: IO Tp = randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount
+    let gen_fn :: IO Tp = randomFnType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount
     let fns :: [IO Tp] = [gen_fn | allowFns]
     -- base types
-    let applied :: HashMap Int [IO Tp] = mapWithKey (\ i strs -> fillChildren i <$> strs) typesByArity
+    let applied :: HashMap Int [IO Tp] = mapWithKey (\ i strs -> fillChildren i <$> strs) tpsByArity
     let base :: [IO Tp] = concat $ elems $ filterWithKey (\ k _v -> k <= nestLimit) applied
     -- total
     let options :: [IO Tp] = base ++ tpVars ++ abstracts ++ fns
     join $ pick options
     where
-      f = randomType allowAbstract allowFns (nestLimit - 1)
+      f = randomType tpsByArity allowAbstract allowFns (nestLimit - 1)
       fillChildren :: Int -> String -> IO Tp = \ arity str -> do
         let x = tyCon str
         nest arity (\a -> do
@@ -77,9 +76,9 @@ randomType allowAbstract allowFns nestLimit typeVars tyVarCount = do
 -- | randomly generate a function type
 -- | deprecated, not in actual use (`randomType` is only used with `allowFns` as `True` in another deprecated function)
 -- TODO: ensure each type var is used at least twice
-randomFnType :: Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
-randomFnType allowAbstract allowFns nestLimit typeVars tyVarCount = do
-  let f = randomType allowAbstract allowFns nestLimit
+randomFnType :: HashMap Int [String] -> Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
+randomFnType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount = do
+  let f = randomType tpsByArity allowAbstract allowFns nestLimit
   tpIn :: Tp <- f typeVars tyVarCount
   let typeVarsIn :: HashMap String [Tp] = snd <$> findTypeVars tpIn
   let typeVars_ = mergeTyVars typeVars typeVarsIn
@@ -164,9 +163,9 @@ fillTypeVars tp substitutions =
         _ -> tp
 
 -- | generate a number of concrete types to be used in type variable substitution
-genTypes :: Int -> Int -> IO (HashMap Int [Tp])
-genTypes nestLimit maxInstances = do
+genTypes :: HashMap Int [String] -> Int -> Int -> IO (HashMap Int [Tp])
+genTypes tpsByArity nestLimit maxInstances = do
   tps :: [Tp] <- nubPp . flatten <$> Many . fmap (One . pure) <$> replicateM maxInstances makeTp
-  return $ insert 0 tps $ delete 0 $ fmap tyCon <$> typesByArity
+  return $ insert 0 tps $ delete 0 $ fmap tyCon <$> tpsByArity
   where
-    makeTp :: IO Tp = randomType False False nestLimit empty 0
+    makeTp :: IO Tp = randomType tpsByArity False False nestLimit empty 0
