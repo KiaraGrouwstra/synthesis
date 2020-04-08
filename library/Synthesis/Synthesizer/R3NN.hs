@@ -344,7 +344,8 @@ runR3nn
                                                     Ident _l str -> symbolIdxs ! str
                                                     _ -> error $ "unexpected Name: " ++ show name
                                                 _ -> error $ "unexpected QName: " ++ show qname
-                                            in UnsafeMkTensor $ select' (D.toDependent symbol_emb) 0 idx
+                                            in asUntyped (select'' 0 idx) conditioned'
+                                            -- in select conditioned' @0 @idx  -- idx is run-time...
                         App _l _exp1 _exp2 -> let
                                 tensors :: [Tnsr '[1, m]] = f <$> fnAppNodes expr
                                 nnet = UntypedMLP.mlp $ lookupRule left_nnets $ nodeRule expr
@@ -443,7 +444,8 @@ runR3nn
     -- | The score of an expansion is calculated using z_e=ϕ′(e.l)⋅ω(e.r).
     let scores :: Tnsr '[num_holes, rules] =
             -- asUntyped (F.matmul $ toDynamic node_embs') $ transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
-            asUntyped (F.matmul $ toDynamic node_embs') . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
+            matmul node_embs' . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
+            -- asUntyped (F.matmul $ toDynamic node_embs') . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
     print $ "scores: " ++ show (shape' scores)
 
     return scores

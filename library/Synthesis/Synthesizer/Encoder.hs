@@ -192,7 +192,7 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     -- -- sequential: hidden, loop over t
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
     -- let lstm_step :: Spec -> Tnsr '[1, 1, MaxChar] -> IO (Tnsr '[Dirs, 1, H], Spec) = \ spec tensor -> do
-    --         -- tensor :: Tnsr '[1, 1, MaxChar] = UnsafeMkTensor $ select' (toDynamic tensor_in) 0 0  -- asUntyped'
+    --         -- tensor :: Tnsr '[1, 1, MaxChar] = asUntyped (select'' 0 0) tensor_in  -- asUntyped'
     --         lstm :: LSTMWithInit 1 H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (_emb, hidden, cell) :: (
     --                 Tnsr '[1, 1, Dirs * H],

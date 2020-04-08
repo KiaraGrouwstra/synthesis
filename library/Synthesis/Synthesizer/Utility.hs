@@ -96,14 +96,6 @@ type BatchSize = 8
 batchSize :: Int
 batchSize = natValI @BatchSize
 
--- used across a few different MLPs -- does sharing make sense?
-type H0 = 20 -- ?
-type H1 = 20 -- ?
-h0 :: Int
-h0 = natValI @H0
-h1 :: Int
-h1 = natValI @H1
-
 -- left/right MLPs
 type HiddenFeatures0 = 20 -- ?
 hiddenFeatures0 :: Int
@@ -178,6 +170,10 @@ asLong = fromIntegral
 -- | I want this as a built-in, see https://github.com/pytorch/pytorch/issues/34788
 select' :: D.Tensor -> Int -> Int -> D.Tensor
 select' tensor dim idx = D.indexSelect tensor dim $ D.asTensor [asLong idx]
+
+-- | point-free untyped select
+select'' :: Int -> Int -> D.Tensor -> D.Tensor
+select'' dim idx tensor = select' tensor dim idx
 
 -- TODO: figure out if Torch has a built-in for this
 -- | remove the given dimension from a D.Tensor, spreading it out as a list
