@@ -1,22 +1,7 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 
 -- | ast manipulation
-module Synthesis.Ast
-  ( module Synthesis.Ast
-    -- skeleton,
-    -- hasHoles,
-    -- holeExpr,
-    -- numAstNodes,
-    -- letRes,
-    -- genBlockVariants,
-    -- genHoledVariants,
-    -- anyFn,
-    -- genUncurry,
-    -- genFnType,
-    -- genFnInType,
-    -- genInputs,
-  )
-where
+module Synthesis.Ast (module Synthesis.Ast) where
 
 import Data.HashMap.Lazy (HashMap, empty, mapWithKey)
 import Language.Haskell.Exts.Syntax (Exp (..), Type (..))

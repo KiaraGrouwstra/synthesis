@@ -3,11 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 -- | synthesizer logic
-module Synthesis.Synthesizer
-    ( module Synthesis.Synthesizer
-    --   main,
-    )
-where
+module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
 
 -- import Control.Monad (forM_, forM_)
 -- import Data.HashMap.Lazy

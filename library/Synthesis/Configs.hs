@@ -1,9 +1,4 @@
-module Synthesis.Configs
-  ( module Synthesis.Configs
-    -- parseGenerationConfig,
-    -- parseSynthesizerConfig,
-  )
-where
+module Synthesis.Configs (module Synthesis.Configs) where
 
 import Synthesis.Data
 import Options.Applicative

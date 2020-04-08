@@ -1,42 +1,6 @@
 
 -- | utility functions
-module Synthesis.Utility
-  ( module Synthesis.Utility
-    -- Item (..),
-    -- NestedTuple (..),
-    -- flatten,
-    -- pick,
-    -- mapKeys,
-    -- groupByVal,
-    -- fromKeys,
-    -- fromVals,
-    -- flattenTuple,
-    -- mapTuple,
-    -- mapTuple3,
-    -- tuplify3,
-    -- untuple3,
-    -- while,
-    -- pp,
-    -- pp_,
-    -- pickKeys,
-    -- composeSetters,
-    -- fisherYates,
-    -- randomSplit,
-    -- flipOrder,
-    -- equating,
-    -- fromKeysM,
-    -- fromValsM,
-    -- ppMap,
-    -- filterHmM,
-    -- pickKeysSafe,
-    -- nest,
-    -- batchList,
-    -- statistic,
-    -- statistic',
-    -- Statistic,
-    -- stat,
-    -- pipe,
-  ) where
+module Synthesis.Utility (module Synthesis.Utility) where
 
 import Control.Arrow ((***))
 import Control.Monad (filterM, join, foldM)

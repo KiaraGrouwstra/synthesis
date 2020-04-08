@@ -2,19 +2,7 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 
 -- | find holes in an AST
-module Synthesis.FindHoles
-  ( module Synthesis.FindHoles
-    -- gtrExpr,
-    -- strExpr,
-    -- findHolesExpr,
-    -- findIdentExpr,
-    -- findFnAppExpr,
-    -- findHolesExpr',
-    -- findIdentExpr',
-    -- findFnAppExpr',
-    -- findTopFnAppExpr',
-  )
-where
+module Synthesis.FindHoles (module Synthesis.FindHoles) where
 
 import Language.Haskell.Exts.Syntax
 import Synthesis.Data (Expr)

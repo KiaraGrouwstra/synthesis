@@ -4,24 +4,7 @@
 {-# LANGUAGE TupleSections #-}
 
 -- | functions related to type generation
-module Synthesis.TypeGen
-  ( module Synthesis.TypeGen
-    -- randomType,
-    -- randomFnType,
-    -- tyCon,
-    -- tyApp,
-    -- genTypes,
-    -- findTypeVars,
-    -- fillTypeVars,
-    -- mergeTyVars,
-    -- unParseResult,
-    -- typeSane,
-    -- isFn,
-    -- hasFn,
-    -- nubPp,
-    -- unList,
-  )
-where
+module Synthesis.TypeGen (module Synthesis.TypeGen) where
 
 import Control.Monad (join, replicateM)
 import Data.HashMap.Lazy

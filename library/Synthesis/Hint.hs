@@ -1,26 +1,6 @@
 
 -- | utility functions related to the Haskell Interpreter `hint`
-module Synthesis.Hint
-  ( module Synthesis.Hint
-    -- runInterpreterMain,
-    -- interpretUnsafe,
-    -- interpretSafe,
-    -- say,
-    -- debug,
-    -- info,
-    -- notice,
-    -- warning,
-    -- err,
-    -- critical,
-    -- alert,
-    -- emergency,
-    -- errorString,
-    -- showError,
-    -- interpretIO,
-    -- fnIoPairs,
-    -- exprType,
-  )
-where
+module Synthesis.Hint (module Synthesis.Hint) where
 
 -- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Control.Monad (join)

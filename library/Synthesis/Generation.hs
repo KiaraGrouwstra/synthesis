@@ -2,21 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 
 -- | generate task functions and sample input/output pairs
-module Synthesis.Generation
-  ( module Synthesis.Generation
-    -- fnOutputs,
-    -- fillHoles,
-    -- fillHole,
-    -- genFn,
-    -- genFns,
-    -- instantiateTypes,
-    -- instantiateTypeVars,
-    -- matchesConstraints,
-    -- matchesType,
-    -- typeRelation,
-    -- dedupeFunctions,
-  )
-where
+module Synthesis.Generation (module Synthesis.Generation) where
 
 import Control.Monad (filterM)
 import Data.Bifunctor (second)

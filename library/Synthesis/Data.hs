@@ -2,17 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 -- | self-defined types
-module Synthesis.Data
-  ( module Synthesis.Data
-    -- L,
-    -- Tp,
-    -- Expr,
-    -- Hole,
-    -- TaskFnDataset (..),
-    -- GenerationConfig (..),
-    -- SynthesizerConfig (..),
-  )
-where
+module Synthesis.Data (module Synthesis.Data) where
 
 import Data.HashMap.Lazy (HashMap)
 import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)

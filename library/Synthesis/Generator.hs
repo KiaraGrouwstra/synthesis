@@ -3,11 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 -- | generator logic
-module Synthesis.Generator
-  ( module Synthesis.Generator
-    -- main,
-  )
-where
+module Synthesis.Generator (module Synthesis.Generator) where
 
 import Control.Monad (join, filterM, forM_)
 import Data.Bifunctor (first)

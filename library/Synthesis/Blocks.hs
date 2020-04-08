@@ -1,11 +1,4 @@
-module Synthesis.Blocks
-  ( module Synthesis.Blocks
-    -- blockAsts,
-    -- fnAsts,
-    -- constants,
-    -- typesByArity,
-  )
-where
+module Synthesis.Blocks (module Synthesis.Blocks) where
 
 import Data.HashMap.Lazy (HashMap, insert, singleton, union)
 import Synthesis.Types
