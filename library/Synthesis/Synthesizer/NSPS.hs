@@ -9,6 +9,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 
@@ -195,7 +196,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (holes_left, ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, 2 * Dirs * Enc.H * t] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
+calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
 calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
     -- putStrLn "calcLoss"
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
@@ -308,7 +309,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model) target_io_pairs
+            io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- baselineLstmEncoder @batchSize @t (encoder model) target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
             -- putStrLn $ "loss: " <> show loss
             -- TODO: do once for each mini-batch / fn?
@@ -333,7 +334,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_outputs :: [Either String Expr] =
                     task_outputs                                ! task_fn
 
-            io_feats :: Tnsr '[batchSize, 2 * Dirs * Enc.H * t] <- baselineLstmEncoder @batchSize @t (encoder model') target_io_pairs
+            io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- baselineLstmEncoder @batchSize @t (encoder model') target_io_pairs
             loss :: Tnsr '[] <- calcLoss task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
 
             -- sample for best of 100 predictions

@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
 
@@ -24,7 +25,7 @@ import Torch.Typed.Functional
 -- import Torch.Typed.NN
 -- import Torch.Typed.Factories
 import Torch.Typed.Aux
--- import Torch.HList
+import Torch.HList
 -- import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
@@ -83,7 +84,7 @@ baselineLstmEncoder
      . (KnownNat batch_size, KnownNat t)
     => BaselineLstmEncoder
     -> [(Expr, Either String Expr)]
-    -> IO (Tnsr '[batch_size, 2 * Dirs * H * t])
+    -> IO (Tnsr '[batch_size, t * (2 * Dirs * H)])
 baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     let t_ :: Int = natValI @t
     let batch_size_ :: Int = natValI @batch_size
@@ -243,14 +244,9 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
 
     -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    let feat_vec :: Tnsr '[batch_size, t, 2 * Dirs * H] =
-            -- cat @2 $ emb_in :. emb_out :. HNil
-            UnsafeMkTensor $ F.cat 2 $ toDynamic <$> [emb_in, emb_out]
+    let feat_vec :: Tnsr '[batch_size, t * (2 * Dirs * H)] =
+            reshape $ cat @2 $ emb_in :. emb_out :. HNil
     -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
-    let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] =
-            asUntyped (D.reshape [n_, -1]) feat_vec   -- [n_, 2 * dirs * h * t_]
-            -- = reshape feat_vec
-    -- print $ "feat_vec_: " ++ show (D.shape $ toDynamic feat_vec_)
 
     -- | 5.1.2 Cross Correlation encoder
 
@@ -284,4 +280,4 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     -- | For this encoder, the output of each character position of the Diffused Cross Correlation encoder is combined with the character embedding at this position, then a basic LSTM encoder is run over the combined features to extract a 4∗H-dimensional vector for both the input and the output streams.
     -- | The LSTM encoder output is then concatenated with the output of the Diffused Cross Correlation encoder forming a (4∗H+T∗(T−1))-dimensional feature vector for each example pair.
 
-    return feat_vec_
+    return feat_vec

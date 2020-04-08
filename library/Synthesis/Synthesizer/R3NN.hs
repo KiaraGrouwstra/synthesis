@@ -11,13 +11,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Synthesis.Synthesizer.R3NN (
-    module Synthesis.Synthesizer.R3NN
-    -- R3NNSpec (..),
-    -- R3NN,
-    -- initR3nn,
-    -- runR3nn,
-) where
+module Synthesis.Synthesizer.R3NN (module Synthesis.Synthesizer.R3NN) where
 
 -- import Data.Word (Word64)
 -- import Data.Bifunctor (second)
@@ -176,7 +170,7 @@ instance ( KnownNat m
             -- score_model
             <*> A.sample (LSTMWithZerosInitSpec scoreSpec)
             -- (TypedMLP.MLPSpec
-            --         @(m + batch_size * 2 * Dirs * Enc.H * t) @m
+            --         @(m + batch_size * t * (2 * Dirs * Enc.H)) @m
             --         @H0 @H1
             --         @D.Float
             --         D.Device
@@ -269,7 +263,7 @@ runR3nn
     => R3NN m symbols rules
     -> HashMap String Int
     -> Expr
-    -> Tnsr '[batch_size, 2 * Dirs * Enc.H * t]
+    -> Tnsr '[batch_size, t * (2 * Dirs * Enc.H)]
     -> IO (Tnsr '[num_holes, rules])
 runR3nn
     R3NN{..}
@@ -291,9 +285,9 @@ runR3nn
     -- | condition the PPT generation model using the I/O example encodings
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
     -- i/o features, identical for each leaf
-    let io_feats' :: Tnsr '[batch_size * 2 * Dirs * Enc.H * t] =
+    let io_feats' :: Tnsr '[batch_size * t * (2 * Dirs * Enc.H)] =
             asUntyped (D.reshape [-1]) io_feats   -- [n * 2 * dirs * Enc.h * t]
-            -- reshape '[batch_size * 2 * Dirs * Enc.H * t] io_feats
+            -- reshape '[batch_size * t * (2 * Dirs * Enc.H)] io_feats
     print $ "io_feats': " ++ show (shape' io_feats')
     -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `symbols` instead of `NumLeaves`
     -- untyped as num_leaves is dynamic
@@ -302,7 +296,7 @@ runR3nn
     -- let conditioned :: D.Tensor = F.cat 1 [leaf_embs, stack' 0 (replicate (shape' leaf_embs !! 0) io_feats')]
     -- let stacked_io = stack 0 $ replicate symbols io_feats'
     -- print $ "stacked_io: " ++ show (shape' stacked_io)
-    let conditioned :: Tnsr '[symbols, m + batch_size * 2 * Dirs * Enc.H * t] =
+    let conditioned :: Tnsr '[symbols, m + batch_size * t * (2 * Dirs * Enc.H)] =
             -- UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
             UnsafeMkTensor $ F.cat 1 [D.toDependent symbol_emb, stacked_io]
             where stacked_io = stack' 0 $ toDynamic <$> replicate (natValI @symbols) io_feats' -- n
