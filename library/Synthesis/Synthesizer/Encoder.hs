@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
@@ -21,12 +22,15 @@ import GHC.TypeNats (KnownNat, type (*)) -- , Nat, Mod, type (+), type (-)
 import Util (fstOf3)
 
 import Torch.Typed.Tensor
+import qualified Torch.Typed.Tensor
 import Torch.Typed.Functional
 -- import Torch.Typed.NN
 -- import Torch.Typed.Factories
 import Torch.Typed.Aux
+import Torch.Typed.Parameter
+import qualified Torch.Typed.Parameter
 import Torch.HList
--- import qualified Torch.HList
+import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
 import qualified Torch.Functional.Internal     as I
@@ -47,15 +51,19 @@ type H = 30 -- ?
 h :: Int
 h = natValI @H
 
-data BaselineLstmEncoderSpec = BaselineLstmEncoderSpec {
+data BaselineLstmEncoderSpec
+ where BaselineLstmEncoderSpec :: {
         -- dropoutRate :: Double
         lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
-    } deriving (Show)  -- , Eq
+    } -> BaselineLstmEncoderSpec
+ deriving (Show)
 
-data BaselineLstmEncoder = BaselineLstmEncoder {
+data BaselineLstmEncoder
+ where BaselineLstmEncoder :: {
     in_model  :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
     out_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-    } deriving (Show, Generic)
+    } -> BaselineLstmEncoder
+ deriving (Show, Generic)
 
 instance () => A.Parameterized (BaselineLstmEncoder) where
   flattenParameters BaselineLstmEncoder{..} = []
@@ -70,10 +78,17 @@ instance () => A.Parameterized (BaselineLstmEncoder) where
 --                  , out_model = out_model'
 --                  }
 
+-- instance () => Torch.Typed.Parameter.Parameterized (BaselineLstmEncoder) '[] where
+--   flattenParameters BaselineLstmEncoder{..} = HNil
+--         --    A.flattenParameters  in_model
+--         -- ++ A.flattenParameters out_model
+--   replaceParameters = const
+
 instance A.Randomizable BaselineLstmEncoderSpec BaselineLstmEncoder where
     sample BaselineLstmEncoderSpec {..} = BaselineLstmEncoder
         <$> A.sample spec
         <*> A.sample spec
+            -- TODO: consider LearnedInitialization
             where spec = LSTMWithZerosInitSpec lstmSpec
 
 -- | 5.1.1 Baseline LSTM encoder
@@ -94,7 +109,7 @@ baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
     -- | Our first I/O encoding network involves running two separate deep bidirectional LSTM networks for processing the input and the output string in each example pair.
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
+    let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
     -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
 

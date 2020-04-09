@@ -9,6 +9,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
@@ -23,6 +24,7 @@ import           GHC.Exts
 import           GHC.Generics (Generic)
 import           GHC.TypeNats (KnownNat, Nat, type (*))  -- , Mod, Div, type (+), type (-), type (<=?)
 -- import           Torch.Random (Generator)
+import Torch.HList
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.DType                   as D
 import qualified Torch.Tensor                  as D
@@ -38,12 +40,13 @@ import           Torch.Typed.Aux
 -- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
 import           Torch.Typed.NN
--- import           Torch.Typed.Parameter
+import Torch.Typed.Parameter
+import qualified Torch.Typed.Parameter
 import           Torch.Typed.Factories
--- import           Torch.Typed.Optim
+import           Torch.Typed.Optim
 import           Torch.Typed.Functional
 import           Torch.Typed.Autograd
--- import           Torch.Typed.Serialize
+import           Torch.Typed.Serialize
 -- import Torch.Distributions.Distribution
 -- import qualified Torch.Distributions.Categorical as Categorical
 import qualified Synthesis.Synthesizer.Distribution as Distribution
@@ -66,20 +69,20 @@ import           Synthesis.Synthesizer.Encoder -- hiding (dropoutRate)
 import qualified Synthesis.Synthesizer.Encoder as Enc
 import           Synthesis.Synthesizer.R3NN
 
-data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) where
-  NSPSSpec :: forall m symbols rules
-     . { encoderSpec :: BaselineLstmEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules }
-    -> NSPSSpec m symbols rules
+data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Nat) where
+  NSPSSpec :: forall m symbols rules t batchSize
+     . { encoderSpec :: BaselineLstmEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules t batchSize }
+    -> NSPSSpec m symbols rules t batchSize
  deriving (Show)   -- , Eq
 
-data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat)  where
-  NSPS :: forall m symbols rules
-        . { encoder :: BaselineLstmEncoder, r3nn :: R3NN m symbols rules }
-       -> NSPS m symbols rules
+data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Nat) where
+  NSPS :: forall m symbols rules t batchSize
+        . { encoder :: BaselineLstmEncoder, r3nn :: R3NN m symbols rules t batchSize }
+       -> NSPS m symbols rules t batchSize
  deriving (Show, Generic)
 
-instance ( KnownNat m, KnownNat symbols, KnownNat rules )
-  => A.Parameterized (NSPS m symbols rules) where
+instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
+  => A.Parameterized (NSPS m symbols rules t batchSize) where
   flattenParameters NSPS{..} = A.flattenParameters encoder
                             <> A.flattenParameters r3nn
   replaceOwnParameters NSPS{..} = do
@@ -87,8 +90,23 @@ instance ( KnownNat m, KnownNat symbols, KnownNat rules )
     r3nn'    <- A.replaceOwnParameters r3nn
     return $ NSPS{ r3nn = r3nn', encoder = encoder' }
 
-instance ( KnownNat m, KnownNat symbols, KnownNat rules )
-  => A.Randomizable (NSPSSpec m symbols rules) (NSPS m symbols rules) where
+-- instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
+--   => Torch.Typed.Parameter.Parameterized (NSPS m symbols rules t batchSize) '[ Parameter Dev 'D.Float '[symbols, m], Parameter Dev 'D.Float '[rules, m] ] where
+--   flattenParameters NSPS{..} = flattenParameters encoder `happend` flattenParameters r3nn
+--   replaceParameters NSPS{..} (symbol_emb' :. rule_emb' :. HNil) = NSPS
+--                                 { r3nn = r3nn'
+--                                 -- , encoder = encoder'
+--                                 , ..
+--                                 }
+--                                 where
+--                                     R3NN{..} = r3nn
+--                                     r3nn' = R3NN
+--                                         { symbol_emb = symbol_emb'
+--                                         ,   rule_emb =   rule_emb'
+--                                         , .. }
+
+instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
+  => A.Randomizable (NSPSSpec m symbols rules t batchSize) (NSPS m symbols rules t batchSize) where
     sample NSPSSpec {..} = NSPS
             <$> A.sample encoderSpec
             <*> A.sample r3nnSpec
@@ -196,7 +214,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (holes_left, ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules -> Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
+calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat batchSize) => Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t batchSize -> Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
 calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
     -- putStrLn "calcLoss"
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
@@ -204,7 +222,7 @@ calcLoss task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
             --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
             fill = \(_num_holes, ppt, golds, predictions) -> do
                     predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt io_feats
-                    -- putStrLn $ "predicted: " <> show predicted
+                    putStrLn $ "predicted: " <> show predicted
                     (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
             in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, skeleton taskType, [], [])     -- hasHoles
@@ -290,10 +308,10 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
     -- MODELS
     let encoder_spec :: BaselineLstmEncoderSpec = BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec m symbols rules = initR3nn @m @symbols @rules @t variants batchSize dropoutRate
-    init_model :: NSPS m symbols rules <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
-    -- :: D.Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
-    let init_optim :: D.GD = default_optim
+    let r3nn_spec :: R3NNSpec m symbols rules t batchSize = initR3nn @m @symbols @rules @t @batchSize variants batchSize dropoutRate
+    init_model :: NSPS m symbols rules t batchSize <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
+    -- let init_optim :: Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
+    let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
 
     foldLoop_ (stdGen, init_model, init_optim) numEpochs $ \ (gen, model_, optim_) epoch -> do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
@@ -301,8 +319,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
         -- TRAIN LOOP
 
         let foldrM_ x xs f = foldrM f x xs
-        (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules, D.GD) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
-            putStrLn $ "task_fn: " <> pp task_fn
+        (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules t batchSize, D.Adam) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
+            putStrLn $ "task_fn: \n" <> pp task_fn
 
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
@@ -316,6 +334,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             -- putStrLn $ "newParam"
             let model' = A.replaceParameters model newParam
+            -- (model', optim') <- runStep model optim loss lr
             -- putStrLn $ "model'"
             return (toDynamic loss : train_losses, model', optim')
 
@@ -388,4 +407,5 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             <> ". Test error-rate: "    <> show err_test
         
         D.save (D.toDependent <$> A.flattenParameters model') modelPath
+        -- save (hmap' ToDependent . flattenParameters $ model') modelPath
         return (gen', model', optim')

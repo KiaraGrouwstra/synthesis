@@ -9,6 +9,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.R3NN (module Synthesis.Synthesizer.R3NN) where
@@ -28,20 +29,20 @@ import Torch.Typed.Tensor
 import Torch.Typed.Functional
 import Torch.Typed.NN
 import Torch.Typed.Aux
--- import Torch.Typed.Parameter
--- import qualified Torch.Typed.Parameter
+import Torch.Typed.Parameter
+import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
 import Torch.Autograd -- (IndependentTensor(..))
 -- import Torch.TensorOptions
 import Torch.Typed.NN.Recurrent.LSTM
--- import Torch.HList
+import Torch.HList
 -- import qualified Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 -- import qualified Torch.Device                  as D
--- import qualified Torch.Functional.Internal     as D
+import qualified Torch.Functional.Internal     as I
 -- import qualified Torch.Random                  as D
 import qualified Torch.Autograd                as D
 -- import Torch.Random (Generator)
@@ -77,35 +78,38 @@ data R3NNSpec
     -- (m :: KnownNat)
     (symbols :: Nat)
     (rules :: Nat)
+    (t :: Nat)
+    (batch_size :: Nat)
  where
-  R3NNSpec :: forall m symbols rules
+  R3NNSpec :: forall m symbols rules t batch_size
      . {
         -- gen :: Generator,
         variant_sizes :: HashMap String Int,    -- dsl
-        conditionSpec :: UntypedMLP.MLPSpec,
-        -- conditionSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev,
+        -- conditionSpec :: UntypedMLP.MLPSpec,
+        conditionSpec :: LSTMSpec (m + batch_size * t * (2 * Dirs * Enc.H)) (Div m Dirs) NumLayers Dir 'D.Float Dev,
         -- scoreSpec :: LSTMSpec m m NumLayers Dir 'D.Float Dev,
-        scoreSpec :: LSTMSpec m (Div m Dirs) NumLayers Dir 'D.Float Dev,
+        scoreSpec     :: LSTMSpec  m                                        (Div m Dirs) NumLayers Dir 'D.Float Dev,
         leftH0  :: Int,
         leftH1  :: Int,
         rightH0 :: Int,
         rightH1 :: Int
         }
-    -> R3NNSpec m symbols rules
+    -> R3NNSpec m symbols rules t batch_size
  deriving (Show)  -- , Eq
 
 data R3NN
-    (m     :: Nat)
-    (symbols :: Nat)
-    (rules :: Nat)
+    (m          :: Nat)
+    (symbols    :: Nat)
+    (rules      :: Nat)
+    (t          :: Nat)
+    (batch_size :: Nat)
  where
   R3NN
-    :: forall m symbols rules
+    :: forall m symbols rules t batch_size
     -- htan activation
-     . { condition_model :: UntypedMLP.MLP
-                            -- TypedMLP.MLP
-                            -- LSTMWithInit m H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-       , score_model :: LSTMWithInit m (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
+    --  . { condition_model :: UntypedMLP.MLP
+     . { condition_model :: LSTMWithInit (m + batch_size * t * (2 * Dirs * Enc.H)) (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
+       , score_model     :: LSTMWithInit  m                                        (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
     --    , score_model :: LSTMWithInit m m NumLayers Dir 'ConstantInitialization 'D.Float Dev
         -- For every production rule r∈R, a deep neural network f_r which takes as
         -- input a vector x∈R^Q⋅M, with Q being the number of symbols on the RHS of
@@ -119,53 +123,71 @@ data R3NN
        , right_nnets :: HashMap String UntypedMLP.MLP
         -- The R3NN has the following parameters for the grammar described by a DSL (see Figure 3):
         -- For every symbol s∈S, an M-dimensional representation ϕ(s)∈R^M.
-    --    , symbol_emb            :: Parameter Dev 'D.Float '[symbols, m]  -- NSPS's phi   -- A.Parameter
-       , symbol_emb            :: A.Parameter
+       , symbol_emb :: Parameter Dev 'D.Float '[symbols, m]  -- NSPS's phi   -- A.Parameter
+    --    , symbol_emb            :: A.Parameter
         -- For every production rule r∈R, an M−dimensional representation: ω(r)∈R^M.
-    --    , rule_emb :: Parameter Dev 'D.Float '[rules  , m]  -- NSPS's omega -- A.Parameter
-       , rule_emb :: A.Parameter
+       , rule_emb   :: Parameter Dev 'D.Float '[rules  , m]  -- NSPS's omega -- A.Parameter
+    --    , rule_emb :: A.Parameter
         }
-    -> R3NN m symbols rules
+    -> R3NN m symbols rules t batch_size
  deriving (Show, Generic)
 
 instance ( KnownNat m
          , KnownNat symbols
          , KnownNat rules
+         , KnownNat t
+         , KnownNat batch_size
          )
-  => A.Parameterized (R3NN m symbols rules) where
-  flattenParameters R3NN{..} = [ symbol_emb
-                               , rule_emb
+  => A.Parameterized (R3NN m symbols rules t batch_size) where
+--   flattenParameters R3NN{..} = [ symbol_emb
+--                                , rule_emb
+--                                 ]
+  flattenParameters R3NN{..} = [ (IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent) symbol_emb
+                               , (IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent)   rule_emb
                                 ]
---   flattenParameters R3NN{..} = [ IndependentTensor (toDynamic (apply' ToDependent symbol_emb))
-                            --    , IndependentTensor (toDynamic (apply' ToDependent rule_emb))
-                                -- ]
---   replaceOwnParameters R3NN{..} = StateT $ \params -> Identity $ (R3NN m rules, params) -- ([Parameter] -> Identity (a, [Parameter]))
+  -- replaceOwnParameters R3NN{..} = StateT $ \params -> Identity $ (R3NN m symbols rules t batch_size) -- ([Parameter] -> Identity (a, [Parameter]))
   replaceOwnParameters R3NN{..} = do
     symbol_emb' <- A.nextParameter
     rule_emb'   <- A.nextParameter
-    return $ R3NN{ symbol_emb=symbol_emb'
-                 , rule_emb=rule_emb'
+    -- return $ R3NN{ symbol_emb = symbol_emb'
+    --              ,   rule_emb =   rule_emb'
+    --              , ..}
+    return $ R3NN{ symbol_emb = UnsafeMkParameter symbol_emb'
+                 ,   rule_emb = UnsafeMkParameter   rule_emb'
                  , ..}
 
 -- instance ( KnownNat m
+--          , KnownNat symbols
 --          , KnownNat rules
+--          , KnownNat t
+--          , KnownNat batch_size
 --          )
---   => Parameterized (R3NN m rules) '[ Parameter Dev D.Float [symbols, m], Parameter Dev D.Float [rules, m] ]
+--   => Torch.Typed.Parameter.Parameterized (R3NN m symbols rules t batch_size) '[Parameter Dev 'D.Float '[symbols, m], Parameter Dev 'D.Float '[rules, m]] where
+--   flattenParameters R3NN{..} = symbol_emb
+--                             :. rule_emb
+--                             :. HNil
+--   replaceParameters R3NN{..} (symbol_emb' :. rule_emb' :. HNil) = R3NN
+--         { symbol_emb = symbol_emb'
+--         ,   rule_emb =   rule_emb'
+--         , .. }
 
 instance ( KnownNat m
          , KnownNat symbols
          , KnownNat rules
+         , KnownNat t
+         , KnownNat batch_size
          )
-  => A.Randomizable (R3NNSpec m symbols rules)
-                    (R3NN     m symbols rules)
+  => A.Randomizable (R3NNSpec m symbols rules t batch_size)
+                    (R3NN     m symbols rules t batch_size)
  where
     sample R3NNSpec {..} = do
         -- gen :: Generator <- D.mkGenerator device $ fromIntegral seed
         symbol_emb :: Tnsr '[symbols, m] <- randn
-        rule_emb :: Tnsr '[rules, m] <- randn  -- Rules isn't necessarily static so no macros...
+        rule_emb   :: Tnsr '[rules,   m] <- randn
         join . return $ R3NN
             -- condition_model
-            <$> A.sample conditionSpec
+            -- <$> A.sample conditionSpec
+            <$> A.sample (LSTMWithZerosInitSpec conditionSpec)
             -- (LSTMWithZerosInitSpec . LSTMSpec . DropoutSpec $ dropoutRate)
             -- score_model
             <*> A.sample (LSTMWithZerosInitSpec scoreSpec)
@@ -183,30 +205,26 @@ instance ( KnownNat m
             -- right
             <*> mapM (\q -> A.sample $ UntypedMLP.MLPSpec m rightH0 rightH1 (q * m)) variant_sizes
             -- symbol_emb
-            -- <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) symbol_emb
-            <*> (return . IndependentTensor . toDynamic) symbol_emb
+            <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) symbol_emb
+            -- <*> (return . IndependentTensor . toDynamic) symbol_emb
             -- rule_emb
-            -- <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) rule_emb
-            <*> (return . IndependentTensor . toDynamic) rule_emb
+            <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) rule_emb
+            -- <*> (return . IndependentTensor . toDynamic) rule_emb
             where
-                -- withDevice device $ 
-                -- tensorOptions = withDType D.Float defaultOpts
                 m = natValI @m
-                -- (symbol_emb, gen') :: (D.Tensor, Generator) = D.randn [symbols, m] tensorOptions gen
-                -- (rule_emb, _gen'') :: (D.Tensor, Generator) = D.randn [natValI @rules, m] tensorOptions gen'
-
 
 -- | initialize R3NN spec
-initR3nn :: forall m symbols rules t
-         . (KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t)
+initR3nn :: forall m symbols rules t batch_size
+         . (KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batch_size)
          => [(String, Expr)]
          -> Int
          -> Double
-         -> (R3NNSpec m symbols rules)
-initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules
+         -> (R3NNSpec m symbols rules t batch_size)
+initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules @t @batch_size
         variant_sizes
         -- condition
-        (UntypedMLP.MLPSpec conditionIn h0 h1 m)
+        -- (UntypedMLP.MLPSpec conditionIn h0 h1 m)
+        (LSTMSpec $ DropoutSpec dropoutRate)
         -- score
         -- (UntypedMLP.MLPSpec           m h0 h1 m)
         (LSTMSpec $ DropoutSpec dropoutRate)
@@ -251,7 +269,7 @@ initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules
 -- | global-tree representation of the leaf-level non-terminal node.
 runR3nn
     :: forall symbols m t rules batch_size num_holes
-    . ( KnownNat symbols, KnownNat m )
+    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size )
     -- . ( KnownNat t )
     -- KnownNat m,
     -- KnownNat batch_size,
@@ -260,7 +278,7 @@ runR3nn
     -- KnownNat num_holes,
     -- KnownNat rules)       -- Let E be the set of all valid expansions in a PPT.
     -- => R3NN m symbols rules
-    => R3NN m symbols rules
+    => R3NN m symbols rules t batch_size
     -> HashMap String Int
     -> Expr
     -> Tnsr '[batch_size, t * (2 * Dirs * Enc.H)]
@@ -285,9 +303,7 @@ runR3nn
     -- | condition the PPT generation model using the I/O example encodings
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
     -- i/o features, identical for each leaf
-    let io_feats' :: Tnsr '[batch_size * t * (2 * Dirs * Enc.H)] =
-            asUntyped (D.reshape [-1]) io_feats   -- [n * 2 * dirs * Enc.h * t]
-            -- reshape '[batch_size * t * (2 * Dirs * Enc.H)] io_feats
+    let io_feats' :: Tnsr '[batch_size * (t * (2 * Dirs * Enc.H))] = reshape io_feats
     print $ "io_feats': " ++ show (shape' io_feats')
     -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `symbols` instead of `NumLeaves`
     -- untyped as num_leaves is dynamic
@@ -297,24 +313,19 @@ runR3nn
     -- let stacked_io = stack 0 $ replicate symbols io_feats'
     -- print $ "stacked_io: " ++ show (shape' stacked_io)
     let conditioned :: Tnsr '[symbols, m + batch_size * t * (2 * Dirs * Enc.H)] =
-            -- UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
-            UnsafeMkTensor $ F.cat 1 [D.toDependent symbol_emb, stacked_io]
-            where stacked_io = stack' 0 $ toDynamic <$> replicate (natValI @symbols) io_feats' -- n
+            UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
+            -- UnsafeMkTensor $ F.cat 1 [D.toDependent symbol_emb, stacked_io]
+            where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats' -- n
     print $ "conditioned: " ++ show (shape' conditioned)
     -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
     -- The conditioning network can be either a multi-layer feedforward network,
     -- -- let conditioned' :: Tnsr '[symbols, m] = TypedMLP.mlp condition_model train conditioned
-    let conditioned' :: Tnsr '[symbols, m] =
-            asUntyped (UntypedMLP.mlp condition_model) conditioned
+    -- let conditioned' :: Tnsr '[symbols, m] =
+    --         asUntyped (UntypedMLP.mlp condition_model) conditioned
     -- or a bidirectional LSTM network running over tree leaves.
     -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
-    -- let conditioned' :: Tnsr '[symbols, Dirs * H] = emb
-    --     where
-    --         let (emb, hidden, cell) :: (
-    --                 Tnsr '[symbols, 1, Dirs * H],
-    --                 Tnsr '[Dirs * NumLayers, symbols, H],
-    --                 Tnsr '[Dirs * NumLayers, symbols, H])
-    --                     = lstmWithDropout @'BatchFirst condition_model conditioned
+    -- asUntyped id to type-check m*2/2
+    let conditioned' :: Tnsr '[symbols, m] = asUntyped id . squeezeAll . fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
     print $ "conditioned': " ++ show (shape' conditioned')
 
     -- | 4.1.1 Global Tree Information at the Leaves
@@ -418,21 +429,17 @@ runR3nn
     let node_embs' :: Tnsr '[num_holes, m] =
     -- let node_embs' :: Tnsr '[num_holes, Div m 2 * 2] =
             -- asUntyped (UntypedMLP.mlp score_model) node_embs
-            -- squeezeAll . 
+            -- asUntyped to type-check m*2/2
+            asUntyped (\t -> I.squeezeDim t 0) .
+            -- asUntyped id .
+            -- squeezeAll . -- unsafe, can squeeze out num_holes too
             -- reshape '[num_holes, Div m 2 * 2] .
-            asUntyped (D.reshape . D.shape . toDynamic $ node_embs) . 
-            fstOf3 . lstmWithDropout @'BatchFirst score_model $ unsqueeze @0 node_embs
-    -- damnit, given num_holes is dynamic (may differ by expression, unless I fix some max?),
-    -- I would need to switch to an untyped LSTM but that doesn't seem to be built-in right now...
-    -- TODO: convert from 2d to 3d for input and back for output...
-    --  :: Tnsr '[num_holes, Dirs * H]
-    -- let node_embs' :: D.Tensor = do
-    --         let (emb, hidden, cell) :: (
-    --                 Tnsr '[num_holes, 1, Dirs * H],
-    --                 Tnsr '[Dirs * NumLayers, num_holes, H],
-    --                 Tnsr '[Dirs * NumLayers, num_holes, H])
-    --                     = lstmWithDropout @'BatchFirst score_model $ UnsafeMkTensor node_embs
-    --         return . toDynamic $ emb
+            -- reshape . 
+            -- asUntyped (D.reshape . D.shape . toDynamic $ node_embs) . 
+            -- fstOf3 . lstmWithDropout @'SequenceFirst score_model . unsqueeze @0 $ node_embs
+            fstOf3 . lstmDynamicBatch @'SequenceFirst dropoutOn score_model . unsqueeze @0 $ node_embs
+                    where dropoutOn = True
+    print $ "node_embs': " ++ show (shape' node_embs')
 
     -- | 4.1.2 Expansion Probabilities
 
@@ -443,8 +450,8 @@ runR3nn
     -- | in the tree.
     -- | The score of an expansion is calculated using z_e=ϕ′(e.l)⋅ω(e.r).
     let scores :: Tnsr '[num_holes, rules] =
-            -- asUntyped (F.matmul $ toDynamic node_embs') $ transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
-            matmul node_embs' . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
+            matmul node_embs' . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
+            -- matmul node_embs' . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
             -- asUntyped (F.matmul $ toDynamic node_embs') . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
     print $ "scores: " ++ show (shape' scores)
 

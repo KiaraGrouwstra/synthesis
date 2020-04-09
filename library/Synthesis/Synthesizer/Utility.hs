@@ -6,13 +6,18 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
 
 import Prelude hiding (lookup, exp)
 -- import qualified Prelude
 import GHC.Stack
-import GHC.TypeNats (type (+)) -- , KnownNat, Nat, Mod, type (*), type (-)
+import GHC.TypeNats (KnownNat, type (+), type (*)) -- , Nat, Mod, type (-)
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
@@ -22,20 +27,27 @@ import Data.HashMap.Lazy (HashMap, fromList, lookup)
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
 import Control.Monad (void, foldM)
--- import GHC.TypeNats (KnownNat)
 import Language.Haskell.Interpreter (Interpreter)  -- , lift, liftIO
 import Language.Haskell.Exts.Syntax
 
 import Torch.Typed.Aux (natValI)
 import Torch.Typed.Tensor hiding (dim)
 import Torch.Typed.Functional
+import Torch.Typed.Parameter
+import qualified Torch.Typed.Parameter
+import Torch.Typed.NN
+import Torch.Typed.NN.Recurrent.LSTM
+import Torch.HList
+import qualified Torch.NN                      as A
+import Torch.Autograd                          as D
+import Torch.TensorFactories                   as D
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 import qualified Torch.Device                  as D
 import qualified Torch.Optim                   as D
--- import qualified Torch.Functional.Internal     as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
+import qualified Torch.Internal.Class                    as ATen
 
 import Synthesis.Data (Expr, Tp)
 import Synthesis.Utility (pp, fisherYates) -- , pp_
@@ -57,12 +69,6 @@ learningRate :: Float
 learningRate = 0.001
 
 -- TODO: consider which hyperparams have been / should be shared across networks
-
--- TODO: switch to Adam
-default_optim :: D.GD  -- D.Optimizer D.GD
-default_optim = D.GD  -- GD
---  :: Adam momenta1
--- init_enc_optim  = mkAdam 0 0.9 0.999 $ flattenParameters init_enc_model
 
 -- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
 -- data Symbol = Variable | Hole
@@ -382,3 +388,113 @@ f_multinomial_tlb
   -> IO D.Tensor
 f_multinomial_tlb t l b =
   (cast3 ATen.multinomial_tlb) t l b
+
+-- | adjusted Torch.Typed.NN.Recurrent.LSTM.lstm to dynamically calculate batch size
+lstmDynamicBatch
+  :: forall
+       shapeOrder
+       batchSize
+       seqLen
+       directionality
+       initialization
+       numLayers
+       inputSize
+       outputSize
+       hiddenSize
+       inputShape
+       outputShape
+       hxShape
+       parameters
+       tensorParameters
+       dtype
+       device
+   . ( KnownNat (NumberOfDirections directionality)
+     , KnownNat numLayers
+     -- , KnownNat batchSize
+     , KnownNat hiddenSize
+     , KnownRNNShapeOrder shapeOrder
+     , KnownRNNDirectionality directionality
+     , outputSize ~ (hiddenSize * NumberOfDirections directionality)
+     , inputShape ~ RNNShape shapeOrder seqLen batchSize inputSize
+     , outputShape ~ RNNShape shapeOrder seqLen batchSize outputSize
+     , hxShape ~ '[numLayers * NumberOfDirections directionality, batchSize, hiddenSize]
+     , Parameterized (LSTM inputSize hiddenSize numLayers directionality dtype device) parameters
+     , tensorParameters ~ LSTMR inputSize hiddenSize numLayers directionality dtype device
+     , ATen.Castable (HList tensorParameters) [D.ATenTensor]
+     , HMap' ToDependent parameters tensorParameters
+     )
+  => Bool
+  -> LSTMWithInit
+       inputSize
+       hiddenSize
+       numLayers
+       directionality
+       initialization
+       dtype
+       device
+  -> Tensor device dtype inputShape
+  -> ( Tensor device dtype outputShape
+     , Tensor device dtype hxShape
+     , Tensor device dtype hxShape
+     )
+lstmDynamicBatch dropoutOn (LSTMWithConstInit lstm@(LSTM _ (Dropout dropoutProb)) cc hc) input
+  = Torch.Typed.Functional.lstm
+    @shapeOrder
+    @directionality
+    @numLayers
+    @seqLen
+    @batchSize
+    @inputSize
+    @outputSize
+    @hiddenSize
+    @inputShape
+    @outputShape
+    @hxShape
+    @tensorParameters
+    @dtype
+    @device
+    (hmap' ToDependent . flattenParameters $ lstm)
+    dropoutProb
+    dropoutOn
+    (cc', hc')
+    input
+ where
+  cc' =
+    -- reshape @hxShape
+    --   . expand
+    --       @'[batchSize, numLayers * NumberOfDirections directionality, hiddenSize]
+    --       False -- TODO: What does the bool do?
+    asUntyped (
+      D.reshape [natValI @(numLayers * NumberOfDirections directionality), batchSize, natValI @hiddenSize]
+      . (\t -> F.expand t False [batchSize, natValI @(numLayers * NumberOfDirections directionality), natValI @hiddenSize])
+      )
+      $ cc
+  hc' =
+    -- reshape @hxShape
+    --   . expand
+    --       @'[batchSize, numLayers * NumberOfDirections directionality, hiddenSize]
+    --       False -- TODO: What does the bool do?
+    asUntyped (
+      D.reshape [natValI @(numLayers * NumberOfDirections directionality), batchSize, natValI @hiddenSize]
+      . (\t -> F.expand t False [batchSize, natValI @(numLayers * NumberOfDirections directionality), natValI @hiddenSize])
+      )
+      $ hc
+  -- newly added:
+  batchSize = D.size (toDynamic input) $ if rnnBatchFirst @shapeOrder then 0 else 1
+
+d_mkAdam
+  :: Int
+  -> Float
+  -> Float
+  -- -> [Tensor device dtype shape]
+  -- -> [D.Tensor]
+  -- -> D.Tensor
+  -> [A.Parameter]
+  -> D.Adam
+d_mkAdam iter beta1 beta2 parameters =
+    D.Adam
+        beta1
+        beta2
+        (D.zerosLike . D.toDependent <$> parameters)
+        (D.zerosLike . D.toDependent <$> parameters)
+        iter
