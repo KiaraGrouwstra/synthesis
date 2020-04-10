@@ -29,6 +29,7 @@ import Torch.Typed.Functional
 import Torch.Typed.Aux
 import Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
+import Torch.Autograd -- (IndependentTensor(..))
 import Torch.HList
 import qualified Torch.HList
 import qualified Torch.NN                      as A
@@ -51,41 +52,43 @@ type H = 30 -- ?
 h :: Int
 h = natValI @H
 
-data BaselineLstmEncoderSpec
- where BaselineLstmEncoderSpec :: {
+data LstmEncoderSpec
+ where LstmEncoderSpec :: {
         -- dropoutRate :: Double
         lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
-    } -> BaselineLstmEncoderSpec
+    } -> LstmEncoderSpec
  deriving (Show)
 
-data BaselineLstmEncoder
- where BaselineLstmEncoder :: {
+data LstmEncoder
+ where LstmEncoder :: {
     in_model  :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
     out_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-    } -> BaselineLstmEncoder
+    } -> LstmEncoder
  deriving (Show, Generic)
 
-instance () => A.Parameterized (BaselineLstmEncoder) where
-  flattenParameters BaselineLstmEncoder{..} = []
-        --    A.flattenParameters  in_model
-        -- ++ A.flattenParameters out_model
-  replaceOwnParameters = pure
---   replaceOwnParameters BaselineLstmEncoder{..} = do
---     out_model' <- A.replaceOwnParameters out_model
---     in_model'  <- A.replaceOwnParameters  in_model
---     return $ BaselineLstmEncoder
---                  {  in_model =  in_model'
---                  , out_model = out_model'
---                  }
+-- instance () => A.Parameterized (LstmEncoder) where
+--   flattenParameters LstmEncoder{..} = []
+--   replaceOwnParameters = pure
 
--- instance () => Torch.Typed.Parameter.Parameterized (BaselineLstmEncoder) '[] where
---   flattenParameters BaselineLstmEncoder{..} = HNil
---         --    A.flattenParameters  in_model
---         -- ++ A.flattenParameters out_model
+instance () => A.Parameterized (LstmEncoder) where
+  flattenParameters LstmEncoder{..} =
+           A.flattenParameters  in_model
+        ++ A.flattenParameters out_model
+  replaceOwnParameters LstmEncoder{..} = do
+    out_model' <- A.replaceOwnParameters out_model
+    in_model'  <- A.replaceOwnParameters  in_model
+    return $ LstmEncoder
+                 {  in_model =  in_model'
+                 , out_model = out_model'
+                 }
+
+-- instance () => Torch.Typed.Parameter.Parameterized (LstmEncoder) '[] where
+--   flattenParameters LstmEncoder{..} = flattenParameters  in_model
+--                             `happend` flattenParameters out_model
 --   replaceParameters = const
 
-instance A.Randomizable BaselineLstmEncoderSpec BaselineLstmEncoder where
-    sample BaselineLstmEncoderSpec {..} = BaselineLstmEncoder
+instance A.Randomizable LstmEncoderSpec LstmEncoder where
+    sample LstmEncoderSpec {..} = LstmEncoder
         <$> A.sample spec
         <*> A.sample spec
             -- TODO: consider LearnedInitialization
@@ -94,13 +97,13 @@ instance A.Randomizable BaselineLstmEncoderSpec BaselineLstmEncoder where
 -- | 5.1.1 Baseline LSTM encoder
 -- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
 
-baselineLstmEncoder
+lstmEncoder
     :: forall batch_size t
      . (KnownNat batch_size, KnownNat t)
-    => BaselineLstmEncoder
+    => LstmEncoder
     -> [(Expr, Either String Expr)]
     -> IO (Tnsr '[batch_size, t * (2 * Dirs * H)])
-baselineLstmEncoder BaselineLstmEncoder{..} io_pairs = do
+lstmEncoder LstmEncoder{..} io_pairs = do
     let t_ :: Int = natValI @t
     let batch_size_ :: Int = natValI @batch_size
     let n_ :: Int = length io_pairs

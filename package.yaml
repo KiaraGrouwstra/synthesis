@@ -39,6 +39,7 @@ dependencies:
   - hasktorch
   - libtorch-ffi
   - ghc-typelits-knownnat
+  - ghc-typelits-extra
 
 library:
   dependencies:

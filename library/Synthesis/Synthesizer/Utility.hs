@@ -10,6 +10,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
@@ -501,3 +502,99 @@ d_mkAdam iter beta1 beta2 parameters =
 
 toBool :: forall device . Tensor device 'D.Bool '[] -> Bool
 toBool t = D.asValue . toDynamic . toCPU $ t
+
+untypeParam :: Parameter device dtype shape -> A.Parameter
+untypeParam = IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent
+
+instance () => A.Parameterized (LSTMWithInit inputSize hiddenSize numLayers directionality initialization dtype device) where
+  flattenParameters LSTMWithConstInit{..} =
+           A.flattenParameters lstmWithConstInit_lstm
+  flattenParameters LSTMWithLearnedInit{..} =
+           A.flattenParameters lstmWithLearnedInit_lstm
+        ++ fmap untypeParam [lstmWithLearnedInit_c, lstmWithLearnedInit_h]
+  replaceOwnParameters LSTMWithConstInit{..} = do
+    lstmWithConstInit_lstm' <- A.replaceOwnParameters lstmWithConstInit_lstm
+    return $ LSTMWithConstInit
+                 { lstmWithConstInit_lstm = lstmWithConstInit_lstm'
+                 , ..
+                 }
+  replaceOwnParameters LSTMWithLearnedInit{..} = do
+    lstmWithLearnedInit_lstm' <- A.replaceOwnParameters lstmWithLearnedInit_lstm
+    lstmWithLearnedInit_c'    <- A.nextParameter
+    lstmWithLearnedInit_h'    <- A.nextParameter
+    return $ LSTMWithLearnedInit
+                 { lstmWithLearnedInit_lstm = lstmWithLearnedInit_lstm'
+                 , lstmWithLearnedInit_c    = UnsafeMkParameter lstmWithLearnedInit_c'
+                 , lstmWithLearnedInit_h    = UnsafeMkParameter lstmWithLearnedInit_h'
+                 }
+
+instance () => A.Parameterized (LSTM inputSize hiddenSize numLayers directionality dtype device) where
+  flattenParameters LSTM{..} = A.flattenParameters lstm_layer_stack
+  replaceOwnParameters LSTM{..} = do
+    lstm_layer_stack' <- A.replaceOwnParameters lstm_layer_stack
+    return $ LSTM
+                 { lstm_layer_stack = lstm_layer_stack'
+                 , ..
+                 }
+
+instance () => A.Parameterized (LSTMLayerStack inputSize hiddenSize numLayers directionality dtype device) where
+  flattenParameters (LSTMLayer1 layer) =
+           A.flattenParameters layer
+  flattenParameters (LSTMLayerK stack layer) =
+           A.flattenParameters stack
+        ++ A.flattenParameters layer
+  replaceOwnParameters (LSTMLayer1 layer) = do
+    layer' <- A.replaceOwnParameters layer
+    return $ LSTMLayer1 layer'
+  replaceOwnParameters (LSTMLayerK stack layer) = do
+    stack' <- A.replaceOwnParameters stack
+    layer' <- A.replaceOwnParameters layer
+    return $ LSTMLayerK stack' layer'
+
+instance () => A.Parameterized (LSTMLayer inputSize hiddenSize directionality dtype device) where
+  flattenParameters (LSTMUnidirectionalLayer wi wh bi bh) =
+      [ untypeParam wi
+      , untypeParam wh
+      , untypeParam bi
+      , untypeParam bh
+      ]
+  flattenParameters (LSTMBidirectionalLayer wi wh bi bh wi' wh' bi' bh') =
+      [ untypeParam wi
+      , untypeParam wh
+      , untypeParam bi
+      , untypeParam bh
+      , untypeParam wi'
+      , untypeParam wh'
+      , untypeParam bi'
+      , untypeParam bh'
+      ]
+  replaceOwnParameters (LSTMUnidirectionalLayer _wi _wh _bi _bh) = do
+    wi <- A.nextParameter
+    wh <- A.nextParameter
+    bi <- A.nextParameter
+    bh <- A.nextParameter
+    return (LSTMUnidirectionalLayer
+            (UnsafeMkParameter wi)
+            (UnsafeMkParameter wh)
+            (UnsafeMkParameter bi)
+            (UnsafeMkParameter bh)
+            )
+  replaceOwnParameters (LSTMBidirectionalLayer _wi _wh _bi _bh _wi' _wh' _bi' _bh') = do
+    wi <- A.nextParameter
+    wh <- A.nextParameter
+    bi <- A.nextParameter
+    bh <- A.nextParameter
+    wi' <- A.nextParameter
+    wh' <- A.nextParameter
+    bi' <- A.nextParameter
+    bh' <- A.nextParameter
+    return (LSTMBidirectionalLayer
+            (UnsafeMkParameter wi)
+            (UnsafeMkParameter wh)
+            (UnsafeMkParameter bi)
+            (UnsafeMkParameter bh)
+            (UnsafeMkParameter wi')
+            (UnsafeMkParameter wh')
+            (UnsafeMkParameter bi')
+            (UnsafeMkParameter bh')
+            )

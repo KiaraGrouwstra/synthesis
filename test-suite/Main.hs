@@ -551,16 +551,34 @@ synthesizer = let
                 $ insert "nil" "[]"
                 $ insert "not" "not"
                 $ singleton "true" "True"
+        lr = D.asTensor (0.01 :: Float)
     in TestList
 
-    [ TestLabel "baselineLstmEncoder" $ TestCase $ do
+    -- technically the encoder test doesn't use Hint so can use Tasty...
+    [ TestLabel "LstmEncoder" $ TestCase $ do
         -- io_pairs for task fn `trues :: Int -> [Bool]`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        init_enc_model :: BaselineLstmEncoder <- A.sample $ BaselineLstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- baselineLstmEncoder init_enc_model io_pairs
+        enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
         D.shape (toDynamic io_feats) `shouldBe` [batchSize, 2 * dirs * Enc.h * t]
 
-    , TestLabel "runR3nn" $ TestCase $ do
+        let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters enc_model
+        -- let optim = mkAdam 0 0.9 0.999 $ flattenParameters enc_model
+        let loss :: Tnsr '[] = sumAll io_feats  -- dummy op for loss with gradient
+        (newParam, optim') <- D.runStep enc_model optim (toDynamic loss) lr
+        -- putStrLn $ "LstmEncoder.newParam: " <> show newParam
+        let enc_model' :: LstmEncoder = A.replaceParameters enc_model newParam
+        -- (enc_model', optim') <- runStep enc_model optim loss $ UnsafeMkTensor lr
+        -- putStrLn $ "LstmEncoder.enc_model: " <> show enc_model
+        -- putStrLn $ "LstmEncoder.enc_model': " <> show enc_model'
+
+        io_feats' :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model' io_pairs
+        let loss' :: Tnsr '[] = sumAll io_feats'
+        -- putStrLn $ "LstmEncoder.loss: " <> show loss
+        -- putStrLn $ "LstmEncoder.loss': " <> show loss'
+        toBool (all (lt loss' loss)) `shouldBe` True
+
+    , TestLabel "R3NN" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
