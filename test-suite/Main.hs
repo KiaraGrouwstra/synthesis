@@ -25,13 +25,16 @@ import           System.Random                (StdGen, mkStdGen)
 import           Language.Haskell.Interpreter (as, interpret, liftIO) -- , typeChecksWithDetails
 import           Util                         (fstOf3)
 
+import Prelude hiding (abs, all)
 -- import           GHC.Exts
 -- import           GHC.TypeNats
 import           GHC.TypeNats (Mod, type (+), type (*))  -- , KnownNat, Nat, Div, type (-)
 -- import           Torch.Random (Generator)
 -- import           Torch.Functional.Internal (gather)
 -- import qualified Torch.DType                   as D
+import Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
+import qualified Torch.Optim                   as D
 -- import qualified Torch.Device                  as D
 -- import qualified Torch.Random                  as D
 import qualified Torch.Functional.Internal as I
@@ -41,6 +44,8 @@ import           Torch.Typed.Aux
 -- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
 import           Torch.Typed.Factories
+import           Torch.Typed.Optim
+import           Torch.Typed.Parameter
 import           Torch.Typed.NN
 import           Torch.Typed.NN.Recurrent.LSTM
 

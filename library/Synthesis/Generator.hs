@@ -136,7 +136,7 @@ program = do
     -- TODO: save/load task function data to separate generation/synthesis
     liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
         cfg
-        (keys blockAsts)
+        blockAsts
         typesByArity
         fn_types
         fn_in_type_instance_outputs

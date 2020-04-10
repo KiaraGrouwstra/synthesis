@@ -45,7 +45,7 @@ type Expr = Exp L
 -- | things I wanna transfer between generation and synthesis sessions
 data TaskFnDataset = TaskFnDataset
   { generationCfg :: GenerationConfig
-  , dslSymbols :: [String]
+  , dsl :: HashMap String Expr
   , generatedTypes :: HashMap Int [String]  -- typesByArity
   , fnTypes :: HashMap Expr Tp
   , fnInTypeInstanceOutputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])

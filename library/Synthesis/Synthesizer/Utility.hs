@@ -498,3 +498,6 @@ d_mkAdam iter beta1 beta2 parameters =
         (D.zerosLike . D.toDependent <$> parameters)
         (D.zerosLike . D.toDependent <$> parameters)
         iter
+
+toBool :: forall device . Tensor device 'D.Bool '[] -> Bool
+toBool t = D.asValue . toDynamic . toCPU $ t
