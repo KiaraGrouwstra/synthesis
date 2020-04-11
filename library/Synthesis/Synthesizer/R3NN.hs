@@ -10,7 +10,9 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 
 module Synthesis.Synthesizer.R3NN (module Synthesis.Synthesizer.R3NN) where
 
@@ -23,6 +25,8 @@ import Control.Monad ((=<<), join)
 import Language.Haskell.Exts.Syntax
 import GHC.Generics (Generic)
 import GHC.TypeNats (KnownNat, Nat, Div, type (*), type (+))  -- , Mod, type (-)
+-- import GHC.TypeLits
+import GHC.TypeLits.Extra
 import Util (fstOf3)
 
 import Torch.Typed.Tensor
@@ -277,7 +281,10 @@ initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules @t @batch
 -- | global-tree representation of the leaf-level non-terminal node.
 runR3nn
     :: forall symbols m t rules batch_size num_holes
-    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size )
+    .
+     (0 >= Mod m 2)
+     =>
+    ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size )
     -- . ( KnownNat t )
     -- KnownNat m,
     -- KnownNat batch_size,
