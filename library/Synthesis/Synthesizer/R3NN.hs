@@ -211,7 +211,8 @@ instance ( KnownNat m
             <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) rule_emb
             -- <*> (return . IndependentTensor . toDynamic) rule_emb
             where
-                m = natValI @m
+                -- m must be divisible by Dirs for `Div` in the LSTM specs to work out due to integer division...
+                m = assertP ((== 0) . (`mod` natValI @Dirs)) $ natValI @m
 
 -- | initialize R3NN spec
 initR3nn :: forall m symbols rules t batch_size
