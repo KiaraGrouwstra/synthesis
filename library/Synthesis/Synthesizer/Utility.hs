@@ -23,11 +23,12 @@ import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
 import Data.List (findIndex)
+import Data.Foldable (toList)
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, lookup)
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
-import Control.Monad (void, foldM)
+import Control.Monad (void, foldM, (=<<))
 import Language.Haskell.Interpreter (Interpreter)  -- , lift, liftIO
 import Language.Haskell.Exts.Syntax
 
@@ -598,3 +599,7 @@ instance () => A.Parameterized (LSTMLayer inputSize hiddenSize directionality dt
             (UnsafeMkParameter bi')
             (UnsafeMkParameter bh')
             )
+
+instance (Foldable t, Traversable t, A.Parameterized a) => A.Parameterized (t a) where
+  flattenParameters = (=<<) A.flattenParameters . toList
+  replaceOwnParameters = mapM A.replaceOwnParameters

@@ -139,23 +139,30 @@ instance ( KnownNat m
          , KnownNat batch_size
          )
   => A.Parameterized (R3NN m symbols rules t batch_size) where
---   flattenParameters R3NN{..} = [ symbol_emb
---                                , rule_emb
---                                 ]
-  flattenParameters R3NN{..} = [ (IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent) symbol_emb
-                               , (IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent)   rule_emb
-                                ]
-  -- replaceOwnParameters R3NN{..} = StateT $ \params -> Identity $ (R3NN m symbols rules t batch_size) -- ([Parameter] -> Identity (a, [Parameter]))
+  flattenParameters R3NN{..} =
+        A.flattenParameters condition_model
+        ++ A.flattenParameters score_model
+        ++ A.flattenParameters left_nnets
+        ++ A.flattenParameters right_nnets
+        ++ [ untypeParam symbol_emb
+            , untypeParam   rule_emb
+            ]
   replaceOwnParameters R3NN{..} = do
-    symbol_emb' <- A.nextParameter
-    rule_emb'   <- A.nextParameter
-    -- return $ R3NN{ symbol_emb = symbol_emb'
-    --              ,   rule_emb =   rule_emb'
-    --              , ..}
-    return $ R3NN{ symbol_emb = UnsafeMkParameter symbol_emb'
-                 ,   rule_emb = UnsafeMkParameter   rule_emb'
-                 , ..}
+        condition_model' <- A.replaceOwnParameters condition_model
+        score_model'     <- A.replaceOwnParameters     score_model
+        left_nnets'      <- A.replaceOwnParameters  left_nnets
+        right_nnets'     <- A.replaceOwnParameters right_nnets
+        symbol_emb' <- A.nextParameter
+        rule_emb'   <- A.nextParameter
+        return $ R3NN{ condition_model = condition_model'
+                    ,     score_model =     score_model'
+                    ,  left_nnets =  left_nnets'
+                    , right_nnets = right_nnets'
+                    , symbol_emb = UnsafeMkParameter symbol_emb'
+                    ,   rule_emb = UnsafeMkParameter   rule_emb'
+                    }
 
+-- -- cannot use static Parameterized, as the contents of left_nnets / right_nnets are not statically known in its current HashMap type
 -- instance ( KnownNat m
 --          , KnownNat symbols
 --          , KnownNat rules
