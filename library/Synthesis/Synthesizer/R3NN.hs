@@ -21,7 +21,7 @@ import Control.Arrow ((&&&))
 import Control.Monad ((=<<), join)
 -- import Control.Monad.State.Strict (StateT(..))
 import Language.Haskell.Exts.Syntax
-import GHC.Generics (Generic)
+import GHC.Generics -- (Generic)
 import GHC.TypeNats (KnownNat, Nat, Div, type (*), type (+))  -- , Mod, type (-)
 import Util (fstOf3)
 
@@ -32,6 +32,7 @@ import Torch.Typed.Aux
 import Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
+import Torch.TensorFactories (randnIO')
 import Torch.Autograd -- (IndependentTensor(..))
 -- import Torch.TensorOptions
 import Torch.Typed.NN.Recurrent.LSTM
@@ -95,7 +96,7 @@ data R3NNSpec
         rightH1 :: Int
         }
     -> R3NNSpec m symbols rules t batch_size
- deriving (Show)  -- , Eq
+ deriving (Show)
 
 data R3NN
     (m          :: Nat)
@@ -188,9 +189,6 @@ instance ( KnownNat m
                     (R3NN     m symbols rules t batch_size)
  where
     sample R3NNSpec {..} = do
-        -- gen :: Generator <- D.mkGenerator device $ fromIntegral seed
-        symbol_emb :: Tnsr '[symbols, m] <- randn
-        rule_emb   :: Tnsr '[rules,   m] <- randn
         join . return $ R3NN
             -- condition_model
             -- <$> A.sample conditionSpec
@@ -212,14 +210,17 @@ instance ( KnownNat m
             -- right
             <*> mapM (\q -> A.sample $ UntypedMLP.MLPSpec m rightH0 rightH1 (q * m)) variant_sizes
             -- symbol_emb
-            <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) symbol_emb
+            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< randnIO' [symbols, m])
             -- <*> (return . IndependentTensor . toDynamic) symbol_emb
             -- rule_emb
-            <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) rule_emb
+            -- <*> (return . UnsafeMkParameter . IndependentTensor . toDynamic) rule_emb
+            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< randnIO' [rules,   m])
             -- <*> (return . IndependentTensor . toDynamic) rule_emb
             where
                 -- m must be divisible by Dirs for `Div` in the LSTM specs to work out due to integer division...
                 m = assertP ((== 0) . (`mod` natValI @Dirs)) $ natValI @m
+                symbols = natValI @symbols
+                rules = natValI @rules
 
 -- | initialize R3NN spec
 initR3nn :: forall m symbols rules t batch_size
