@@ -325,8 +325,12 @@ runR3nn
     --         asUntyped (UntypedMLP.mlp condition_model) conditioned
     -- or a bidirectional LSTM network running over tree leaves.
     -- Running an LSTM over tree leaves allows the model to learn more about the relative position of each leaf node in the tree.
-    -- asUntyped id to type-check m*2/2
-    let conditioned' :: Tnsr '[symbols, m] = asUntyped id . squeezeAll . fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
+    let conditioned' :: Tnsr '[symbols, m] = 
+            -- asUntyped id to type-check m*2/2
+            asUntyped (\t -> I.squeezeDim t 0) .
+            -- asUntyped id . 
+            -- squeezeAll . -- unsafe, can squeeze out symbols too
+            fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
     print $ "conditioned': " ++ show (shape' conditioned')
 
     -- | 4.1.1 Global Tree Information at the Leaves
@@ -428,13 +432,13 @@ runR3nn
     -- '[num_holes, m]
     -- scoreSpec :: LSTMSpec m H NumLayers Dir 'D.Float Dev,
     let node_embs' :: Tnsr '[num_holes, m] =
-    -- let node_embs' :: Tnsr '[num_holes, Div m 2 * 2] =
+    -- let node_embs' :: Tnsr '[num_holes, Div m Dirs * Dirs] =
             -- asUntyped (UntypedMLP.mlp score_model) node_embs
             -- asUntyped to type-check m*2/2
             asUntyped (\t -> I.squeezeDim t 0) .
             -- asUntyped id .
             -- squeezeAll . -- unsafe, can squeeze out num_holes too
-            -- reshape '[num_holes, Div m 2 * 2] .
+            -- reshape '[num_holes, Div m Dirs * Dirs] .
             -- reshape . 
             -- asUntyped (D.reshape . D.shape . toDynamic $ node_embs) . 
             -- fstOf3 . lstmWithDropout @'SequenceFirst score_model . unsqueeze @0 $ node_embs
