@@ -488,9 +488,6 @@ d_mkAdam
   :: Int
   -> Float
   -> Float
-  -- -> [Tensor device dtype shape]
-  -- -> [D.Tensor]
-  -- -> D.Tensor
   -> [A.Parameter]
   -> D.Adam
 d_mkAdam iter beta1 beta2 parameters =
@@ -505,7 +502,7 @@ toBool :: forall device . Tensor device 'D.Bool '[] -> Bool
 toBool t = D.asValue . toDynamic . toCPU $ t
 
 untypeParam :: Parameter device dtype shape -> A.Parameter
-untypeParam = IndependentTensor . toDynamic . Torch.Typed.Parameter.toDependent
+untypeParam (UnsafeMkParameter param) = param
 
 instance () => A.Parameterized (LSTMWithInit inputSize hiddenSize numLayers directionality initialization dtype device) where
   flattenParameters LSTMWithConstInit{..} =
@@ -603,3 +600,7 @@ instance () => A.Parameterized (LSTMLayer inputSize hiddenSize directionality dt
 instance (Foldable t, Traversable t, A.Parameterized a) => A.Parameterized (t a) where
   flattenParameters = (=<<) A.flattenParameters . toList
   replaceOwnParameters = mapM A.replaceOwnParameters
+
+instance A.Parameterized (Parameter device dtype shape) where
+  flattenParameters (UnsafeMkParameter param) = pure param
+  replaceOwnParameters _ = UnsafeMkParameter <$> A.nextParameter

@@ -82,13 +82,15 @@ data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Na
  deriving (Show, Generic)
 
 instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
-  => A.Parameterized (NSPS m symbols rules t batchSize) where
-  flattenParameters NSPS{..} = A.flattenParameters encoder
-                            <> A.flattenParameters r3nn
-  replaceOwnParameters NSPS{..} = do
-    encoder' <- A.replaceOwnParameters encoder
-    r3nn'    <- A.replaceOwnParameters r3nn
-    return $ NSPS{ r3nn = r3nn', encoder = encoder' }
+  => A.Parameterized (NSPS m symbols rules t batchSize)
+-- instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
+--   => A.Parameterized (NSPS m symbols rules t batchSize) where
+--   flattenParameters NSPS{..} = A.flattenParameters encoder
+--                             <> A.flattenParameters r3nn
+--   replaceOwnParameters NSPS{..} = do
+--     encoder' <- A.replaceOwnParameters encoder
+--     r3nn'    <- A.replaceOwnParameters r3nn
+--     return $ NSPS{ r3nn = r3nn', encoder = encoder' }
 
 -- instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
 --   => Torch.Typed.Parameter.Parameterized (NSPS m symbols rules t batchSize) '[ Parameter Dev 'D.Float '[symbols, m], Parameter Dev 'D.Float '[rules, m] ] where

@@ -70,17 +70,18 @@ data LstmEncoder
 --   flattenParameters LstmEncoder{..} = []
 --   replaceOwnParameters = pure
 
-instance () => A.Parameterized (LstmEncoder) where
-  flattenParameters LstmEncoder{..} =
-           A.flattenParameters  in_model
-        ++ A.flattenParameters out_model
-  replaceOwnParameters LstmEncoder{..} = do
-    out_model' <- A.replaceOwnParameters out_model
-    in_model'  <- A.replaceOwnParameters  in_model
-    return $ LstmEncoder
-                 {  in_model =  in_model'
-                 , out_model = out_model'
-                 }
+instance A.Parameterized (LstmEncoder)
+-- instance () => A.Parameterized (LstmEncoder) where
+--   flattenParameters LstmEncoder{..} =
+--            A.flattenParameters  in_model
+--         ++ A.flattenParameters out_model
+--   replaceOwnParameters LstmEncoder{..} = do
+--     out_model' <- A.replaceOwnParameters out_model
+--     in_model'  <- A.replaceOwnParameters  in_model
+--     return $ LstmEncoder
+--                  {  in_model =  in_model'
+--                  , out_model = out_model'
+--                  }
 
 -- instance () => Torch.Typed.Parameter.Parameterized (LstmEncoder) '[] where
 --   flattenParameters LstmEncoder{..} = flattenParameters  in_model
