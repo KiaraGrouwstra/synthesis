@@ -133,52 +133,37 @@ data R3NN
     -> R3NN m symbols rules t batch_size
  deriving (Show, Generic)
 
+-- cannot use static Parameterized, as the contents of left_nnets / right_nnets are not statically known in its current HashMap type
 instance ( KnownNat m
          , KnownNat symbols
          , KnownNat rules
          , KnownNat t
          , KnownNat batch_size
          )
-  => A.Parameterized (R3NN m symbols rules t batch_size)
---   => A.Parameterized (R3NN m symbols rules t batch_size) where
---   flattenParameters R3NN{..} =
---         A.flattenParameters condition_model
---         ++ A.flattenParameters score_model
---         ++ A.flattenParameters left_nnets
---         ++ A.flattenParameters right_nnets
---         ++ [ untypeParam symbol_emb
---             , untypeParam   rule_emb
---             ]
---   replaceOwnParameters R3NN{..} = do
---         condition_model' <- A.replaceOwnParameters condition_model
---         score_model'     <- A.replaceOwnParameters     score_model
---         left_nnets'      <- A.replaceOwnParameters  left_nnets
---         right_nnets'     <- A.replaceOwnParameters right_nnets
---         symbol_emb' <- A.nextParameter
---         rule_emb'   <- A.nextParameter
---         return $ R3NN{ condition_model = condition_model'
---                     ,     score_model =     score_model'
---                     ,  left_nnets =  left_nnets'
---                     , right_nnets = right_nnets'
---                     , symbol_emb = UnsafeMkParameter symbol_emb'
---                     ,   rule_emb = UnsafeMkParameter   rule_emb'
---                     }
-
--- -- cannot use static Parameterized, as the contents of left_nnets / right_nnets are not statically known in its current HashMap type
--- instance ( KnownNat m
---          , KnownNat symbols
---          , KnownNat rules
---          , KnownNat t
---          , KnownNat batch_size
---          )
---   => Torch.Typed.Parameter.Parameterized (R3NN m symbols rules t batch_size) '[Parameter Dev 'D.Float '[symbols, m], Parameter Dev 'D.Float '[rules, m]] where
---   flattenParameters R3NN{..} = symbol_emb
---                             :. rule_emb
---                             :. HNil
---   replaceParameters R3NN{..} (symbol_emb' :. rule_emb' :. HNil) = R3NN
---         { symbol_emb = symbol_emb'
---         ,   rule_emb =   rule_emb'
---         , .. }
+--   => A.Parameterized (R3NN m symbols rules t batch_size)
+  => A.Parameterized (R3NN m symbols rules t batch_size) where
+  flattenParameters R3NN{..} =
+        A.flattenParameters condition_model
+        ++ A.flattenParameters score_model
+        ++ A.flattenParameters left_nnets
+        ++ A.flattenParameters right_nnets
+        ++ [ untypeParam symbol_emb
+            , untypeParam   rule_emb
+            ]
+  replaceOwnParameters R3NN{..} = do
+        condition_model' <- A.replaceOwnParameters condition_model
+        score_model'     <- A.replaceOwnParameters     score_model
+        left_nnets'      <- A.replaceOwnParameters  left_nnets
+        right_nnets'     <- A.replaceOwnParameters right_nnets
+        symbol_emb' <- A.nextParameter
+        rule_emb'   <- A.nextParameter
+        return $ R3NN{ condition_model = condition_model'
+                    ,     score_model =     score_model'
+                    ,  left_nnets =  left_nnets'
+                    , right_nnets = right_nnets'
+                    , symbol_emb = UnsafeMkParameter symbol_emb'
+                    ,   rule_emb = UnsafeMkParameter   rule_emb'
+                    }
 
 instance ( KnownNat m
          , KnownNat symbols
