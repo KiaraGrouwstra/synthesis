@@ -617,7 +617,7 @@ synthesizer = let
         hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model symbolIdxs ppt io_feats
         (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
         -- putStrLn $ pp ppt'
-        hasHoles ppt' `shouldBe` False
+        pp ppt' `shouldNotBe` pp ppt
 
     , TestLabel "superviseHole" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
