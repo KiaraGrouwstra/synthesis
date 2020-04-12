@@ -663,7 +663,7 @@ synthesizer = let
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
-        let model' :: NSPS M Symbols Rules T BatchSize = A.replaceParameters model newParam
+        let model' :: R3NN M Symbols Rules T BatchSize = A.replaceParameters model newParam
         loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
         toBool (all (lt loss' loss)) `shouldBe` True
 
