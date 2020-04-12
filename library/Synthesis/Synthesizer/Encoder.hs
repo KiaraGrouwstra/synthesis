@@ -48,7 +48,7 @@ import Synthesis.Synthesizer.Utility -- (Dev, Dir, Dirs, asUntyped', padRight, s
 type NumLayers = 3 -- ?
 
 -- | H is the topmost LSTM hidden dimension
-type H = 30 -- ?
+type H = 20  -- H=30 makes the encoder loss improvement test fail; why?
 h :: Int
 h = natValI @H
 
