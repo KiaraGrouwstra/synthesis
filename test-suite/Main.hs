@@ -580,6 +580,7 @@ synthesizer = let
     , TestLabel "R3NN" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
@@ -590,11 +591,11 @@ synthesizer = let
         D.shape (toDynamic hole_expansion_probs) `shouldBe` [numHoles, rules]
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters r3nn_model
-        let loss :: Tnsr '[] = sumAll hole_expansion_probs  -- dummy op for loss with gradient
+        let loss :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model $ sumAll hole_expansion_probs  -- dummy op for loss with gradient
         (newParam, optim') <- D.runStep r3nn_model optim (toDynamic loss) lr
         let r3nn_model' :: R3NN M Symbols Rules T BatchSize = A.replaceParameters r3nn_model newParam
         hole_expansion_probs' :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model' symbolIdxs ppt io_feats
-        let loss' :: Tnsr '[] = sumAll hole_expansion_probs'
+        let loss' :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model' $ sumAll hole_expansion_probs'
         toBool (all (lt loss' loss)) `shouldBe` True
 
     , TestLabel "predictHole" $ TestCase $ do
@@ -648,6 +649,7 @@ synthesizer = let
     , TestLabel "calcLoss" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let variantMap :: HashMap String Expr = fromList variants
         let task_fn :: Expr = letIn dsl $ parseExpr "not (not true)"
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
@@ -658,13 +660,13 @@ synthesizer = let
         model :: NSPS M Symbols Rules T BatchSize <- A.sample $ NSPSSpec @M @Symbols @Rules encoder_spec r3nn_spec
         io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder (encoder model) io_pairs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
-        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
+        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
-        let model' :: R3NN M Symbols Rules T BatchSize = A.replaceParameters model newParam
-        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
+        let model' :: NSPS M Symbols Rules T BatchSize = A.replaceParameters model newParam
+        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
         toBool (all (lt loss' loss)) `shouldBe` True
 
     ]

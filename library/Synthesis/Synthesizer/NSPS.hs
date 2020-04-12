@@ -216,8 +216,8 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (holes_left, ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat batchSize) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t batchSize -> Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] -> HashMap String Expr -> HashMap String Int -> IO (Tnsr '[])
-calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
+calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat batchSize) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t batchSize -> Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> IO (Tnsr '[])
+calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes = do
     -- putStrLn "calcLoss"
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_zero, _program, golds, predictions) :: (Int, Expr, [D.Tensor], [D.Tensor]) <- let
@@ -236,7 +236,7 @@ calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs = do
     -- putStrLn $ "gold_rule_probs: " <> show gold_rule_probs
     let hole_expansion_probs :: D.Tensor = F.cat 0 predictions
     -- putStrLn $ "hole_expansion_probs: " <> show hole_expansion_probs
-    let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+    let loss :: Tnsr '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     -- putStrLn $ "loss: " <> show loss
 
     return loss
@@ -282,6 +282,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- assert our (hole-variant) blocks match their static length
     let expr_blocks :: [(String, Expr)] = assertEqBy length rules exprBlocks
     let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+    let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
     let symbols :: Int = assertEq (natValI @LhsSymbols + size dsl) $ natValI @symbols
     putStrLn $ "symbols : " <> show symbols <> ", rules: " <> show rules
     -- (symbol_emb, rule_emb) <- initEmbeds device seed $ length variants
@@ -330,7 +331,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- lstmEncoder @batchSize @t (encoder model) target_io_pairs
-            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs
+            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
             -- putStrLn $ "loss: " <> show loss
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -356,7 +357,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                     task_outputs                                ! task_fn
 
             io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
-            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs
+            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
 
             -- sample for best of 100 predictions
             sample_matches :: [Bool] <- replicateM bestOf $ do

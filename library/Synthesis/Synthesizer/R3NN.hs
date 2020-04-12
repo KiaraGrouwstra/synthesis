@@ -16,7 +16,7 @@ module Synthesis.Synthesizer.R3NN (module Synthesis.Synthesizer.R3NN) where
 
 -- import Data.Word (Word64)
 -- import Data.Bifunctor (second)
-import Data.HashMap.Lazy (HashMap, fromList, (!)) -- , size, keys, lookup
+import Data.HashMap.Lazy (HashMap, fromList, toList, (!), elems) -- , size, keys, lookup
 import Control.Arrow ((&&&))
 import Control.Monad ((=<<), join)
 -- import Control.Monad.State.Strict (StateT(..))
@@ -32,7 +32,7 @@ import Torch.Typed.Aux
 import Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
-import Torch.TensorFactories (randnIO')
+import Torch.TensorFactories (randnIO', zeros')
 import Torch.Autograd -- (IndependentTensor(..))
 -- import Torch.TensorOptions
 import Torch.Typed.NN.Recurrent.LSTM
@@ -235,7 +235,6 @@ initR3nn variants batch_size dropoutRate = R3NNSpec @m @symbols @rules @t @batch
         -- TODO: can I really cram all that back into just M?
         conditionIn = m + batch_size * 2 * dirs * Enc.h * t
         variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
-            where variantInt :: Expr -> (String, Int) = (appRule &&& length) . fnAppNodes
 
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.):
 -- | given the continuous representation of the examples, synthesizes
@@ -465,3 +464,14 @@ runR3nn
 
     -- -- TODO: zero-mask non-compiling expansions? ensure penalized by loss?
     -- return hole_expansion_probs
+
+variantInt :: Expr -> (String, Int)
+variantInt = (appRule &&& length) . fnAppNodes
+
+-- | Torch gets sad not all nnets get used in the loss 😢 so let's give it a hug... 🤗🙄
+patchLoss :: forall m symbols rules t batch_size . (KnownNat m) => HashMap String Int -> R3NN m symbols rules t batch_size -> Tnsr '[] -> Tnsr '[]
+patchLoss variant_sizes r3nn_model = let
+        m :: Int = natValI @m
+        left_dummy  :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat 1 $ fmap (\(k,mlp) -> let q = variant_sizes ! k in UntypedMLP.mlp mlp $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model)
+        right_dummy :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat 1 $ fmap (\   mlp  ->                              UntypedMLP.mlp mlp $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model)
+    in add $ left_dummy `add` right_dummy
