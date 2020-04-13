@@ -40,6 +40,8 @@ dependencies:
   - libtorch-ffi
   - ghc-typelits-knownnat
   - ghc-typelits-extra
+  - concurrent-output
+  - ascii-progress
 
 library:
   dependencies:

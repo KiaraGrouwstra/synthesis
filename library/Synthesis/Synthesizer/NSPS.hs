@@ -23,6 +23,8 @@ import Prelude hiding (abs)
 import           GHC.Exts
 import           GHC.Generics (Generic)
 import           GHC.TypeNats (KnownNat, Nat, type (*))  -- , Mod, Div, type (+), type (-), type (<=?)
+import           System.Console.AsciiProgress
+
 -- import           Torch.Random (Generator)
 import Torch.HList
 import qualified Torch.Functional.Internal     as I
@@ -257,7 +259,7 @@ calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs vari
 -- errorCount prediction = Torch.Typed.Tensor.toDType @D.Float . sumAll . ne (argmax @1 @DropDim prediction)
 
 train :: forall m batchSize symbols rules t n_train n_validation n_test . (KnownNat m, KnownNat batchSize, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> IO ()  -- Interpreter ()
-train SynthesizerConfig{..} TaskFnDataset{..} = do
+train SynthesizerConfig{..} TaskFnDataset{..} = displayConsoleRegions $ do
     let rules :: Int = natValI @rules
 
     -- GENERAL
@@ -316,6 +318,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- let init_optim :: Adam momenta1 = mkAdam 0 0.9 0.999 $ flattenParameters init_model
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
 
+    pg <- newProgressBar def { pgTotal numEpochs
+                             }
     foldLoop_ (stdGen, init_model, init_optim) numEpochs $ \ (gen, model_, optim_) epoch -> do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
@@ -408,7 +412,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             <> ". Train loss: "         <> show loss_train
             <> ". Test loss: "          <> show loss_test
             <> ". Test error-rate: "    <> show err_test
-        
+
+        tick pg
         D.save (D.toDependent <$> A.flattenParameters model') modelPath
         -- save (hmap' ToDependent . flattenParameters $ model') modelPath
         return (gen', model', optim')
