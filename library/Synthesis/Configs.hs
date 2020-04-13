@@ -132,6 +132,11 @@ synthesizerConfig = SynthesizerConfig
         <> value 0.0    -- drop-out not mentioned in NSPS
         <> showDefault
         <> help "drop-out rate for the encoder LSTM" )
+    <*> option auto
+        ( long "evalFreq"
+        <> value 5
+        <> showDefault
+        <> help "the number of epochs for which to run on train test before evaluating on the test set again" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

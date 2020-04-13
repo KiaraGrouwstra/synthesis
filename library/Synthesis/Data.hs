@@ -86,4 +86,5 @@ data SynthesizerConfig = SynthesizerConfig
   -- , batchSize :: Int
   , bestOf :: Int
   , dropoutRate :: Double
+  , evalFreq :: Int
   } deriving (Show, Generic)

@@ -18,7 +18,7 @@ import System.Random (StdGen, mkStdGen)
 -- import Data.List (null)
 import Data.Foldable (foldrM)
 import Data.HashMap.Lazy (HashMap, (!), elems, keys, size)
-import Control.Monad (join, replicateM, forM, forM_)
+import Control.Monad (join, replicateM, forM, forM_, when)
 import Prelude hiding (abs)
 import           GHC.Exts
 import           GHC.Generics (Generic)
@@ -275,9 +275,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     -- device <- getDevice
     -- let device :: D.Device = D.Device D.CPU 0
     let stdGen :: StdGen = mkStdGen seed
-    -- torchGen :: Generator <- D.mkGenerator device $ fromIntegral seed
-    -- ATen.manual_seed_L seed
-    -- let dsl = blockAsts
     -- block_fn_types :: HashMap String Tp <- interpretUnsafe $ mapM exprType dsl
     -- assert our (hole-variant) blocks match their static length
     let expr_blocks :: [(String, Expr)] = assertEqBy length rules exprBlocks
@@ -287,7 +284,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     putStrLn $ "symbols : " <> show symbols <> ", rules: " <> show rules
     -- (symbol_emb, rule_emb) <- initEmbeds device seed $ length variants
     let lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
-    -- let lr :: D.Tensor = D.asTensor learningRate
 
     -- pre-calculate DSL stuff
     let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
@@ -300,8 +296,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             fmap snd <$> task_io_pairs
     let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
     let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
-    -- -- TODO: by task fn create a hashmap from holes to expansion vectors. this implies hashable lenses tho...?
-    -- taskFnExpansion :: HashMap Expr (HashMap HoleLens? (Tnsr '[rules])) = fromList . flip fromKeys all_sets $ \expr -> fromList $ (\hole -> (_holeLens?, rulesTensor?)) <$> findHolesExpr expr
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
@@ -345,73 +339,74 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
         let loss_train :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ train_losses
         -- putStrLn $ "loss_train: " <> show loss_train
 
-        -- TEST
+        when (mod epoch evalFreq == 0) $ do
+            -- TEST
 
-        -- TODO: only run test stuff once every couple epochs since it seems way heavier than the train loop?
-        test_stats :: [Tnsr '[]] <- forM test_set $ \task_fn -> do
-        -- test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
-            let taskType :: Tp = fnTypes                ! task_fn
-            let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
-            let target_io_pairs :: [(Expr, Either String Expr)] =
-                    task_io_pairs                               ! task_fn
-            let target_outputs :: [Either String Expr] =
-                    task_outputs                                ! task_fn
+            test_stats :: [Tnsr '[]] <- forM test_set $ \task_fn -> do
+            -- test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
+                let taskType :: Tp = fnTypes                ! task_fn
+                let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
+                let target_io_pairs :: [(Expr, Either String Expr)] =
+                        task_io_pairs                               ! task_fn
+                let target_outputs :: [Either String Expr] =
+                        task_outputs                                ! task_fn
 
-            io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
-            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
+                io_feats :: Tnsr '[batchSize, t * (2 * Dirs * Enc.H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
+                loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
 
-            -- -- sample for best of 100 predictions
-            -- sample_matches :: [Bool] <- replicateM bestOf $ do
-            --     -- TODO: use these ExprTypeSig type annotations
-            --     -- TODO: split io_feats and taskType based on param type instance combo 
-            --     (_zero, program) :: (Int, Expr) <- let
-            --             --  :: (Int, Expr) -> IO (Int, Expr)
-            --             fill = \(_num_holes, ppt) ->
-            --                     join $ predictHole variants ppt <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
-            --             in while ((> 0) . fst) fill (1 :: Int, letIn dsl (skeleton taskType))     -- hasHoles
+                -- -- sample for best of 100 predictions
+                -- sample_matches :: [Bool] <- replicateM bestOf $ do
+                --     -- TODO: use these ExprTypeSig type annotations
+                --     -- TODO: split io_feats and taskType based on param type instance combo 
+                --     (_zero, program) :: (Int, Expr) <- let
+                --             --  :: (Int, Expr) -> IO (Int, Expr)
+                --             fill = \(_num_holes, ppt) ->
+                --                     join $ predictHole variants ppt <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
+                --             in while ((> 0) . fst) fill (1 :: Int, letIn dsl (skeleton taskType))     -- hasHoles
 
-            --     prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-            --             compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
-            --                     n :: Int = length $ unTuple $ ins !! 0
-            --                 -- crash_on_error=False is slower but lets me check if it compiles
-            --                 in interpretUnsafe $ fnIoPairs True n program $ list ins
-            --         in compileInput `mapM` type_ins
-            --     let prediction_io_pairs :: [(Expr, Either String Expr)] =
-            --             join . elems $ prediction_type_ios
-            --     let prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
-            --     let output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
-            --     let outputs_match :: Bool = and output_matches
-            --     -- TODO: try non-boolean score:
-            --     -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
+                --     prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
+                --             compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
+                --                     n :: Int = length $ unTuple $ ins !! 0
+                --                 -- crash_on_error=False is slower but lets me check if it compiles
+                --                 in interpretUnsafe $ fnIoPairs True n program $ list ins
+                --         in compileInput `mapM` type_ins
+                --     let prediction_io_pairs :: [(Expr, Either String Expr)] =
+                --             join . elems $ prediction_type_ios
+                --     let prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
+                --     let output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
+                --     let outputs_match :: Bool = and output_matches
+                --     -- TODO: try non-boolean score:
+                --     -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
 
-            --     -- -- for each param type instance combo, check if the program compiles (and get outputs...)
-            --     -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
-            --     -- let num_in_type_instances :: Int = size type_compiles
-            --     -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
-            --     -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
-            --     -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
-            --     -- let ratio_errors :: Float = 1 - ratio_compiles
-            --     -- -- TODO: actually use compilation feedback in score
+                --     -- -- for each param type instance combo, check if the program compiles (and get outputs...)
+                --     -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
+                --     -- let num_in_type_instances :: Int = size type_compiles
+                --     -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
+                --     -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
+                --     -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
+                --     -- let ratio_errors :: Float = 1 - ratio_compiles
+                --     -- -- TODO: actually use compilation feedback in score
 
-            --     return outputs_match
+                --     return outputs_match
 
-            -- let best_works :: Bool = or sample_matches
-            -- -- let score :: Float = max sample_matches
-            -- return (not best_works, loss)
-            return loss
+                -- let best_works :: Bool = or sample_matches
+                -- -- let score :: Float = max sample_matches
+                -- return (not best_works, loss)
+                return loss
 
-        -- let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
-        -- let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
-        let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic <$> test_stats
+            -- let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
+            -- let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
+            let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic <$> test_stats
 
-        -- REST
+            -- REST
 
-        putStrLn
-            $  "Epoch: "                <> show epoch
-            <> ". Train loss: "         <> show loss_train
-            <> ". Test loss: "          <> show loss_test
-            -- <> ". Test error-rate: "    <> show err_test
+            putStrLn
+                $  "Epoch: "                <> show epoch
+                <> ". Train loss: "         <> show loss_train
+                <> ". Test loss: "          <> show loss_test
+                -- <> ". Test error-rate: "    <> show err_test
 
-        D.save (D.toDependent <$> A.flattenParameters model') modelPath
-        -- save (hmap' ToDependent . flattenParameters $ model') modelPath
+            D.save (D.toDependent <$> A.flattenParameters model') modelPath
+            -- save (hmap' ToDependent . flattenParameters $ model') modelPath
+
         return (gen', model', optim')
