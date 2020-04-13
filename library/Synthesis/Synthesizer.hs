@@ -34,9 +34,9 @@ main = runInterpreterMain program
 -- type Rules = 92     -- Tamandu
 type Rules = 15
 type T = 14
-type N_train = 11
+type N_train = 7
 type N_validation = 2
-type N_test = 11
+type N_test = 6
 type RhsSymbols = 6
 type Symbols = LhsSymbols + RhsSymbols
 
