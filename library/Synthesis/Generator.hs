@@ -120,10 +120,14 @@ program = do
     fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
     say "\nfn_in_type_instance_outputs:"
     say $ pp_ fn_in_type_instance_outputs
+    -- combine i/o lists across type instances
+    let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
+            join . elems <$> fn_in_type_instance_outputs
 
     -- group functions with identical type signatures
     -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_in_type_instance_outputs
-    let kept_fns :: [Expr] = programs
+    -- filter out programs without i/o samples
+    let kept_fns :: [Expr] = (not . null . (task_io_pairs !)) `filter` programs
     say "\nkept_fns:"
     say $ pp_ kept_fns
 
@@ -132,7 +136,12 @@ program = do
     let longest_string :: Int = maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
 
     -- it's kinda weird this splitting is non-monadic, cuz it should be random
-    let (train, validation, test) :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
+    let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
+    -- let (train, validation, test) :: ([Expr], [Expr], [Expr]) = datasets
+    let set_list = untuple3 datasets
+    liftIO $ forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
+        putStrLn $ k <> ": " <> show (length dataset)
+
     -- TODO: save/load task function data to separate generation/synthesis
     liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
         cfg
@@ -142,7 +151,7 @@ program = do
         fn_in_type_instance_outputs
         -- fn_in_type_instantiations
         rest_instantiation_inputs
-        (train, validation, test)
+        datasets
         expr_blocks
         longest_string
 
@@ -155,7 +164,8 @@ program = do
         say $ pp_ in_type_instance_outputs
 
     let numSymbols = 1 + size blockAsts
-    say $ "\nsymbols: " <> show numSymbols
+    say $ "symbols: " <> show numSymbols
     let numRules = length expr_blocks
-    say $ "\nrules: " <> show numRules
-    say $ "\nmax input/output string length: " <> show longest_string
+    say $ "rules: " <> show numRules
+    say $ "max input/output string length: " <> show longest_string
+    say $ "data written to " <> filePath
