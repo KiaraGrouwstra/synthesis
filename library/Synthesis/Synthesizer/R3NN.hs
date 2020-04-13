@@ -288,7 +288,7 @@ runR3nn
     -- let batch_size :: Int = natValI @batch_size
     -- let n :: Int = shape' io_feats !! 0
     -- print $ "n: " ++ show n
-    print $ "io_feats: " ++ show (shape' io_feats)
+    -- print $ "io_feats: " ++ show (shape' io_feats)
     -- let symbol_emb = toDynamic symbol_emb'
 
     -- | 5.2 CONDITIONING PROGRAM SEARCH ON EXAMPLE ENCODINGS
@@ -298,7 +298,7 @@ runR3nn
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf,
     -- i/o features, identical for each leaf
     let io_feats' :: Tnsr '[batch_size * (t * (2 * Dirs * Enc.H))] = reshape io_feats
-    print $ "io_feats': " ++ show (shape' io_feats')
+    -- print $ "io_feats': " ++ show (shape' io_feats')
     -- since these extra features don't depend on the leaf node, already concatenate them to `symbol_emb` instead of per leaf (`leaf_embs`) like in NSPS so for dim `symbols` instead of `NumLeaves`
     -- untyped as num_leaves is dynamic
     -- (toDynamic leaf_embs)
@@ -310,7 +310,7 @@ runR3nn
             UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
             -- UnsafeMkTensor $ F.cat 1 [D.toDependent symbol_emb, stacked_io]
             where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats' -- n
-    print $ "conditioned: " ++ show (shape' conditioned)
+    -- print $ "conditioned: " ++ show (shape' conditioned)
     -- | and then passed to a conditioning network before the bottom-up recursive pass over the program tree.
     -- The conditioning network can be either a multi-layer feedforward network,
     -- -- let conditioned' :: Tnsr '[symbols, m] = TypedMLP.mlp condition_model train conditioned
@@ -324,7 +324,7 @@ runR3nn
             -- asUntyped id . 
             -- squeezeAll . -- unsafe, can squeeze out symbols too
             fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
-    print $ "conditioned': " ++ show (shape' conditioned')
+    -- print $ "conditioned': " ++ show (shape' conditioned')
 
     -- | 4.1.1 Global Tree Information at the Leaves
 
@@ -361,7 +361,7 @@ runR3nn
                             in UnsafeMkTensor $ nnet $ F.cat 1 $ toDynamic <$> tensors
                         _ -> error $ "unexpected Expr: " ++ show expr
             in traverseTree ppt
-    print $ "root_emb: " ++ show (shape' root_emb)
+    -- print $ "root_emb: " ++ show (shape' root_emb)
 
     -- perform a reverse-recursive pass starting from the root to assign a global tree representation to each node in the tree.
     -- | The problem is that this representation has lost any notion of tree position.
@@ -416,7 +416,7 @@ runR3nn
                         _ -> error $ "unexpected Expr: " ++ show expr
             in 
                 UnsafeMkTensor $ F.cat 0 $ toDynamic <$> traverseTree root_emb ppt
-    print $ "node_embs: " ++ show (shape' node_embs)
+    -- print $ "node_embs: " ++ show (shape' node_embs)
 
     -- OPTIONAL
     -- | An additional improvement that was found to help was to add a bidirectional LSTM to process the global leaf representations right before calculating the scores. The LSTM hidden states are then used in the score calculation rather than the leaves themselves. This serves primarily to reduce the minimum length that information has to propagate between nodes in the tree. The R3NN can be seen as an extension and combination of several previous tree-based models, which were mainly developed in the context of natural language processing (Le & Zuidema, 2014; Paulus et al., 2014; Irsoy & Cardie, 2013).
@@ -437,7 +437,7 @@ runR3nn
             -- fstOf3 . lstmWithDropout @'SequenceFirst score_model . unsqueeze @0 $ node_embs
             fstOf3 . lstmDynamicBatch @'SequenceFirst dropoutOn score_model . unsqueeze @0 $ node_embs
                     where dropoutOn = True
-    print $ "node_embs': " ++ show (shape' node_embs')
+    -- print $ "node_embs': " ++ show (shape' node_embs')
 
     -- | 4.1.2 Expansion Probabilities
 
@@ -451,7 +451,7 @@ runR3nn
             matmul node_embs' . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
             -- matmul node_embs' . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
             -- asUntyped (F.matmul $ toDynamic node_embs') . transpose @0 @1 . UnsafeMkTensor . D.toDependent $ rule_emb
-    print $ "scores: " ++ show (shape' scores)
+    -- print $ "scores: " ++ show (shape' scores)
 
     return scores
     -- delay softmax in favor of combining them into `binary_cross_entropy_with_logits` for numerical stability (log-sum-exp trick)

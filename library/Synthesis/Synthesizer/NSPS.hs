@@ -224,7 +224,7 @@ calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs vari
             --  :: forall num_holes x . (Int, Expr) -> IO (Int, Expr)
             fill = \(_num_holes, ppt, golds, predictions) -> do
                     predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt io_feats
-                    putStrLn $ "predicted: " <> show predicted
+                    -- putStrLn $ "predicted: " <> show predicted
                     (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
             in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, letIn dsl (skeleton taskType), [], [])     -- hasHoles
@@ -323,7 +323,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
         let foldrM_ x xs f = foldrM f x xs
         (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules t batchSize, D.Adam) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
-            putStrLn $ "task_fn: \n" <> pp task_fn
+            -- putStrLn $ "task_fn: \n" <> pp task_fn
 
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
