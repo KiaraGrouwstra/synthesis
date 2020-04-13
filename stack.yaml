@@ -38,7 +38,10 @@ packages:
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
 
-extra-deps: []
+# extra-deps: []
+extra-deps:
+- github: haskell-hint/hint
+  commit: dbb878955528d9125a601773b25a3c45b9fcef06
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
