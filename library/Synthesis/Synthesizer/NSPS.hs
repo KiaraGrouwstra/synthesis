@@ -83,29 +83,6 @@ data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Na
 
 instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
   => A.Parameterized (NSPS m symbols rules t batchSize)
--- instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
---   => A.Parameterized (NSPS m symbols rules t batchSize) where
---   flattenParameters NSPS{..} = A.flattenParameters encoder
---                             <> A.flattenParameters r3nn
---   replaceOwnParameters NSPS{..} = do
---     encoder' <- A.replaceOwnParameters encoder
---     r3nn'    <- A.replaceOwnParameters r3nn
---     return $ NSPS{ r3nn = r3nn', encoder = encoder' }
-
--- instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
---   => Torch.Typed.Parameter.Parameterized (NSPS m symbols rules t batchSize) '[ Parameter Dev 'D.Float '[symbols, m], Parameter Dev 'D.Float '[rules, m] ] where
---   flattenParameters NSPS{..} = flattenParameters encoder `happend` flattenParameters r3nn
---   replaceParameters NSPS{..} (symbol_emb' :. rule_emb' :. HNil) = NSPS
---                                 { r3nn = r3nn'
---                                 -- , encoder = encoder'
---                                 , ..
---                                 }
---                                 where
---                                     R3NN{..} = r3nn
---                                     r3nn' = R3NN
---                                         { symbol_emb = symbol_emb'
---                                         ,   rule_emb =   rule_emb'
---                                         , .. }
 
 instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat batchSize )
   => A.Randomizable (NSPSSpec m symbols rules t batchSize) (NSPS m symbols rules t batchSize) where

@@ -140,30 +140,7 @@ instance ( KnownNat m
          , KnownNat t
          , KnownNat batch_size
          )
---   => A.Parameterized (R3NN m symbols rules t batch_size)
-  => A.Parameterized (R3NN m symbols rules t batch_size) where
-  flattenParameters R3NN{..} =
-        A.flattenParameters condition_model
-        ++ A.flattenParameters score_model
-        ++ A.flattenParameters left_nnets
-        ++ A.flattenParameters right_nnets
-        ++ [ untypeParam symbol_emb
-            , untypeParam   rule_emb
-            ]
-  replaceOwnParameters R3NN{..} = do
-        condition_model' <- A.replaceOwnParameters condition_model
-        score_model'     <- A.replaceOwnParameters     score_model
-        left_nnets'      <- A.replaceOwnParameters  left_nnets
-        right_nnets'     <- A.replaceOwnParameters right_nnets
-        symbol_emb' <- A.nextParameter
-        rule_emb'   <- A.nextParameter
-        return $ R3NN{ condition_model = condition_model'
-                    ,     score_model =     score_model'
-                    ,  left_nnets =  left_nnets'
-                    , right_nnets = right_nnets'
-                    , symbol_emb = UnsafeMkParameter symbol_emb'
-                    ,   rule_emb = UnsafeMkParameter   rule_emb'
-                    }
+  => A.Parameterized (R3NN m symbols rules t batch_size)
 
 instance ( KnownNat m
          , KnownNat symbols
@@ -406,7 +383,6 @@ runR3nn
                                 -- (fn, args) = fnAppNodes expr
                                 child_exprs :: [Expr] = fnAppNodes expr
                                 -- split tensor into q tensors of '[1, m]...
-                                -- TODO: ensure I split it right
                                 q :: Int = length child_exprs
                                 tensors :: [Tnsr '[1, m]] =
                                         UnsafeMkTensor <$> (unDim 0 . D.reshape [q, -1] $ tensor) --  . toDynamic   -- [q, m]
