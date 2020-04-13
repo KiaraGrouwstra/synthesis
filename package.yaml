@@ -65,6 +65,12 @@ executables:
     dependencies:
     - synthesis
 
+  view-dataset:
+    source-dirs: view-dataset
+    main: Main.hs
+    dependencies:
+    - synthesis
+
 benchmarks:
   synthesis-benchmarks:
     source-dirs: benchmark

@@ -88,3 +88,7 @@ data SynthesizerConfig = SynthesizerConfig
   , dropoutRate :: Double
   , evalFreq :: Int
   } deriving (Show, Generic)
+
+data ViewDatasetConfig = ViewDatasetConfig
+  { filePath :: String
+  } deriving (Show, Generic)

@@ -145,3 +145,20 @@ parseSynthesizerConfig = execParser opts
       ( fullDesc
      <> progDesc "test a synthesizer on a dataset"
      <> header "program synthesizer" )
+
+viewDatasetConfig :: Parser ViewDatasetConfig
+viewDatasetConfig = ViewDatasetConfig
+    <$> strOption
+        ( long "filePath"
+        <> short 'f'
+        <> value "./datasets.bin"
+        <> showDefault
+        <> help "the file path from which to load generated datasets" )
+
+parseViewDatasetConfig :: IO ViewDatasetConfig
+parseViewDatasetConfig = execParser opts
+  where
+    opts = info (viewDatasetConfig <**> helper)
+      ( fullDesc
+     <> progDesc "test a synthesizer on a dataset"
+     <> header "program synthesizer" )
