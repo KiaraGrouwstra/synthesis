@@ -16,6 +16,7 @@ import GHC.TypeNats (type (+))
 import Data.Store (decodeIO)
 import qualified Data.ByteString as BS
 import Language.Haskell.Interpreter (Interpreter, liftIO)
+import Torch.Internal.Managed.Type.Context (manual_seed_L)
 -- import Synthesis.Types
 -- import Synthesis.Ast
 import Synthesis.Hint
@@ -51,6 +52,7 @@ program = do
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
     -- say $ show taskFnDataset
+    liftIO $ manual_seed_L $ fromIntegral seed
 
     -- liftIO $ printTaskFns taskFnDataset train_set
     liftIO $ train @M @BatchSize @Symbols @Rules @T @N_train @N_validation @N_test cfg taskFnDataset
