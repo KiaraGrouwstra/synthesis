@@ -2,7 +2,6 @@
 -- | utility functions related to the Haskell Interpreter `hint`
 module Synthesis.Hint (module Synthesis.Hint) where
 
--- TODO: pre-compile for performance, see https://github.com/haskell-hint/hint/issues/37
 import Control.Monad (join)
 import Data.Bifunctor (bimap)
 import Data.Either (fromRight)
@@ -16,23 +15,13 @@ import Synthesis.Types
 import Synthesis.Data
 import Synthesis.Utility
 import System.Log.Logger
--- import Control.Exception (SomeException, try, evaluate)
 
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
 imports :: [ModuleImport]
 imports =
   [ ModuleImport "Prelude" NotQualified NoImportList
   , ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"]
-  -- , ModuleImport "Synthesis.Types" NotQualified NoImportList
   ]
-
--- | run an interpreter monad, printing errors, ignoring values
--- | deprecated, replace with `interpretUnsafe`
-runInterpreterMain :: Interpreter () -> IO ()
-runInterpreterMain fn = join $
-  interpretSafe fn <&> \case
-    Left err_ -> putStrLn $ errorString err_
-    Right _x -> return ()
 
 -- | test an interpreter monad, printing errors, returning values
 interpretUnsafe :: Interpreter a -> IO a
@@ -40,8 +29,6 @@ interpretUnsafe fn = join $
   interpretSafe fn <&> \case
     Left err_ -> error $ errorString err_
     Right x -> return x
-
--- TODO: check needed imports case-by-case for potential performance gains
 
 -- | run an interpreter monad with imports
 interpretSafe :: Interpreter a -> IO (Either InterpreterError a)
@@ -125,8 +112,6 @@ interpretIO crash_on_error cmd =
         )
       $ res
 
--- say e
-
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings,
@@ -157,9 +142,6 @@ fnIoPairs crash_on_error n fn_ast ins = do
             ]
   -- say cmd
   fmap (second unEitherError . unTuple2) . unList . parseExpr . fromRight "[]" <$> interpretIO crash_on_error cmd
-
--- TODO: evaluate function calls from AST i/o from interpreter, or move to module and import to typecheck
--- TODO: refactor input to Expr? [Expr]?
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp

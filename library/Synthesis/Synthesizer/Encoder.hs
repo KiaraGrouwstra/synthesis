@@ -10,51 +10,35 @@
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
 
--- import GHC.Exts (fromList)
 import Data.Bifunctor (first, second)
--- import Control.Exception (assert)
 import Data.Int (Int64) 
 import Data.Char (ord)
--- import Data.Foldable (foldrM)
--- import qualified GHC.TypeNats
 import GHC.Generics (Generic)
-import GHC.TypeNats (KnownNat, type (*)) -- , Nat, Mod, type (+), type (-)
+import GHC.TypeNats (KnownNat, type (*))
 import Util (fstOf3)
 
-import Torch.Typed.Tensor
+import           Torch.Typed.Tensor
 import qualified Torch.Typed.Tensor
-import Torch.Typed.Functional
--- import Torch.Typed.NN
--- import Torch.Typed.Factories
-import Torch.Typed.Aux
-import Torch.Typed.Parameter
+import           Torch.Typed.Functional
+import           Torch.Typed.Aux
+import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
-import Torch.Autograd -- (IndependentTensor(..))
-import Torch.HList
-import qualified Torch.HList
+import           Torch.Autograd
+import           Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
--- import qualified Torch.Device                  as D
-import Torch.Typed.NN.Recurrent.LSTM
+import           Torch.Typed.NN.Recurrent.LSTM
 
 import Synthesis.Data (Expr)
-import Synthesis.Utility (pp) -- , pp_
-import Synthesis.Synthesizer.Utility -- (Dev, Dir, Dirs, asUntyped', padRight, select', rotate) -- rotateT
--- import qualified Synthesis.Synthesizer.UntypedMLP as UntypedMLP
-
-type NumLayers = 3 -- ?
-
--- | H is the topmost LSTM hidden dimension
-type H = 20  -- H=30 makes the encoder loss improvement test fail; why?
-h :: Int
-h = natValI @H
+import Synthesis.Utility (pp)
+import Synthesis.Synthesizer.Utility
+import Synthesis.Synthesizer.Params
 
 data LstmEncoderSpec
  where LstmEncoderSpec :: {
-        -- dropoutRate :: Double
         lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
     } -> LstmEncoderSpec
  deriving (Show)
@@ -66,16 +50,7 @@ data LstmEncoder
     } -> LstmEncoder
  deriving (Show, Generic)
 
--- instance () => A.Parameterized (LstmEncoder) where
---   flattenParameters LstmEncoder{..} = []
---   replaceOwnParameters = pure
-
 instance A.Parameterized (LstmEncoder)
-
--- instance () => Torch.Typed.Parameter.Parameterized (LstmEncoder) '[] where
---   flattenParameters LstmEncoder{..} = flattenParameters  in_model
---                             `happend` flattenParameters out_model
---   replaceParameters = const
 
 instance A.Randomizable LstmEncoderSpec LstmEncoder where
     sample LstmEncoderSpec {..} = LstmEncoder
@@ -84,9 +59,7 @@ instance A.Randomizable LstmEncoderSpec LstmEncoder where
             -- TODO: consider LearnedInitialization
             where spec = LSTMWithZerosInitSpec lstmSpec
 
--- | 5.1.1 Baseline LSTM encoder
--- | This encoding is conceptually straightforward and has very little prior knowledge about what operations are being performed over the strings, i.e., substring, constant, etc., which might make it difficult to discover substring indices, especially the ones based on regular expressions.
-
+-- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
     :: forall batch_size t
      . (KnownNat batch_size, KnownNat t)
@@ -99,12 +72,28 @@ lstmEncoder LstmEncoder{..} io_pairs = do
     let n_ :: Int = length io_pairs
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
-    let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs  -- second pp_
-    -- | Our first I/O encoding network involves running two separate deep bidirectional LSTM networks for processing the input and the output string in each example pair.
+    let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
     let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
     let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
-    -- print $ "vec_pairs: " ++ show (first (show . D.shape . toDynamic) . second (show . D.shape . toDynamic) <$> vec_pairs)
+
+    -- pre-vectored
+    -- stack input vectors and pad to static dataset size
+    let stackPad :: [D.Tensor] -> Tnsr '[batch_size, t, MaxChar] =
+            UnsafeMkTensor . F.constantPadNd1d [0, 0, 0, 0, 0, batch_size_ - n_] 0.0 . stack' 0
+    let  in_vec :: Tnsr '[batch_size, t, MaxChar] =
+            stackPad $ toDynamic . fst <$> vec_pairs
+    let out_vec :: Tnsr '[batch_size, t, MaxChar] =
+            stackPad $ toDynamic . snd <$> vec_pairs
+
+    let lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
+    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
+    let emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
+
+    -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
+    let feat_vec :: Tnsr '[batch_size, t * (2 * Dirs * H)] =
+            reshape $ cat @2 $ emb_in :. emb_out :. HNil
+    return feat_vec
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
@@ -234,58 +223,34 @@ lstmEncoder LstmEncoder{..} io_pairs = do
     -- -- flatten results at the end
     -- let feat_vec_ :: Tnsr '[batch_size, 2 * Dirs * H * t] = asUntyped' (D.reshape [n_, 2 * dirs * h * t]) feat_vec
 
-    -- pre-vectored
-    -- stack input vectors and pad to static dataset size
-    let stackPad :: [D.Tensor] -> Tnsr '[batch_size, t, MaxChar] =
-            UnsafeMkTensor . F.constantPadNd1d [0, 0, 0, 0, 0, batch_size_ - n_] 0.0 . stack' 0
-    let  in_vec :: Tnsr '[batch_size, t, MaxChar] =
-            stackPad $ toDynamic . fst <$> vec_pairs
-    -- print $ "in_vec: " ++ show (D.shape $ toDynamic in_vec)
-    let out_vec :: Tnsr '[batch_size, t, MaxChar] =
-            stackPad $ toDynamic . snd <$> vec_pairs
-    -- print $ "out_vec: " ++ show (D.shape $ toDynamic out_vec)
+-- | 5.1.2 Cross Correlation encoder
 
-    let lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
-    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
-    let emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
-    -- print $ "emb_in: " ++ show (D.shape $ toDynamic emb_in)
-    -- print $ "emb_out: " ++ show (D.shape $ toDynamic emb_out)
+-- | To help the model discover input substrings that are copied to the output, we designed an novel I/O example encoder to compute the cross correlation between each input and output example representation.
+-- | We used the two output tensors of the LSTM encoder (discussed above) as inputs to this encoder.
+-- | For each example pair, we first slide the output feature block over the input feature block and compute the dot product between the respective position representation.
+-- | Then, we sum over all overlapping time steps.
+-- | Features of all pairs are then concatenated to form a 2∗(T−1)-dimensional vector encoding for all example pairs.
+-- | There are 2∗(T−1) possible alignments in total between input and output feature blocks.
 
-    -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    let feat_vec :: Tnsr '[batch_size, t * (2 * Dirs * H)] =
-            reshape $ cat @2 $ emb_in :. emb_out :. HNil
-    -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
+-- Cross Correlation encoder
+-- rotate, rotateT
+-- h1_in, h1_out
+-- dot(a, b)
+-- mm(a, b)
+-- matmul(a, b) performs matrix multiplications if both arguments are 2D and computes their dot product if both arguments are 1D
+-- bmm(a, b)
+-- bdot(a, b): (a*b).sum(-1)  -- https://github.com/pytorch/pytorch/issues/18027
+-- htan activation fn
 
-    -- | 5.1.2 Cross Correlation encoder
+-- | We also designed the following variants of this encoder.
 
-    -- | To help the model discover input substrings that are copied to the output, we designed an novel I/O example encoder to compute the cross correlation between each input and output example representation.
-    -- | We used the two output tensors of the LSTM encoder (discussed above) as inputs to this encoder.
-    -- | For each example pair, we first slide the output feature block over the input feature block and compute the dot product between the respective position representation.
-    -- | Then, we sum over all overlapping time steps.
-    -- | Features of all pairs are then concatenated to form a 2∗(T−1)-dimensional vector encoding for all example pairs.
-    -- | There are 2∗(T−1) possible alignments in total between input and output feature blocks.
+-- | Diffused Cross Correlation Encoder:
+-- | This encoder is identical to the Cross Correlation encoder except that instead of summing over overlapping time steps after the element-wise dot product, we simply concatenate the vectors corresponding to all time steps, resulting in a final representation that contains 2∗(T−1)∗T features for each example pair.
 
-    -- Cross Correlation encoder
-    -- rotate, rotateT
-    -- h1_in, h1_out
-    -- dot(a, b)
-    -- mm(a, b)
-    -- matmul(a, b) performs matrix multiplications if both arguments are 2D and computes their dot product if both arguments are 1D
-    -- bmm(a, b)
-    -- bdot(a, b): (a*b).sum(-1)  -- https://github.com/pytorch/pytorch/issues/18027
-    -- htan activation fn
+-- | LSTM-Sum Cross Correlation Encoder:
+-- | In this variant of the Cross Correlation encoder, instead of doing an element-wise dot product, we run a bidirectional LSTM over the concatenated feature blocks of each alignment.
+-- | We represent each alignment by the LSTM hidden representation of the final time step leading to a total of 2∗H∗2∗(T−1) features for each example pair.
 
-    -- | We also designed the following variants of this encoder.
-
-    -- | Diffused Cross Correlation Encoder:
-    -- | This encoder is identical to the Cross Correlation encoder except that instead of summing over overlapping time steps after the element-wise dot product, we simply concatenate the vectors corresponding to all time steps, resulting in a final representation that contains 2∗(T−1)∗T features for each example pair.
-
-    -- | LSTM-Sum Cross Correlation Encoder:
-    -- | In this variant of the Cross Correlation encoder, instead of doing an element-wise dot product, we run a bidirectional LSTM over the concatenated feature blocks of each alignment.
-    -- | We represent each alignment by the LSTM hidden representation of the final time step leading to a total of 2∗H∗2∗(T−1) features for each example pair.
-
-    -- | Augmented Diffused Cross Correlation Encoder:
-    -- | For this encoder, the output of each character position of the Diffused Cross Correlation encoder is combined with the character embedding at this position, then a basic LSTM encoder is run over the combined features to extract a 4∗H-dimensional vector for both the input and the output streams.
-    -- | The LSTM encoder output is then concatenated with the output of the Diffused Cross Correlation encoder forming a (4∗H+T∗(T−1))-dimensional feature vector for each example pair.
-
-    return feat_vec
+-- | Augmented Diffused Cross Correlation Encoder:
+-- | For this encoder, the output of each character position of the Diffused Cross Correlation encoder is combined with the character embedding at this position, then a basic LSTM encoder is run over the combined features to extract a 4∗H-dimensional vector for both the input and the output streams.
+-- | The LSTM encoder output is then concatenated with the output of the Diffused Cross Correlation encoder forming a (4∗H+T∗(T−1))-dimensional feature vector for each example pair.

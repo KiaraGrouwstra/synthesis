@@ -56,3 +56,4 @@ profiterole generator.prof
 
 questions for NSPS authors:
 - why not concatenate i/o features directly to symbol features?
+- tanh activation: XCorrIO too, so for any LSTMs too?

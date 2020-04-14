@@ -1,34 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 
--- module Torch.Distributions.Constraints (
 module Synthesis.Synthesizer.Constraints (
     module Synthesis.Synthesizer.Constraints
---     Constraint,
---     dependent,
---     boolean,
---     integerInterval,
---     integerLessThan,
---     integerGreaterThan,
---     integerLessThanEq,
---     integerGreaterThanEq,
---     real,
---     greaterThan,
---     greaterThanEq,
---     lessThan,
---     lessThanEq,
---     interval,
---     halfOpenInterval,
---     simplex,
---     nonNegativeInteger,
---     positiveInteger,
---     positive,
---     unitInterval,
 ) where
 
--- import Torch.Typed.Functional
 import qualified Torch.Functional.Internal as I
 import qualified Torch.Tensor as D
--- import qualified Torch.DType as D
 import qualified Torch.TensorFactories as D
 import qualified Torch.Functional as F
 import Torch.Scalar

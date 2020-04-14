@@ -1,20 +1,10 @@
--- module Torch.Distributions.Distribution (
 module Synthesis.Synthesizer.Distribution (
     module Synthesis.Synthesizer.Distribution
-    -- Scale,
-    -- Distribution(..),
-    -- stddev,
-    -- perplexity,
-    -- logits_to_probs,
-    -- clamp_probs,
-    -- probs_to_logits,
-    -- extended_shape,
 ) where
 
 import Torch.TensorFactories (ones, onesLike)
 import qualified Torch.Tensor as D
 import qualified Torch.Functional as F
--- import Torch.Distributions.Constraints
 import Synthesis.Synthesizer.Constraints
 
 data Scale = Probs | Logits
@@ -31,7 +21,7 @@ class Distribution a where
     entropy :: a -> D.Tensor
     enumerate_support :: a -> Bool -> D.Tensor -- (expand=True)
 
-stddev :: (Distribution a) => a -> D.Tensor -- 'D.Float
+stddev :: (Distribution a) => a -> D.Tensor
 stddev = F.sqrt . variance
 
 -- Tensor device 'D.Float '[batch_shape]

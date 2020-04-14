@@ -18,13 +18,11 @@ import Data.HashMap.Lazy
     union,
     size,
   )
--- import qualified Data.HashMap.Lazy as HM
 import Data.List (partition, maximum)
-import Data.Store (encode)  -- , decodeIO
+import Data.Store (encode)
 import qualified Data.ByteString as BS
 import System.Random (StdGen, mkStdGen)
-import Language.Haskell.Interpreter (Interpreter, liftIO)  -- , lift
--- import Synthesis.Ast
+import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Synthesis.Blocks
 import Synthesis.Generation
 import Synthesis.Hint
@@ -39,7 +37,7 @@ import Util (secondM)
 
 -- | main function, run program in our interpreter monad
 main :: IO ()
-main = runInterpreterMain program
+main = interpretUnsafe program
 
 -- | run our program in the interpreter
 program :: Interpreter ()
@@ -108,8 +106,6 @@ program = do
     -- map each parameter function to a filtered map of generated programs matching its type
     let functionMatches :: Tp -> Expr -> Interpreter Bool = \fn_type program_ast -> matchesType (fn_types ! program_ast) fn_type
     let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) programs
-    -- fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns param_fn_types
-    -- say $ "fn_options: " ++ pp_ fn_options
     instantiated_fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns in_type_instantiations
     say "\ninstantiated_fn_options:"
     say $ pp_ instantiated_fn_options
@@ -124,7 +120,7 @@ program = do
     let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
             join . elems <$> fn_in_type_instance_outputs
 
-    -- group functions with identical type signatures
+    -- TODO: ensure sets contains no fns w/ behavior identical to any in other sets to prevent cheating
     -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_in_type_instance_outputs
     -- filter out programs without i/o samples
     let kept_fns :: [Expr] = (not . null . (task_io_pairs !)) `filter` programs
@@ -137,19 +133,17 @@ program = do
 
     -- it's kinda weird this splitting is non-monadic, cuz it should be random
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
-    -- let (train, validation, test) :: ([Expr], [Expr], [Expr]) = datasets
     let set_list = untuple3 datasets
     liftIO $ forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
         putStrLn $ k <> ": " <> show (length dataset)
 
-    -- TODO: save/load task function data to separate generation/synthesis
+    -- save task function data
     liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
         cfg
         blockAsts
         typesByArity
         fn_types
         fn_in_type_instance_outputs
-        -- fn_in_type_instantiations
         rest_instantiation_inputs
         datasets
         expr_blocks

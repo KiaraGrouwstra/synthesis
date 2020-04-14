@@ -4,6 +4,7 @@ import Data.HashMap.Lazy (HashMap, insert, singleton, union)
 import Synthesis.Types
 import Synthesis.Data
 
+-- TODO: make these settings configurable using CLI parameters
 -- | synthesized types, categorized by arity
 typesByArity :: HashMap Int [String]
 typesByArity =

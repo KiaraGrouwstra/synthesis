@@ -42,14 +42,6 @@ import Synthesis.Utility
 -- import Synthesis.Configs
 import Util (nTimes, fstOf3, thdOf3)
 
--- | just directly sample a generated function, and see what types end up coming out.
-genFn :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter Expr
-genFn maxHoles expr_blocks block_asts = do
-  candidates <- genFns maxHoles expr_blocks block_asts
-  lift $ pick candidates
-
--- genFn = lift . fmap pick . genFns
-
 -- | just directly generate any functions in batch, and see what types end up coming out.
 -- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
 genFns :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter [Expr]
@@ -60,7 +52,6 @@ genFns maxHoles expr_blocks block_asts =
 fillHoles :: Int -> HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter [Expr]
 fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
   (partial, candidates) <- fillHole block_asts used_blocks expr_blocks expr
-  -- say $ "partial: " <> pp_ partial
   rest <- case maxHoles of
     0 -> return []
     _ -> mapM (\(inserted, used, _lets) -> fillHoles (maxHoles - 1) block_asts used expr_blocks inserted) partial
@@ -78,7 +69,6 @@ fillHole block_asts used_blocks expr_blocks expr = do
   where
     -- find a hole
     hole_lenses = findHolesExpr expr
-    -- TODO: let a learner pick a hole
     hole_lens = head hole_lenses
     hole_setter :: Expr -> Expr -> Expr = snd hole_lens
     buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \pair ->
@@ -121,35 +111,27 @@ fitExpr expr = do
       return ok
 
 -- | given sample inputs by type and type instantiations for a function, get its in/out pairs (by type)
-fnOutputs ::
-  Bool ->
-  HashMap Tp [Expr] ->
-  Expr ->
+fnOutputs
+  :: Bool
+  -> HashMap Tp [Expr]
+  -> Expr
+  -> [[Tp]]
   -- | for each type instantiation, for each param, the input type as string
-  [[Tp]] ->
-  Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
+  -> Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
 fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
-  -- do
-  -- say $ "instantiation_inputs: " ++ pp_ instantiation_inputs
-  -- say $ "fn_str: " ++ pp fn_ast
-  -- say $ "in_instantiations: " ++ pp_ in_instantiations
   case in_instantiations of
     [] -> return empty
     _ -> do
       -- a list of samples for parameters for types
       let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_instantiations
-      -- say $ "inputs: " ++ pp_ inputs
       -- tuples of samples by param
       let param_combs :: [[[Expr]]] = sequence <$> inputs
-      -- say $ "param_combs: " ++ pp_ param_combs
       -- if we weren't able to generate valid parameters, return an empty hashmap
       case head param_combs of
         [] -> return empty
         _ -> do
           let n = length . head . head $ param_combs
-          -- say $ "n: " ++ show n
           let ins :: [Expr] = list . fmap tuple <$> param_combs
-          -- say $ "ins: " ++ pp_ ins
           fromList . zip in_instantiations <$> mapM (fnIoPairs crash_on_error n fn_ast) ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
@@ -172,31 +154,16 @@ instantiateTypeVars types_by_arity instTpsByArity variableConstraints = do
   res <- filterM keysOk maps
   return res
 
--- TODO: defined `Ord` on `Tp` then use `compare :: a -> a -> Ordering`?
-
--- | find how two types relate
--- | deprecated, not in use
-typeRelation :: Tp -> Tp -> Interpreter Ordering
-typeRelation a b = do
-  sub <- a `matchesType` b
-  super <- b `matchesType` a
-  return $
-    if sub
-      then if super then EQ else LT
-      else if super then GT else error "types don't match!"
-
 -- | check if type `a` matches type `b`.
 -- | runs a command like `(undefined :: b -> ()) (undefined :: a)`.
 -- | without forall `a =>` constraints type variables will always match.
 matchesType :: Tp -> Tp -> Interpreter Bool
 matchesType a b = do
-  -- let cmd :: String = pp $ app (undef $ tyFun b unit) $ undef a
   -- shift TyForall off the parameter type to the function type
   let (forAll, b_) = case b of
         TyForall _l maybeTyVarBinds maybeContext tp -> (tyForall maybeTyVarBinds maybeContext, tp)
         _ -> (tyForall Nothing Nothing, b)
   let cmd :: String = pp $ app (undef $ forAll $ tyFun b_ unit) $ undef a
-  -- say cmd
   typeChecks cmd
 
 -- | check if a type matches the given type constraints.
@@ -213,7 +180,7 @@ matchesConstraints arity tp constraints = do
   if null constraints then return True else matchesType tp_ forAll
 
 -- | deduplicate functions by identical types + io, keeping the shortest
--- | deprecated, not in use
+-- | not in use
 dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
 dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
   where

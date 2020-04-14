@@ -16,9 +16,8 @@
 module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
 
 import Prelude hiding (lookup, exp)
--- import qualified Prelude
 import GHC.Stack
-import GHC.TypeNats (KnownNat, type (+), type (*)) -- , Nat, Mod, type (-)
+import GHC.TypeNats (KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
@@ -26,10 +25,11 @@ import Data.List (findIndex)
 import Data.Foldable (toList)
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, lookup)
+import Data.Proxy
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
 import Control.Monad (void, foldM, (=<<))
-import Language.Haskell.Interpreter (Interpreter)  -- , lift, liftIO
+import Language.Haskell.Interpreter (Interpreter)
 import Language.Haskell.Exts.Syntax
 
 import Torch.Typed.Aux (natValI)
@@ -50,67 +50,21 @@ import qualified Torch.Optim                   as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.Internal.Class                    as ATen
+import qualified Torch.Internal.Managed.Native           as ATen
+import qualified Torch.Internal.Unmanaged.Type.Context   as ATen
 
 import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (pp, fisherYates) -- , pp_
+import Synthesis.Utility (pp, fisherYates)
 import Synthesis.Ast (genBlockVariants)
 import Synthesis.Hint (exprType)
 
 import System.IO.Unsafe (unsafePerformIO)
 import Torch.Internal.Cast
-import qualified Torch.Internal.Managed.Native as ATen
--- import qualified Torch.Internal.Managed.Type.Context as ATen
 
 type Dir = 'Bidirectional
 type Dirs = NumberOfDirections Dir
 dirs :: Int
 dirs = natValI @Dirs
-
--- | learning rate used in ml optimizer
-learningRate :: Float
-learningRate = 0.001
-
--- TODO: consider which hyperparams have been / should be shared across networks
-
--- hm, I'm not sure if NSPS counted hole as a symbol, as holes *have* symbols e.g. for me Expression, in which case there'd be nothing left to distinguish for me...
--- data Symbol = Variable | Hole
--- type Symbols = 2
-type LhsSymbols = 1 -- just Expression in our lambda-calculus DSL
--- type Symbols = 1 -- 2  -- holes also just get symbol Expression, so nothing left...
--- symbols :: Int
--- symbols = natValI @Symbols
-
--- rules :: Int
--- rules = natValI @Rules
-
--- | actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
-type MaxChar = 256
-max_char :: Int
-max_char = natValI @MaxChar
-
--- | number of features for R3NN expansions/symbols. must be an even number for H.
-type M = 20
--- m :: Int
--- m = natValI @M
-
--- -- | T is the maximum string length for any input or output string
--- -- | use dynamically found values instead...
--- type T = 20
--- t :: Int
--- t = natValI @T
-
--- ensure this does not overlap with SynthesizerConfig's batchsize
-type BatchSize = 8
-batchSize :: Int
-batchSize = natValI @BatchSize
-
--- left/right MLPs
-type HiddenFeatures0 = 20 -- ?
-hiddenFeatures0 :: Int
-hiddenFeatures0 = natValI @HiddenFeatures0
-type HiddenFeatures1 = 20 -- ?
-hiddenFeatures1 :: Int
-hiddenFeatures1 = natValI @HiddenFeatures1
 
 type Dev = '( 'D.CPU, 0)
 type Tnsr dims = Tensor Dev 'D.Float dims
@@ -125,18 +79,18 @@ getDevice = do
     Right "cpu"    -> D.Device D.CPU 0
     _              -> D.Device D.CPU 0
 
--- cpu = Proxy @'( 'D.CPU, 0)
+cpu = Proxy @'( 'D.CPU, 0)
 
--- cuda0 = Proxy @'( 'D.CUDA, 0)
+cuda0 = Proxy @'( 'D.CUDA, 0)
 
--- availableDevices :: [D.Device]
--- availableDevices =
---   let hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
---   in  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
---         <> (if hasCuda
---              then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
---              else mempty
---            )
+availableDevices :: [D.Device]
+availableDevices =
+  let hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
+  in  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
+        <> (if hasCuda
+             then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
+             else mempty
+           )
 
 -- | right-pad a list to a given length
 padRight :: a -> Int -> [a] -> [a]
@@ -183,11 +137,9 @@ select' tensor dim idx = D.indexSelect tensor dim $ D.asTensor [asLong idx]
 select'' :: Int -> Int -> D.Tensor -> D.Tensor
 select'' dim idx tensor = select' tensor dim idx
 
--- TODO: figure out if Torch has a built-in for this
--- | remove the given dimension from a D.Tensor, spreading it out as a list
+-- | spread the given dimension from a D.Tensor out as a list (keepdim=True)
 unDim :: Int -> D.Tensor -> [D.Tensor]
--- unDim dim tensor = D.select tensor dim <$> [0 .. (D.shape tensor !! dim) - 1]    -- keepdim=False
-unDim dim tensor = select' tensor dim <$> [0 .. (D.shape tensor !! dim) - 1] -- keepdim=True
+unDim dim tensor = select' tensor dim <$> [0 .. (D.shape tensor !! dim) - 1]
 
 rotate :: [Float] -> [[Float]]
 rotate r = res
@@ -240,14 +192,15 @@ lookupRule hm k = case (lookup k hm) of
     Just x -> x
     Nothing -> error $ "the DSL does not contain rule " ++ show k ++ "!"
 
+-- | get holed variants for a DSL
 dslVariants :: HashMap String Expr -> Interpreter [(String, Expr)]
 dslVariants dsl = do
     fn_types :: HashMap String Tp <- exprType `mapM` dsl
-    -- liftIO . print $ "fn_types: " ++ pp_ fn_types
     return $ genBlockVariants maxWildcardDepth fn_types
             where maxWildcardDepth = 0  -- no * here
 
 -- | split a (batch-first) tensor into batches (zero-padded for the last one)
+-- | deprecated, not in use
 batchTensor :: Int -> D.Tensor -> [D.Tensor]
 batchTensor batch_size tensor = let
     nDim = 0
@@ -261,26 +214,6 @@ batchTensor batch_size tensor = let
         in D.indexSelect tensor nDim . F.constantPadNd1d paddings 0.0 . D.asTensor $ asLong <$> idxs
     in f <$> [0 .. numIters]
 
--- | batch an associative operation for use on tensor batches
-batchOp :: forall shape shape'
-        .  (Tnsr shape -> Tnsr shape') -- (Tnsr '[n, *] -> Tnsr '[*])
-        -> [Tnsr shape] -- Tnsr '[n, *]
-        -> Tnsr shape'   -- Tnsr '[*]
-batchOp f batches = f . UnsafeMkTensor $ stack' 0 $ toDynamic . f <$> batches
-
--- batchedOp :: (D.Tensor -> D.Tensor) -> D.Tensor -> D.Tensor
--- batchedOp f = batchOp f . batchTensor
-
-batchStatistic :: (Tnsr shape -> Tnsr '[]) -> (Tnsr '[] -> Tnsr '[]) -> [Tnsr shape] -> Tnsr '[]
-batchStatistic sufficientStatistic summarizer =
-        summarizer . batchOp sufficientStatistic
-
--- -- | deprecated, not in use
--- data TensorStatistic a b c = Statistic
---     { sufficient :: D.Tensor -> Tnsr '[]
---     , summarizer :: Tnsr '[] -> Tnsr '[]
---     }
-
 -- | shuffle a tensor in a given dimension
 shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
 shuffle gen dim tensor = (gen', shuffled)
@@ -289,14 +222,6 @@ shuffle gen dim tensor = (gen', shuffled)
         idxs = [0 .. n-1]
         (idxs', gen') = fisherYates gen idxs
         shuffled = D.indexSelect tensor dim $ D.asTensor $ asLong <$> idxs'
-
--- -- combine i/o lists across type instances and take their outputs
--- combinedOutputs :: HashMap [Tp] [(Expr, Either String Expr)] -> [Either String Expr]
--- combinedOutputs type_ios = outputs
---     where
---         let io_pairs :: [(Expr, Either String Expr)] =
---                 join . elems $ type_ios
---         let outputs :: [Either String Expr] = snd <$> io_pairs
 
 -- | square a tensor, for use in mean-square-error loss
 square :: Tnsr shape -> Tnsr shape
@@ -318,7 +243,6 @@ categorical gen probs =
 
 -- | make an assertion thru a predicate
 assertP :: (?loc :: CallStack, Show a) => (a -> Bool) -> a -> a
--- assertP pred_fn x = assert (pred_fn x) x     -- assert is disabled by default
 assertP pred_fn x = case pred_fn x of
     True -> x
     False -> error $ "assertP failed on input: " <> show x <> "\n" <> prettyCallStack ?loc
@@ -334,9 +258,6 @@ assertEq :: (?loc :: CallStack, Show a, Eq a) => a -> a -> a
 assertEq = assertEqBy id
 
 -- | apply a softmax over all dimensions
--- softmaxAll :: Tensor device 'D.Float shape -> Tensor device 'D.Float shape
--- softmaxAll t = divScalar (toFloat $ sumAll e) e
---     where e = exp t
 softmaxAll :: D.Tensor -> D.Tensor
 softmaxAll t = F.divScalar ((D.asValue $ F.sumAll e) :: Float) e
     where e = F.exp t
@@ -370,18 +291,6 @@ f_sumDim dim t = I.sumDim t dim False $ D.dtype t
 f_squeezeDim :: Int -> D.Tensor -> D.Tensor
 f_squeezeDim dim t = I.squeezeDim t dim
 
--- -- | 'setAt' sets the element at the index.
--- -- | If the index is negative or exceeds list length, the original list will be returned.
--- -- | src: https://hackage.haskell.org/package/ilist-0.4.0.0/docs/src/Data.List.Index.html#setAt
--- setAt :: Int -> a -> [a] -> [a]
--- setAt i a ls
---   | i < 0 = ls
---   | otherwise = go i ls
---   where
---     go 0 (_:xs) = a : xs
---     go n (x:xs) = x : go (n-1) xs
---     go _ []     = []
-
 -- TODO: import from hasktorch
 f_multinomial_tlb
   :: D.Tensor
@@ -392,6 +301,7 @@ f_multinomial_tlb t l b =
   (cast3 ATen.multinomial_tlb) t l b
 
 -- | adjusted Torch.Typed.NN.Recurrent.LSTM.lstm to dynamically calculate batch size
+-- | TODO: just batch inputs, ensuring dummy items won't influence results?
 lstmDynamicBatch
   :: forall
        shapeOrder
@@ -462,26 +372,17 @@ lstmDynamicBatch dropoutOn (LSTMWithConstInit lstm@(LSTM _ (Dropout dropoutProb)
     input
  where
   cc' =
-    -- reshape @hxShape
-    --   . expand
-    --       @'[batchSize, numLayers * NumberOfDirections directionality, hiddenSize]
-    --       False -- TODO: What does the bool do?
     asUntyped (
       D.reshape [natValI @(numLayers * NumberOfDirections directionality), batchSize, natValI @hiddenSize]
       . (\t -> F.expand t False [batchSize, natValI @(numLayers * NumberOfDirections directionality), natValI @hiddenSize])
       )
       $ cc
   hc' =
-    -- reshape @hxShape
-    --   . expand
-    --       @'[batchSize, numLayers * NumberOfDirections directionality, hiddenSize]
-    --       False -- TODO: What does the bool do?
     asUntyped (
       D.reshape [natValI @(numLayers * NumberOfDirections directionality), batchSize, natValI @hiddenSize]
       . (\t -> F.expand t False [batchSize, natValI @(numLayers * NumberOfDirections directionality), natValI @hiddenSize])
       )
       $ hc
-  -- newly added:
   batchSize = D.size (toDynamic input) $ if rnnBatchFirst @shapeOrder then 0 else 1
 
 d_mkAdam

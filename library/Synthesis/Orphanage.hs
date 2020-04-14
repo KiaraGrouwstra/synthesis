@@ -7,7 +7,6 @@ module Synthesis.Orphanage
 where
 
 import Data.ByteString.Char8 (pack)
--- import qualified Data.ByteString.Char8 as BS
 import Data.HashMap.Lazy (HashMap, toList)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -186,14 +185,6 @@ instance (Pretty l, Pretty r) => Pretty (Either l r) where
 -- | ensure I can print sets
 instance (Pretty a) => Pretty (Set a) where
   pretty = pretty . Set.toList
-
--- -- serialization
--- instance (Eq k, Hashable k, Store k, Store a) => Store (HashMap k a) where
---     size = sizeMap
---     poke = pokeMap
---     peek = peekMap
-
--- size = VarSize $ BS.length . pack . prettyPrint
 
 instance Store l => Store (Module l) where
     size = genericSize
@@ -609,6 +600,3 @@ instance Store TaskFnDataset where
     size = genericSize
     poke = genericPoke
     peek = genericPeek
-
--- instance Pretty TaskFnDataset where
---   pretty = id

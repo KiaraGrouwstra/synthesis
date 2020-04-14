@@ -5,43 +5,31 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
--- Tasty: <http://documentup.com/feuerbach/tasty>
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
--- Hspec: <https://hspec.github.io>
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
 import           Test.Tasty.Hspec
 import           Test.Tasty.HUnit             ((@?=))
 
+import           Prelude                      hiding (abs, all)
 import           Control.Exception            (SomeException, try, evaluate)
 import           Data.Int                     (Int64)
--- import           Data.Word                    (Word64)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
--- import           Data.Bifunctor               (first)
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
-import           Language.Haskell.Interpreter (as, interpret, liftIO) -- , typeChecksWithDetails
+import           Language.Haskell.Interpreter (as, interpret, liftIO)
 import           Util                         (fstOf3)
 
-import Prelude hiding (abs, all)
--- import           GHC.Exts
--- import           GHC.TypeNats
-import           GHC.TypeNats (Mod, type (+), type (*))  -- , KnownNat, Nat, Div, type (-)
--- import           Torch.Random (Generator)
--- import           Torch.Functional.Internal (gather)
--- import qualified Torch.DType                   as D
-import Torch.Typed.Functional
+import           GHC.TypeNats
+import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.Optim                   as D
--- import qualified Torch.Device                  as D
--- import qualified Torch.Random                  as D
-import qualified Torch.Functional.Internal as I
+import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
 import           Torch.Typed.Aux
--- import           Torch.TensorOptions
 import           Torch.Typed.Tensor
 import           Torch.Typed.Factories
 import           Torch.Typed.Optim
@@ -61,11 +49,11 @@ import           Synthesis.Data
 import           Synthesis.Utility
 import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
-import qualified Synthesis.Synthesizer.Encoder as Enc
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.NSPS
 import qualified Synthesis.Synthesizer.Distribution as Distribution
-import qualified Synthesis.Synthesizer.Categorical as Categorical
+import qualified Synthesis.Synthesizer.Categorical  as Categorical
+import           Synthesis.Synthesizer.Params
 
 main ∷ IO ()
 main = do
@@ -101,9 +89,6 @@ util = parallel $ do
     it "flatten" $
         flatten (Many [One [1], One [2]]) `shouldBe` [1 :: Int, 2]
 
-    -- it "flattenTuple" $
-    --     flattenTuple (DeepTuple (1, SingleTuple (2, 3))) `shouldBe` [1 :: Int, 2, 3]
-
     it "pick" $ do
         x <- pick [1 :: Int, 2, 3]
         x < 5 `shouldBe` True
@@ -114,9 +99,6 @@ util = parallel $ do
     it "fromKeys" $
         fromKeys show [1 :: Int, 2] `shouldBe` insert 1 "1" (singleton 2 "2")
 
-    -- it "fromVals" $
-    --     fromVals show [1 :: Int, 2] `shouldBe` insert "1" 1 (singleton "2" 2)
-
     it "fromKeysM" $ do
         x <- fromKeysM (pure . show) [1 :: Int, 2]
         x `shouldBe` insert 1 "1" (singleton 2 "2")
@@ -124,10 +106,6 @@ util = parallel $ do
     it "fromValsM" $ do
         x <- fromValsM (pure . show) [1 :: Int, 2]
         x `shouldBe` insert "1" 1 (singleton "2" 2)
-
-    -- it "filterHmM" $ do
-    --     x <- filterHmM (pure . snd) $ insert "a" True $ singleton "b" False
-    --     x `shouldBe` singleton "a" True
 
     it "pickKeys" $ do
         let b = singleton "b" "B"
@@ -139,15 +117,6 @@ util = parallel $ do
         let (nums_train, _nums_validation, _nums_test) =
                 randomSplit stdGen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length nums_train `shouldBe` 5
-
-    -- it "batchList" $ do
-    --     batchList 2 [1,2,3,4,5 :: Int] `shouldBe` [[1,2],[3,4],[5]]
-
-    -- it "statistic" $ do
-    --     statistic (0 :: Int) (+) (const id) [1,2,3 :: Int] `shouldBe` 6
-    --     statistic (0 :: Int) (+) (\ xs i -> i `div` length xs) [1,2,3 :: Int] `shouldBe` 2
-    --     -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+) }) [1,2,3 :: Int] `shouldBe` 6
-    --     -- statistic (stat { acc = 0 :: Int, sufficientStatistic = (+), summarizer = (\ xs i -> i / length xs) }) [1,2,3 :: Int] `shouldBe` 2
 
 hint ∷ Test
 hint = let
@@ -189,7 +158,6 @@ types ∷ Spec
 types = parallel $ let
         bl = tyCon "Bool"
         int_ = tyCon "Int"
-        -- str = tyCon "String"
     in do
 
     it "var" $
@@ -205,7 +173,6 @@ types = parallel $ let
         pp (tyApp (tyCon "[]") $ tyCon "Int") `shouldBe` "[] Int"
 
     it "expTypeSig" $
-        -- pp (expTypeSig holeExpr $ tyCon "Int") `shouldBe` "_ :: Int"
         pp (expTypeSig holeExpr $ tyCon "Int") `shouldBe` "undefined :: Int"
 
     it "fnTypeIO" $ do
@@ -241,17 +208,6 @@ types = parallel $ let
         typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
         -- I guess this means I'd judge HaskTorch's Typed functions as insane, but
         -- for the purpose of program synthesis, for the moment let's say they are.
-
-    -- it "fnTpArity" $ do
-    --     fnTpArity bl `shouldBe` 0
-    --     fnTpArity (parseType "forall a . (Enum a) => (Int -> Bool) -> a -> Bool") `shouldBe` 2
-
-    -- it "mkExpr" $ do
-    --     pp (mkExpr (1 :: Int)) `shouldBe` "1"
-
-    -- it "mkExprPair" $ do
-    --     let either' :: Either String Bool = Right True
-    --     pp_ (mkExprPair (1 :: Int, either')) `shouldBe` "(\"1\", Right (\"True\"))"
 
 typeGen ∷ Spec
 typeGen = parallel $ let
@@ -300,18 +256,14 @@ find ∷ Spec
 find = do
 
     it "findHolesExpr" $ do
-        -- let expr = parseExpr "(_ :: Int -> Bool)"
         let expr = parseExpr "(undefined :: Int -> Bool)"
         let hole_lenses = findHolesExpr expr
-        -- print $ show hole_lenses
         let hole_lens = head hole_lenses
         let hole_getter = fst hole_lens
         let hole_setter = snd hole_lens
         let hole :: Expr = hole_getter expr
-        -- pp hole `shouldBe` "_ :: Int -> Bool"
         pp hole `shouldBe` "undefined :: Int -> Bool"
         let xpr = hole_setter expr holeExpr
-        -- pp xpr `shouldBe` "(_)"
         pp xpr `shouldBe` "(undefined)"
 
     it "findHolesExpr: transfer lenses" $ do
@@ -330,7 +282,6 @@ ast = parallel $ let
     in do
 
     it "skeleton" $ do
-        -- pp (skeleton bl) `shouldBe` "_ :: Bool"
         pp (skeleton bl) `shouldBe` "undefined :: Bool"
 
     it "numAstNodes" $
@@ -393,12 +344,6 @@ gen = let
         lst <- interpretUnsafe $ fillHoles 0 blockAsts' Data.Set.empty [("not_", var "not_")] expr
         (gtrExpr <$> lst) `shouldContain` [var "not_"]
 
-    , TestLabel "genFn" $ TestCase $ do
-        let blockAsts' = singleton "not_" $ var "not"
-        fn <- interpretUnsafe $ genFn 0 [("not_", var "not_")] blockAsts'
-        is_fn <- interpretUnsafe $ isFn <$> exprType fn
-        is_fn `shouldBe` True
-
     , TestLabel "genFns" $ TestCase $ do
         let blockAsts' = singleton "not_" $ var "not"
         lst <- interpretUnsafe $ genFns 0 [("not_", var "not_")] blockAsts'
@@ -443,20 +388,6 @@ gen = let
         l5 <- interpretUnsafe $ instantiateTypeVars types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) $ insert "a" (0, []) $ singleton "t" (1, [tyCon "Foldable"])
         pp_ l5 `shouldBe` pp_ [insert "a" bl (singleton "t" lst_), insert "a" int_ (singleton "t" lst_)]
 
-    , TestLabel "typeRelation" $ TestCase $ do
-        let a = tyVar "a"
-        -- crap, I cannot test NEQ as it explodes, while LT/GT seem to imply constraints/forall...
-        q <- interpretUnsafe $ typeRelation int_ a
-        q `shouldBe` EQ
-        w <- interpretUnsafe $ typeRelation a bl
-        w `shouldBe` EQ
-        e <- interpretUnsafe $ typeRelation bl bl
-        e `shouldBe` EQ
-        r <- interpretUnsafe $ typeRelation a a
-        r `shouldBe` EQ
-        t <- interpretUnsafe $ typeRelation a $ tyVar "b"
-        t `shouldBe` EQ
-
     , TestLabel "matchesType" $ TestCase $ do
         let a = tyVar "a"
         q <- interpretUnsafe $ matchesType int_ a
@@ -484,12 +415,6 @@ gen = let
         z <- interpretUnsafe $ matchesConstraints 1 lst [tyCon "Foldable"]
         z `shouldBe` True
 
-    -- , TestLabel "filterTypeSigIoFnsM" $ TestCase $ do
-    --     let fn_asts = insert "not" (var "not") $ singleton "not_" $ app (var "id") $ var "not"
-    --     let hm = filterTypeSigIoFnsM fn_asts (singleton "Bool -> Bool" $ singleton "[(True, False), (False, True)]" ["not", "not_"])
-    --     hm `shouldBe` singleton "Bool -> Bool" (singleton "[(True, False), (False, True)]" "not")
-    --     -- TODO: test to ensure generic functions get priority
-
     ]
 
 synth_util ∷ Spec
@@ -512,8 +437,10 @@ synth_util = parallel $ do
 
     it "rotate" $ do
         rotate [10,20] `shouldBe` [[10,20,0],[0,10,20],[20,0,10]]
-        -- let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
-        -- rotateT r `shouldBe` ?
+
+    -- it "rotateT" $ do
+    --     let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
+    --     rotateT r `shouldBe` ?
 
     it "categorical" $ do
         t :: Tnsr '[2, 3] <- abs <$> randn
@@ -532,18 +459,18 @@ synth_util = parallel $ do
         let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
-type NumHoles = 1
-type RhsSymbols = 3
-type Rules = 4
-type T = 20
-type Symbols = LhsSymbols + RhsSymbols
+type NumHoles' = 1
+type RhsSymbols' = 3
+type Rules' = 4
+type MaxStringLength' = 20
+type Symbols' = LhsSymbols + RhsSymbols'
 
 synthesizer ∷ Test
 synthesizer = let
-        numHoles     :: Int = natValI @NumHoles
-        rules        :: Int = natValI @Rules
-        t            :: Int = natValI @T
-        symbols      :: Int = natValI @Symbols
+        numHoles     :: Int = natValI @NumHoles'
+        rules        :: Int = natValI @Rules'
+        t            :: Int = natValI @MaxStringLength'
+        symbols      :: Int = natValI @Symbols'
 
         dropOut :: Double = 0.0
         dsl = fmap parseExpr
@@ -558,24 +485,19 @@ synthesizer = let
         -- io_pairs for task fn `trues :: Int -> [Bool]`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
-        D.shape (toDynamic io_feats) `shouldBe` [batchSize, 2 * dirs * Enc.h * t]
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model io_pairs
+        D.shape (toDynamic io_feats) `shouldBe` [batchSize, 2 * dirs * h * t]
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters enc_model
-        -- let optim = mkAdam 0 0.9 0.999 $ flattenParameters enc_model
         let loss :: Tnsr '[] = sumAll io_feats  -- dummy op for loss with gradient
         (newParam, optim') <- D.runStep enc_model optim (toDynamic loss) lr
-        -- putStrLn $ "LstmEncoder.newParam: " <> show newParam
         let enc_model' :: LstmEncoder = A.replaceParameters enc_model newParam
-        -- (enc_model', optim') <- runStep enc_model optim loss $ UnsafeMkTensor lr
-        -- putStrLn $ "LstmEncoder.enc_model: " <> show enc_model
-        -- putStrLn $ "LstmEncoder.enc_model': " <> show enc_model'
 
-        io_feats' :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model' io_pairs
+        io_feats' :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model' io_pairs
         let loss' :: Tnsr '[] = sumAll io_feats'
-        -- putStrLn $ "LstmEncoder.loss: " <> show loss
-        -- putStrLn $ "LstmEncoder.loss': " <> show loss'
-        toBool (all (lt loss' loss)) `shouldBe` True
+        putStrLn $ "LstmEncoder.loss: " <> show loss
+        putStrLn $ "LstmEncoder.loss': " <> show loss'
+        toBool (lt loss' loss) `shouldBe` True
 
     , TestLabel "R3NN" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
@@ -583,41 +505,33 @@ synthesizer = let
         let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
-        r3nn_model :: R3NN M Symbols Rules T BatchSize <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model io_pairs
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model symbolIdxs ppt io_feats
+        hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model symbolIdxs ppt io_feats
         D.shape (toDynamic hole_expansion_probs) `shouldBe` [numHoles, rules]
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters r3nn_model
         let loss :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model $ sumAll hole_expansion_probs  -- dummy op for loss with gradient
         (newParam, optim') <- D.runStep r3nn_model optim (toDynamic loss) lr
-        let r3nn_model' :: R3NN M Symbols Rules T BatchSize = A.replaceParameters r3nn_model newParam
-        hole_expansion_probs' :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model' symbolIdxs ppt io_feats
+        let r3nn_model' :: R3NN M Symbols' Rules' MaxStringLength' BatchSize = A.replaceParameters r3nn_model newParam
+        hole_expansion_probs' :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model' symbolIdxs ppt io_feats
         let loss' :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model' $ sumAll hole_expansion_probs'
-        toBool (all (lt loss' loss)) `shouldBe` True
+        toBool (lt loss' loss) `shouldBe` True
 
     , TestLabel "predictHole" $ TestCase $ do
         expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
-        -- putStrLn $ "expr_blocks: " <> pp_ expr_blocks
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
-        -- putStrLn $ "variants: " <> pp_ variants
         -- io_pairs for task fn `trues :: Int -> [Bool]`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        -- putStrLn $ "enc_model: " <> show enc_model
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
-        -- putStrLn $ "io_feats: " <> show io_feats
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model io_pairs
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        r3nn_model :: R3NN M Symbols Rules T BatchSize <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
-        -- putStrLn $ "r3nn_model: " <> show r3nn_model
-        -- putStrLn $ "keys: " <> (show . keys . left_nnets $ r3nn_model)
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
-        -- putStrLn $ "symbolIdxs: " <> show symbolIdxs
-        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model symbolIdxs ppt io_feats
+        hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model symbolIdxs ppt io_feats
         (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
-        -- putStrLn $ pp ppt'
         pp ppt' `shouldNotBe` pp ppt
 
     , TestLabel "superviseHole" $ TestCase $ do
@@ -638,11 +552,11 @@ synthesizer = let
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder enc_model io_pairs
-        r3nn_model :: R3NN M Symbols Rules T BatchSize <- A.sample $ initR3nn @M @Symbols @Rules @T variants batchSize dropOut
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model io_pairs
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
-        hole_expansion_probs :: Tnsr '[NumHoles, Rules] <- runR3nn @Symbols @M @T @Rules @BatchSize r3nn_model symbolIdxs ppt io_feats
-        (_zero, task_fn', gold) :: (Int, Expr, Tnsr '[NumHoles]) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
+        hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model symbolIdxs ppt io_feats
+        (_zero, task_fn', gold) :: (Int, Expr, Tnsr '[NumHoles']) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
         pp task_fn' `shouldBe` pp task_fn
         D.shape (toDynamic gold) `shouldBe` [numHoles]
 
@@ -656,17 +570,17 @@ synthesizer = let
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         let encoder_spec :: LstmEncoderSpec = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec M Symbols Rules T BatchSize = initR3nn @M @Symbols @Rules @T variants batchSize dropOut
-        model :: NSPS M Symbols Rules T BatchSize <- A.sample $ NSPSSpec @M @Symbols @Rules encoder_spec r3nn_spec
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * Enc.H * T] <- lstmEncoder (encoder model) io_pairs
+        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' BatchSize = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
+        model :: NSPS M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder (encoder model) io_pairs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
-        let model' :: NSPS M Symbols Rules T BatchSize = A.replaceParameters model newParam
+        let model' :: NSPS M Symbols' Rules' MaxStringLength' BatchSize = A.replaceParameters model newParam
         loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
-        toBool (all (lt loss' loss)) `shouldBe` True
+        toBool (lt loss' loss) `shouldBe` True
 
     ]

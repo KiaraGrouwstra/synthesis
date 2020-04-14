@@ -24,20 +24,8 @@ import Data.HashMap.Lazy
 import Data.Maybe (fromMaybe)
 import Language.Haskell.Exts.Syntax
   ( Asst (..),
-    -- Binds (..),
-    -- Boxed (..),
     Context (..),
-    -- Decl (..),
-    -- Exp (..),
-    -- IPName (..),
-    -- Literal (..),
-    -- Name (..),
-    -- Pat (..),
     Promoted (..),
-    -- QName (..),
-    -- QOp (..),
-    -- Rhs (..),
-    -- SpecialCon (..),
     TyVarBind (..),
     Type (..),
   )
@@ -144,7 +132,8 @@ fillTypeVars :: Tp -> HashMap String Tp -> Tp
 fillTypeVars tp substitutions =
   let f = flip fillTypeVars substitutions
    in case tp of
-        TyForall _l _maybeTyVarBinds _maybeContext a -> f a -- if I'm filling type vars I guess type constraints can be stripped out
+        TyForall _l _maybeTyVarBinds _maybeContext a -> f a
+        -- ^ if I'm filling type vars I guess type constraints can be stripped out
         TyFun _l a b -> tyFun (f a) $ f b
         TyTuple _l boxed tps -> TyTuple l boxed $ f <$> tps
         TyUnboxedSum _l tps -> TyUnboxedSum l $ f <$> tps

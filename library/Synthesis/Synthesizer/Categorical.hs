@@ -1,9 +1,5 @@
--- module Torch.Distributions.Categorical (
 module Synthesis.Synthesizer.Categorical (
     module Synthesis.Synthesizer.Categorical
-    -- Categorical(..),
-    -- fromProbs,
-    -- fromLogits,
 ) where
 
 import qualified Torch.Functional.Internal as I
@@ -11,8 +7,6 @@ import qualified Torch.Tensor as D
 import qualified Torch.DType as D
 import qualified Torch.TensorFactories as D
 import qualified Torch.Functional as F
--- import qualified Torch.Distributions.Constraints as Constraints
--- import Torch.Distributions.Distribution
 import qualified Synthesis.Synthesizer.Constraints as Constraints
 import Synthesis.Synthesizer.Distribution
 import Synthesis.Synthesizer.Utility (f_sumDim, f_squeezeDim, f_multinomial_tlb)

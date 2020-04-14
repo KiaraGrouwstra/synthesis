@@ -37,20 +37,6 @@ genHoledVariants = let
             _ -> []
   in \ maxDepth k tp -> genHoledVariants' maxDepth tp $ var k
 
--- -- | generate a function type, to then generate functions matching this type
--- -- | deprecated, not in use
--- genFnType :: Int -> IO Tp -- TyFun
--- genFnType nestLimit = randomFnType True True nestLimit empty tyVarCount
---   where
---     tyVarCount :: Int = 0 -- TODO: is this okay?
-
--- -- | generate a parameter type, to then generate functions taking this input
--- -- | deprecated, not in use
--- genFnInType :: Int -> IO Tp -- TyFun
--- genFnInType nestLimit = randomType True True nestLimit empty tyVarCount
---   where
---     tyVarCount :: Int = 0 -- TODO: is this okay?
-
 -- | _ :: (_ -> _)
 anyFn :: Expr
 anyFn = skeleton $ tyFun wildcard wildcard
@@ -71,10 +57,8 @@ numAstNodes = foldr (\_node acc -> acc + 1) 0
 
 -- | hole `_` as an AST Expr
 holeExpr :: Expr
-
 -- holeExpr = var $ Special l $ ExprHole l
-
--- | replace any holes in an expression with undefined, for type-checking purposes
+-- replace any holes in an expression with undefined, for type-checking purposes
 holeExpr = var "undefined"
 
 -- | make a typed hole for a type

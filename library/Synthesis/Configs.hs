@@ -137,6 +137,11 @@ synthesizerConfig = SynthesizerConfig
         <> value 5
         <> showDefault
         <> help "the number of epochs for which to run on train test before evaluating on the test set again" )
+    <*> option auto
+        ( long "learningRate"
+        <> value 0.001
+        <> showDefault
+        <> help "initial learning rate used in ML optimizer" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

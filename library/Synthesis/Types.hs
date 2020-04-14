@@ -189,28 +189,19 @@ cxSingle = CxSingle l
 cxEmpty :: Context L
 cxEmpty = CxEmpty l
 
--- -- | implicit parameter constraint
--- -- | deprecated, not in use
--- iParam :: String -> Tp -> Asst L
--- iParam str = IParam l (IPLin l str)
-
 -- type assertion
 typeA :: QName L -> Tp -> Asst L
 typeA qname tp = ClassA l qname [tp]
 
--- -- | get the string from an IPName
--- -- | deprecated, not in use
--- unIPName :: IPName L -> String
--- unIPName = \case
---     IPDup _l str -> str -- non-linear implicit parameter
---     IPLin _l str -> str -- linear implicit parameter
-
 -- | get the string from a QName
 unQName :: QName L -> String
 unQName = \case
-    Qual _l _moduleName name -> unName name -- name qualified with a module name
-    UnQual _l name -> unName name -- unqualified local name
-    Special _l _specialCon -> error "SpecialCon is not string-based"  -- built-in constructor with special syntax
+    -- name qualified with a module name
+    Qual _l _moduleName name -> unName name
+    -- unqualified local name
+    UnQual _l name -> unName name
+    -- built-in constructor with special syntax
+    Special _l _specialCon -> error "SpecialCon is not string-based"
 
 -- | get the string from a Name
 unName :: Name L -> String
@@ -300,7 +291,6 @@ parseMode =
   defaultParseMode
     { extensions =
         [ EnableExtension ScopedTypeVariables,
-          -- EnableExtension FlexibleContexts,
           EnableExtension ConstraintKinds
         ]
     }
@@ -403,31 +393,6 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 _ -> error "unsupported Assist!"
           _ -> True
 
--- -- | check the effective arity of a function type
--- -- | deprecated, not in use
--- fnTpArity :: Tp -> Int
--- fnTpArity = \case
---   TyForall _l _maybeTyVarBinds _maybeContext tp -> f tp
---   TyParen _l a -> f a
---   TyFun _l _a b -> 1 + f b
---   _ -> 0
---   where f = fnTpArity
-
 -- | filter out duplicate types. note this dedupe will fail for type variable variations...
 nubPp :: Pretty a => [a] -> [a]
 nubPp = nubBy (equating pp)
-
--- -- | turn any value into an expression
--- -- | deprecated, not in use, except in another deprecated function
--- mkExpr :: Show a => a -> Expr
--- mkExpr = parseExpr . show
-
--- -- | turn any value pair into an expression pair
--- -- | deprecated, not in use
--- mkExprPair :: (Show a, Show b) => (a, Either c b) -> (Expr, Either c Expr)
--- mkExprPair = first mkExpr . second (second mkExpr)
-
--- -- | turn any value pair into an expression pair
--- -- | deprecated, not in use
--- showPair :: (Show a, Show b) => (a, Either c b) -> (String, Either c String)
--- showPair = first show . second (second show)
