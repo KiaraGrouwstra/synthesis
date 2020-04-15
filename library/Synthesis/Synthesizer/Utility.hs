@@ -217,6 +217,20 @@ batchTensor batch_size tensor = let
         in D.indexSelect tensor nDim . F.constantPadNd1d paddings 0.0 . D.asTensor $ asLong <$> idxs
     in f <$> [0 .. numIters]
 
+
+
+-- | deprecated, not in use
+toMaybe :: Bool -> a -> Maybe a
+toMaybe False _ = Nothing
+toMaybe True  x = Just x
+
+whenOr :: a -> Bool -> a -> a
+-- whenOr def cond x = fromMaybe def $ toMaybe cond x
+whenOr def cond x = if cond then x else def
+
+whenOrM :: (Applicative m) => a -> Bool -> m a -> m a
+whenOrM def cond x = if cond then x else pure def
+
 -- | shuffle a tensor in a given dimension
 -- | deprecated, not in use
 shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
