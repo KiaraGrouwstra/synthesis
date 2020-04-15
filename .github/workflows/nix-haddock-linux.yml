@@ -1,0 +1,31 @@
+name: nix-haddock-linux
+
+# If you need to debug this action, use following action.
+# on: [push, pull_request]
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v7
+    - name: Setup repo
+    - name: Build
+      run: |
+        nix-env -i cachix
+        cachix use tycho01
+        nix-build -A synthesis-docs
+        pwd
+        find result/ |head
+        mkdir public
+        cp -r ./result/share/doc/* public/
+    - name: Deploy
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+        # personal_token: ${{ secrets.PERSONAL_TOKEN }}
+        # github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./public

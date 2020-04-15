@@ -80,6 +80,16 @@ in
       synthesis_cudatoolkit_10_1
     ;
 
+    synthesis-docs = (
+      (import ./haddock-combine.nix {
+        runCommand = pkgs.runCommand;
+        lib = pkgs.lib;
+        haskellPackages = pkgs.haskellPackages;
+      }) {hspkgs = [
+            synthesis_cpu
+          ];
+         }
+    );
     shell-synthesis_cpu              = (doBenchmark base-compiler.synthesis_cpu).env.overrideAttrs(fixmkl);
     shell-synthesis_cudatoolkit_9_2  = (doBenchmark base-compiler.synthesis_cudatoolkit_9_2).env.overrideAttrs(fixmkl);
     shell-synthesis_cudatoolkit_10_1 = (doBenchmark base-compiler.synthesis_cudatoolkit_10_1).env.overrideAttrs(fixmkl);
