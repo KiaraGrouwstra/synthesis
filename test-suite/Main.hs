@@ -460,6 +460,14 @@ synth_util = parallel $ do
         let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
+    it "batchTensor" $ do
+        let t = D.asTensor [1,2,3::Int]
+        fmap D.asValue (batchTensor 2 t) `shouldBe` [[1,2],[3,0::Int]]
+
+    it "batchTensor'" $ do
+        let t :: Tnsr '[3] = UnsafeMkTensor $ D.asTensor [1,2,3::Int]
+        fmap (D.asValue . toDynamic) (batchTensor' @2 t) `shouldBe` [[1,2],[3,0::Int]]
+
 type NumHoles' = 1
 type RhsSymbols' = 3
 type Rules' = 4

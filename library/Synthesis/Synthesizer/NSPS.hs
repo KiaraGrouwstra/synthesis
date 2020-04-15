@@ -59,13 +59,13 @@ import           Synthesis.Synthesizer.Params
 
 data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Nat) where
   NSPSSpec :: forall m symbols rules t batchSize
-     . { encoderSpec :: LstmEncoderSpec, r3nnSpec :: R3NNSpec m symbols rules t batchSize }
+     . { encoderSpec :: LstmEncoderSpec t batchSize, r3nnSpec :: R3NNSpec m symbols rules t batchSize }
     -> NSPSSpec m symbols rules t batchSize
  deriving (Show)
 
 data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (batchSize :: Nat) where
   NSPS :: forall m symbols rules t batchSize
-        . { encoder :: LstmEncoder, r3nn :: R3NN m symbols rules t batchSize }
+        . { encoder :: LstmEncoder t batchSize, r3nn :: R3NN m symbols rules t batchSize }
        -> NSPS m symbols rules t batchSize
  deriving (Show, Generic)
 
@@ -160,7 +160,7 @@ calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs vari
     let loss :: Tnsr '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
-train :: forall m batchSize symbols rules t n_train n_validation n_test . (KnownNat m, KnownNat batchSize, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> IO ()  -- Interpreter ()
+train :: forall m batchSize symbols rules t n_train n_validation n_test n'1 n'2 . (KnownNat m, KnownNat batchSize, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> IO ()  -- Interpreter ()
 train SynthesizerConfig{..} TaskFnDataset{..} = do
     let rules :: Int = natValI @rules
 
@@ -204,7 +204,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     putStrLn $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
-    let encoder_spec :: LstmEncoderSpec = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
+    let encoder_spec :: LstmEncoderSpec t batchSize = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec m symbols rules t batchSize = initR3nn @m @symbols @rules @t @batchSize variants batchSize dropoutRate
     init_model :: NSPS m symbols rules t batchSize <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
@@ -222,7 +222,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
-            io_feats :: Tnsr '[batchSize, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model) target_io_pairs
+            io_feats :: Tnsr '[n'1, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model) target_io_pairs
             loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -244,7 +244,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                 let target_outputs :: [Either String Expr] =
                         task_outputs                                ! task_fn
 
-                io_feats :: Tnsr '[batchSize, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
+                io_feats :: Tnsr '[n'2, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
                 loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
 
                 -- -- sample for best of 100 predictions
