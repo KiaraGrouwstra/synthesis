@@ -144,7 +144,7 @@ synthesizerConfig = SynthesizerConfig
         <> help "initial learning rate used in ML optimizer" )
     <*> option auto
         ( long "checkWindow"
-        <> value 3
+        <> value 1
         <> showDefault
         <> help "the window of evaluations to check over to verify convergence" )
 
