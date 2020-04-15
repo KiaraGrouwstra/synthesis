@@ -66,6 +66,7 @@ data SynthesizerConfig = SynthesizerConfig
   , dropoutRate :: Double
   , evalFreq :: Int
   , learningRate :: Float
+  , checkWindow :: Int
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig

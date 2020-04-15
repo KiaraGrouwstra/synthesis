@@ -142,6 +142,11 @@ synthesizerConfig = SynthesizerConfig
         <> value 0.001
         <> showDefault
         <> help "initial learning rate used in ML optimizer" )
+    <*> option auto
+        ( long "checkWindow"
+        <> value 3
+        <> showDefault
+        <> help "the window of evaluations to check over to verify convergence" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

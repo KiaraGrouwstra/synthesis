@@ -11,6 +11,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
@@ -23,6 +24,7 @@ import Data.Int (Int64)
 import Data.Maybe (fromJust)
 import Data.List (findIndex)
 import Data.Foldable (toList)
+import Data.Monoid
 import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, lookup)
 import Data.Proxy
@@ -32,17 +34,18 @@ import Control.Monad (void, foldM, (=<<))
 import Language.Haskell.Interpreter (Interpreter)
 import Language.Haskell.Exts.Syntax
 
-import Torch.Typed.Aux (natValI)
-import Torch.Typed.Tensor hiding (dim)
-import Torch.Typed.Functional
-import Torch.Typed.Parameter
+import           Torch.Typed.Aux
+import           Torch.Typed.Tensor hiding (dim)
+import qualified Torch.Typed.Tensor
+import           Torch.Typed.Functional
+import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
-import Torch.Typed.NN
-import Torch.Typed.NN.Recurrent.LSTM
-import Torch.HList
+import           Torch.Typed.NN
+import           Torch.Typed.NN.Recurrent.LSTM
+import           Torch.HList
 import qualified Torch.NN                      as A
-import Torch.Autograd                          as D
-import Torch.TensorFactories                   as D
+import           Torch.Autograd                as D
+import           Torch.TensorFactories         as D
 import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 import qualified Torch.Device                  as D
@@ -215,6 +218,7 @@ batchTensor batch_size tensor = let
     in f <$> [0 .. numIters]
 
 -- | shuffle a tensor in a given dimension
+-- | deprecated, not in use
 shuffle :: forall g . (RandomGen g) => g -> Int -> D.Tensor -> (g, D.Tensor)
 shuffle gen dim tensor = (gen', shuffled)
     where
@@ -262,13 +266,9 @@ softmaxAll :: D.Tensor -> D.Tensor
 softmaxAll t = F.divScalar ((D.asValue $ F.sumAll e) :: Float) e
     where e = F.exp t
 
--- | loop n-times, retaining state
+-- | loop n times, retaining state
 foldLoop :: forall a b m . (Num a, Enum a, Monad m) => b -> a -> (b -> a -> m b) -> m b
 foldLoop x count block = foldM block x ([1 .. count] :: [a])
-
--- | loop n-times, retaining state then discarding it at the end
-foldLoop_ :: forall a b m . (Num a, Enum a, Monad m) => b -> a -> (b -> a -> m b) -> m ()
-foldLoop_ = ((void .) .) . foldLoop
 
 -- | like np.unravel_idx, unravel a flat index (from e.g. argmax_t) to the dimensions of a tensor
 unravelIdx :: D.Tensor -> Int -> [Int]

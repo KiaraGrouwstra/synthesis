@@ -10,6 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PolyKinds #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
@@ -17,7 +18,7 @@ module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 import System.Random (StdGen, mkStdGen)
 import Data.Foldable (foldrM)
 import Data.HashMap.Lazy (HashMap, (!), elems, keys, size)
-import Control.Monad (join, replicateM, forM, forM_, when)
+import Control.Monad (join, replicateM, forM, void)
 import Prelude hiding (abs)
 import           GHC.Exts
 import           GHC.Generics (Generic)
@@ -207,8 +208,9 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let r3nn_spec :: R3NNSpec m symbols rules t batchSize = initR3nn @m @symbols @rules @t @batchSize variants batchSize dropoutRate
     init_model :: NSPS m symbols rules t batchSize <- A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
+    let init_state = (stdGen, init_model, init_optim, False, [])
 
-    foldLoop_ (stdGen, init_model, init_optim) numEpochs $ \ (gen, model_, optim_) epoch -> do
+    void $ foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results) epoch -> if earlyStop then pure state else do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
         -- TRAIN LOOP
@@ -231,11 +233,11 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
         let loss_train :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ train_losses
 
         -- EVAL
-        when (mod epoch evalFreq == 0) $ do
+        (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
             test_stats :: [Tnsr '[]] <- forM test_set $ \task_fn -> do
             -- test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
-                let taskType :: Tp = fnTypes                ! task_fn
+                let taskType :: Tp = fnTypes                        ! task_fn
                 let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
                 let target_io_pairs :: [(Expr, Either String Expr)] =
                         task_io_pairs                               ! task_fn
@@ -298,4 +300,18 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
             D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-        return (gen', model', optim')
+            -- stop if loss has converged!
+            earlyStop :: Bool <- whenOrM False (length eval_results >= 2 * checkWindow) $ do
+                    let threshold :: Float = 0.000001
+                    let losses  :: [Tnsr '[]] = id <$> eval_results
+                    let losses' :: [Tnsr '[]] = take (2 * checkWindow) losses
+                    let (current_losses, prev_losses) = splitAt checkWindow losses'
+                    let current :: D.Tensor = F.mean . stack' 0 $ toDynamic <$> current_losses
+                    let prev    :: D.Tensor = F.mean . stack' 0 $ toDynamic <$>    prev_losses
+                    let earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` threshold
+                    return earlyStop
+
+            let eval_result = loss_test
+            return $ (earlyStop, eval_result : eval_results)
+
+        return (gen', model', optim', earlyStop, eval_results')
