@@ -257,6 +257,12 @@ unTuple = \case
   Tuple _l _boxed exps -> exps
   _ -> error "expected tuple"
 
+-- | unpack a tuple expression, taking into account unary tuples disappear somewhere during serialization...
+unTuple' :: Expr -> [Expr]
+unTuple' = \case
+  Tuple _l _boxed exps -> exps
+  exp -> [exp]
+
 -- | unpack a tuple2 expression
 unTuple2 :: Expr -> (Expr, Expr)
 unTuple2 = unTuple `pipe` \case

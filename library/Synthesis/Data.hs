@@ -67,6 +67,8 @@ data SynthesizerConfig = SynthesizerConfig
   , evalFreq :: Int
   , learningRate :: Float
   , checkWindow :: Int
+  , convergenceThreshold :: Float
+  , synthMaxHoles :: Int
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig

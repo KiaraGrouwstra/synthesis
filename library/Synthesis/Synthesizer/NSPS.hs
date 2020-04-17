@@ -15,14 +15,21 @@
 
 module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 
-import System.Random (StdGen, mkStdGen)
-import Data.Foldable (foldrM)
-import Data.HashMap.Lazy (HashMap, (!), elems, keys, size)
-import Control.Monad (join, replicateM, forM, void)
-import Prelude hiding (abs)
+import           System.Random                 (StdGen, mkStdGen)
+import           System.Timeout                (timeout)
+import           Data.Foldable                 (foldrM)
+import           Data.Maybe                    (fromMaybe)
+import           Data.Set                      (Set, empty, insert)
+import qualified Data.Set
+import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size)
+import           Foreign.Marshal.Utils         (fromBool)
+import           Control.Monad                 (join, replicateM, forM, void)
+import           Language.Haskell.Exts.Syntax  ( Exp (..) )
+import           Prelude                        hiding (abs)
+import           Language.Haskell.Interpreter  ( Interpreter, liftIO, lift )
 import           GHC.Exts
-import           GHC.Generics (Generic)
-import           GHC.TypeNats (KnownNat, Nat, type (*))
+import           GHC.Generics                  (Generic)
+import           GHC.TypeNats                  (KnownNat, Nat, type (*))
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.DType                   as D
 import qualified Torch.Tensor                  as D
@@ -106,19 +113,20 @@ argmaxExpansion hole_expansion_probs = (hole_idx, rule_idx) where
     rule_idx :: Int = D.asValue $ D.select (toDynamic rule_idx_by_hole) 0 hole_idx
 
 -- | fill a non-terminal leaf node in a PPT given hole/rule expansion probabilities
-predictHole :: forall num_holes rules . [(String, Expr)] -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr)
-predictHole variants ppt hole_expansion_probs = do
+predictHole :: forall num_holes rules . [(String, Expr)] -> Expr -> Set String -> Tnsr '[num_holes, rules] -> IO (Expr, Set String)
+predictHole variants ppt used hole_expansion_probs = do
     [hole_idx, rule_idx] :: [Int] <- sampleIdxs . softmaxAll . toDynamic $ hole_expansion_probs
     -- order rules: comes from rule_emb, which is just randomly assigned,
     -- so we can just arbitrarily associate this with any deterministic order e.g. that of `variants`
     let (_rule_str, rule_expr) :: (String, Expr) = variants !! rule_idx
+    let block_name :: String = pp . head . fnAppNodes $ rule_expr
+    let used' :: Set String = insert block_name used
     -- grab hole lenses by `findHolesExpr` and ensure `forwardPass` follows the same order to make these match.
     let (_hole_getter, hole_setter) :: (Expr -> Expr, Expr -> Expr -> Expr) =
             findHolesExpr ppt !! hole_idx
     let ppt' :: Expr = hole_setter ppt rule_expr
     -- putStrLn . show $ (hole_idx, rule_idx, pp ppt')
-    let num_holes = shape' hole_expansion_probs !! 0
-    return (num_holes-1, ppt')
+    return (ppt', used')
 
 -- | fill a random non-terminal leaf node as per `task_fn`
 superviseHole :: HashMap String Expr -> Int -> Expr -> Expr -> IO Expr
@@ -134,7 +142,7 @@ superviseHole variantMap num_holes task_fn ppt = do
     return ppt'
 
 -- | supervise with task program to calculate the loss of the predicted hole/rule expansion probabilities for this PPT
-fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Int, Expr, Tnsr '[num_holes])
+fillHoleTrain :: forall num_holes rules . HashMap String Expr -> HashMap String Int -> Expr -> Expr -> Tnsr '[num_holes, rules] -> IO (Expr, Tnsr '[num_holes])
 fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     let [num_holes, _rules] :: [Int] = shape' hole_expansion_probs
@@ -142,19 +150,19 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     -- iterate over holes to get the loss for each
     let gold_rule_probs :: Tnsr '[num_holes] = UnsafeMkTensor . D.asTensor $ getGold . fst <$> findHolesExpr ppt
             where getGold = \gtr -> (ruleIdxs !) . nodeRule . gtr $ task_fn
-    let holes_left = num_holes - 1
-    return (holes_left, ppt', gold_rule_probs)
+    return (ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat batchSize) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t batchSize -> Tnsr '[batchSize, t * (2 * Dirs * H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> IO (Tnsr '[])
-calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes = do
+calcLoss :: forall m symbols rules batchSize t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat batchSize) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t batchSize -> Tnsr '[batchSize, t * (2 * Dirs * H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tnsr '[])
+calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes synth_max_holes = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
-    (_zero, _program, golds, predictions) :: (Int, Expr, [D.Tensor], [D.Tensor]) <- let
-            fill = \(_num_holes, ppt, golds, predictions) -> do
+    (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
+            fill = \(ppt, golds, predictions, filled) -> do
                     predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt io_feats
-                    (n, p, gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
-                    return (n, p, toDynamic gold : golds, toDynamic predicted : predictions)
-            in while (\(num_holes, _, _, _) -> num_holes > 0) fill (1 :: Int, letIn dsl (skeleton taskType), [], [])
+                    (ppt', gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
+                    -- putStrLn $ "ppt': " <> pp ppt'
+                    return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
+            in while (\(expr, _, _, filled) -> hasHoles expr && filled < synth_max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
     let gold_rule_probs :: D.Tensor = F.cat 0 golds
     let hole_expansion_probs :: D.Tensor = F.cat 0 predictions
     let loss :: Tnsr '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
@@ -223,7 +231,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             io_feats :: Tnsr '[batchSize, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model) target_io_pairs
-            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
+            loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes synthMaxHoles
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -245,46 +253,55 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                         task_outputs                                ! task_fn
 
                 io_feats :: Tnsr '[batchSize, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
-                loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
+                loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes synthMaxHoles
 
                 -- -- sample for best of 100 predictions
                 -- sample_matches :: [Bool] <- replicateM bestOf $ do
                 --     -- TODO: use these ExprTypeSig type annotations
                 --     -- TODO: split io_feats and taskType based on param type instance combo 
-                --     (_zero, program) :: (Int, Expr) <- let
+                --     (program, used, _filled) :: (Expr, Set String, Int) <- let
                 --             --  :: (Int, Expr) -> IO (Int, Expr)
-                --             fill = \(_num_holes, ppt) ->
-                --                     join $ predictHole variants ppt <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
-                --             in while ((> 0) . fst) fill (1 :: Int, letIn dsl (skeleton taskType))     -- hasHoles
-                --     putStrLn $ pp program
+                --             fill = \(ppt, used, filled) -> do
+                --                     (ppt', used') <- join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
+                --                     return (ppt', used', filled + 1)
+                --             in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
+                --     putStrLine $ pp program
+                --     if hasHoles program then pure False else do
+                --         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
+                --         let program' :: Expr = if null defs then program else letIn defs program
 
-                --     prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                --             compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
-                --                     n :: Int = length $ unTuple $ ins !! 0
-                --                 -- crash_on_error=False is slower but lets me check if it compiles
-                --                 in interpretUnsafe $ fnIoPairs True n program $ list ins
-                --         in compileInput `mapM` type_ins
-                --     let prediction_io_pairs :: [(Expr, Either String Expr)] =
-                --             join . elems $ prediction_type_ios
-                --     let prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
-                --     let output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
-                --     let outputs_match :: Bool = and output_matches
-                --     -- TODO: try non-boolean score:
-                --     -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
+                --         putStrLine $ "type_ins: " <> pp_ type_ins
+                --         prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
+                --                 compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
+                --                         n :: Int = length $ unTuple' $ ins !! 0
+                --                         -- crash_on_error=False is slower but lets me check if it compiles
+                --                         -- (fromMaybe []) . liftIO . timeout 10000 . lift . fmap 
+                --                         in interpretUnsafe $ fnIoPairs False n program' $ list ins
+                --                 in compileInput `mapM` type_ins
+                --         putStrLine $ "prediction_type_ios: " <> pp_ prediction_type_ios
+                --         let prediction_io_pairs :: [(Expr, Either String Expr)] =
+                --                 join . elems $ prediction_type_ios
+                --         let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
+                --                 False -> False
+                --                 True -> let
+                --                         prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
+                --                         output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
+                --                         in and output_matches
+                --         -- TODO: try non-boolean score:
+                --         -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
 
-                --     -- for each param type instance combo, check if the program compiles (and get outputs...)
-                --     let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
-                --     let num_in_type_instances :: Int = size type_compiles
-                --     let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
-                --     let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
-                --     let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
-                --     let ratio_errors :: Float = 1 - ratio_compiles
-                --     -- TODO: actually use compilation feedback in score
-
-                --     return outputs_match
+                --         -- -- for each param type instance combo, check if the program compiles (and get outputs...)
+                --         -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
+                --         -- let num_in_type_instances :: Int = size type_compiles
+                --         -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
+                --         -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
+                --         -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
+                --         -- let ratio_errors :: Float = 1 - ratio_compiles
+                --         -- -- TODO: actually use compilation feedback in score
+                --         return outputs_match
 
                 -- let best_works :: Bool = or sample_matches
-                -- let score :: Float = max sample_matches
+                -- let score :: Tnsr '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
                 -- return (not best_works, loss)
                 return loss
 
@@ -301,15 +318,14 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
             D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
             -- stop if loss has converged!
-            earlyStop :: Bool <- whenOrM False (length eval_results >= 2 * checkWindow) $ do
-                    let threshold :: Float = 0.000001
-                    let losses  :: [Tnsr '[]] = id <$> eval_results
-                    let losses' :: [Tnsr '[]] = take (2 * checkWindow) losses
-                    let (current_losses, prev_losses) = splitAt checkWindow losses'
-                    let current :: D.Tensor = F.mean . stack' 0 $ toDynamic <$> current_losses
-                    let prev    :: D.Tensor = F.mean . stack' 0 $ toDynamic <$>    prev_losses
-                    let earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` threshold
-                    return earlyStop
+            let earlyStop :: Bool = whenOr False (length eval_results >= 2 * checkWindow) $ let
+                    losses  :: [Tnsr '[]] = id <$> eval_results
+                    losses' :: [Tnsr '[]] = take (2 * checkWindow) losses
+                    (current_losses, prev_losses) = splitAt checkWindow losses'
+                    current :: D.Tensor = F.mean . stack' 0 $ toDynamic <$> current_losses
+                    prev    :: D.Tensor = F.mean . stack' 0 $ toDynamic <$>    prev_losses
+                    earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
+                    in earlyStop
 
             let eval_result = loss_test
             return $ (earlyStop, eval_result : eval_results)

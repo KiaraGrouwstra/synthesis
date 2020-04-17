@@ -147,6 +147,16 @@ synthesizerConfig = SynthesizerConfig
         <> value 1
         <> showDefault
         <> help "the window of evaluations to check over to verify convergence" )
+    <*> option auto
+        ( long "convergenceThreshold"
+        <> value 0.000001
+        <> showDefault
+        <> help "the minimum loss increment we consider as indicating convergence" )
+    <*> option auto
+        ( long "synthMaxHoles"
+        <> value 1
+        <> showDefault
+        <> help "the maximum number of holes to allow in a synthesized expression" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

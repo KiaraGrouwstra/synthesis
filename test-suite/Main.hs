@@ -14,12 +14,14 @@ import           Test.Tasty.HUnit             ((@?=))
 import           Prelude                      hiding (abs, all)
 import           Control.Exception            (SomeException, try, evaluate)
 import           Data.Int                     (Int64)
+import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
-import           Language.Haskell.Interpreter (as, interpret, liftIO)
+import           System.Timeout               (timeout)
+import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks, typeChecksWithDetails)
 import           Util                         (fstOf3)
 
 import           GHC.TypeNats
@@ -144,14 +146,18 @@ hint = let
 
     , TestLabel "fnIoPairs" $ TestCase $ do
         GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
-        x <- interpretUnsafe (fnIoPairs crashOnError 1 (var "not") $ parseExpr "[True, False]")
+        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "not") $ parseExpr "[True, False]"
         pp_ x @?= pp_ ([(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))] :: [(Expr, Either String Expr)])
-        q <- interpretUnsafe (fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]")
+        q <- interpretUnsafe $ fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]"
         pp_ q @?= pp_ ([(parseExpr "(1, 2)", Right (parseExpr "3")), (parseExpr "(3, 4)", Right (parseExpr "7"))] :: [(Expr, Either String Expr)])
+        errored <- fmap isNothing . timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") $ list []
+        errored `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
-        x <- interpretUnsafe (exprType $ parseExpr "True")
+        x <- interpretUnsafe $ exprType $ parseExpr "True"
         pp x `shouldBe` "Bool"
+        errored <- fmap isNothing . timeout 10000 . interpretUnsafe . exprType $ parseExpr "div (const const) div"
+        errored `shouldBe` True
 
     ]
 
@@ -532,7 +538,7 @@ synthesizer = let
         r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model symbolIdxs ppt io_feats
-        (_zero, ppt') <- predictHole variants ppt hole_expansion_probs
+        (ppt', _used') <- predictHole variants ppt (Data.Set.singleton "not") hole_expansion_probs
         pp ppt' `shouldNotBe` pp ppt
 
     , TestLabel "superviseHole" $ TestCase $ do
@@ -557,7 +563,7 @@ synthesizer = let
         r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @BatchSize r3nn_model symbolIdxs ppt io_feats
-        (_zero, task_fn', gold) :: (Int, Expr, Tnsr '[NumHoles']) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
+        (task_fn', gold) :: (Expr, Tnsr '[NumHoles']) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
         pp task_fn' `shouldBe` pp task_fn
         D.shape (toDynamic gold) `shouldBe` [numHoles]
 
@@ -566,7 +572,7 @@ synthesizer = let
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let variantMap :: HashMap String Expr = fromList variants
-        let task_fn :: Expr = letIn dsl $ parseExpr "not (not true)"
+        let task_fn :: Expr = letIn (pickKeysSafe ["true"] dsl) $ parseExpr "not (not true)"
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
@@ -575,13 +581,15 @@ synthesizer = let
         model :: NSPS M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
         io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder (encoder model) io_pairs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
-        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes
+        let synth_max_holes = 3
+
+        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
         let model' :: NSPS M Symbols' Rules' MaxStringLength' BatchSize = A.replaceParameters model newParam
-        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes
+        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toBool (lt loss' loss) `shouldBe` True
 
     ]

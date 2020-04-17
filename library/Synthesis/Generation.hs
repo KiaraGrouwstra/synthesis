@@ -71,9 +71,8 @@ fillHole block_asts used_blocks expr_blocks expr = do
     hole_lenses = findHolesExpr expr
     hole_lens = head hole_lenses
     hole_setter :: Expr -> Expr -> Expr = snd hole_lens
-    buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \pair ->
-      let (block_name, inserted) = pair
-          used :: Set String = insert block_name used_blocks
+    buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \(block_name, inserted) ->
+      let used :: Set String = insert block_name used_blocks
           defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) block_asts
           lets :: Expr = if null defs then inserted else letIn defs inserted
        in (inserted, used, lets)
