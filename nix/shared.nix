@@ -8,6 +8,8 @@ let
   };
 
   hasktorchOverlay = (import (haskTorchSrc + "/nix/shared.nix") { compiler = "ghc865"; }).overlayShared;
+  # hintOverlay = (import ./hint.nix { compiler = "ghc865"; }).overlayShared;
+  hintOverlay = (import ./hint.nix).overlayShared;
 
   synthesisOverlay = pkgsNew: pkgsOld: {
     haskell = pkgsOld.haskell // {
@@ -57,6 +59,7 @@ let
       allowUnfree = true;
       allowBroken = false;
     };
+    # hintOverlay 
     overlays = [ hasktorchOverlay synthesisOverlay ];
   };
 
