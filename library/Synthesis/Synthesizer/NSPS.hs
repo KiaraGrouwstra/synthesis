@@ -243,8 +243,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            test_stats :: [Tnsr '[]] <- forM test_set $ \task_fn -> do
-            -- test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
+        --     test_stats :: [Tnsr '[]] <- forM test_set $ \task_fn -> do
+            test_stats :: [(Bool, Tnsr '[])] <- forM test_set $ \task_fn -> do
                 let taskType :: Tp = fnTypes                        ! task_fn
                 let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
                 let target_io_pairs :: [(Expr, Either String Expr)] =
@@ -255,59 +255,59 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                 io_feats :: Tnsr '[batchSize, t * (2 * Dirs * H)] <- lstmEncoder @batchSize @t (encoder model') target_io_pairs
                 loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes synthMaxHoles
 
-                -- -- sample for best of 100 predictions
-                -- sample_matches :: [Bool] <- replicateM bestOf $ do
-                --     -- TODO: use these ExprTypeSig type annotations
-                --     -- TODO: split io_feats and taskType based on param type instance combo 
-                --     (program, used, _filled) :: (Expr, Set String, Int) <- let
-                --             --  :: (Int, Expr) -> IO (Int, Expr)
-                --             fill = \(ppt, used, filled) -> do
-                --                     (ppt', used') <- join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
-                --                     return (ppt', used', filled + 1)
-                --             in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
-                --     putStrLine $ pp program
-                --     if hasHoles program then pure False else do
-                --         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
-                --         let program' :: Expr = if null defs then program else letIn defs program
+                -- sample for best of 100 predictions
+                sample_matches :: [Bool] <- replicateM bestOf $ do
+                    -- TODO: use these ExprTypeSig type annotations
+                    -- TODO: split io_feats and taskType based on param type instance combo 
+                    (program, used, _filled) :: (Expr, Set String, Int) <- let
+                            --  :: (Int, Expr) -> IO (Int, Expr)
+                            fill = \(ppt, used, filled) -> do
+                                    (ppt', used') <- join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
+                                    return (ppt', used', filled + 1)
+                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
+                    putStrLn $ pp program
+                    if hasHoles program then pure False else do
+                        let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
+                        let program' :: Expr = if null defs then program else letIn defs program
 
-                --         putStrLine $ "type_ins: " <> pp_ type_ins
-                --         prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                --                 compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
-                --                         n :: Int = length $ unTuple' $ ins !! 0
-                --                         -- crash_on_error=False is slower but lets me check if it compiles
-                --                         -- (fromMaybe []) . liftIO . timeout 10000 . lift . fmap 
-                --                         in interpretUnsafe $ fnIoPairs False n program' $ list ins
-                --                 in compileInput `mapM` type_ins
-                --         putStrLine $ "prediction_type_ios: " <> pp_ prediction_type_ios
-                --         let prediction_io_pairs :: [(Expr, Either String Expr)] =
-                --                 join . elems $ prediction_type_ios
-                --         let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
-                --                 False -> False
-                --                 True -> let
-                --                         prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
-                --                         output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
-                --                         in and output_matches
-                --         -- TODO: try non-boolean score:
-                --         -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
+                        putStrLn $ "type_ins: " <> pp_ type_ins
+                        prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
+                                compileInput :: [Expr] -> IO [(Expr, Either String Expr)] = \ins -> let
+                                        n :: Int = length $ unTuple' $ ins !! 0
+                                        -- crash_on_error=False is slower but lets me check if it compiles
+                                        -- (fromMaybe []) . liftIO . timeout 10000 . lift . fmap 
+                                        in fmap (fromMaybe []) . timeout 10000 . interpretUnsafe $ fnIoPairs False n program' $ list ins
+                                in compileInput `mapM` type_ins
+                        putStrLn $ "prediction_type_ios: " <> pp_ prediction_type_ios
+                        let prediction_io_pairs :: [(Expr, Either String Expr)] =
+                                join . elems $ prediction_type_ios
+                        let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
+                                False -> False
+                                True -> let
+                                        prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
+                                        output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
+                                        in and output_matches
+                        -- TODO: try non-boolean score:
+                        -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
 
-                --         -- -- for each param type instance combo, check if the program compiles (and get outputs...)
-                --         -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
-                --         -- let num_in_type_instances :: Int = size type_compiles
-                --         -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
-                --         -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
-                --         -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
-                --         -- let ratio_errors :: Float = 1 - ratio_compiles
-                --         -- -- TODO: actually use compilation feedback in score
-                --         return outputs_match
+                        -- -- for each param type instance combo, check if the program compiles (and get outputs...)
+                        -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
+                        -- let num_in_type_instances :: Int = size type_compiles
+                        -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
+                        -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
+                        -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
+                        -- let ratio_errors :: Float = 1 - ratio_compiles
+                        -- -- TODO: actually use compilation feedback in score
+                        return outputs_match
 
-                -- let best_works :: Bool = or sample_matches
-                -- let score :: Tnsr '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
-                -- return (not best_works, loss)
-                return loss
+                let best_works :: Bool = or sample_matches
+                let score :: Tnsr '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
+                return (not best_works, loss)
+                -- return loss
 
-            -- let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
-            -- let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
-            let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic <$> test_stats
+            let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
+            let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
+        --     let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic <$> test_stats
 
             putStrLn
                 $  "Epoch: "                <> show epoch
