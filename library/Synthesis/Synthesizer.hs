@@ -35,4 +35,4 @@ program = do
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
     liftIO $ manual_seed_L $ fromIntegral seed
-    liftIO $ train @M @BatchSize @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test cfg taskFnDataset
+    train @M @BatchSize @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test cfg taskFnDataset
