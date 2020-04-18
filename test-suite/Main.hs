@@ -466,6 +466,14 @@ synth_util = parallel $ do
         let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
+    xit "gpu" $ do
+        putStrLn $ "availableDevices: " <> show availableDevices
+        dev <- getDevice
+        putStrLn $ "dev: " <> show dev
+        let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
+        putStrLn $ "t: " <> show t
+        False `shouldBe` True
+
 type NumHoles' = 1
 type RhsSymbols' = 3
 type Rules' = 4
