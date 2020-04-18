@@ -17,6 +17,7 @@ import           Data.Int                     (Int64)
 import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
+import           Data.Bifunctor               (second)
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
@@ -71,7 +72,8 @@ main = do
     find_ <- testSpec "FindHoles" find
     ast_ <- testSpec "Ast" ast
     synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_]
+    nsps_ <- testSpec "NSPS" nsps
+    let tree :: TestTree = testGroup "synthesis" [util_, synth_util_, nsps_]
     defaultMain tree
 
 util ∷ Spec
@@ -466,13 +468,13 @@ synth_util = parallel $ do
         let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
-    xit "gpu" $ do
-        putStrLn $ "availableDevices: " <> show availableDevices
-        dev <- getDevice
-        putStrLn $ "dev: " <> show dev
-        let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
-        putStrLn $ "t: " <> show t
-        False `shouldBe` True
+    -- it "gpu" $ do
+    --     putStrLn $ "availableDevices: " <> show availableDevices
+    --     dev <- getDevice
+    --     putStrLn $ "dev: " <> show dev
+    --     let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
+    --     putStrLn $ "t: " <> show t
+    --     False `shouldBe` True
 
 type NumHoles' = 1
 type RhsSymbols' = 3
@@ -480,23 +482,24 @@ type Rules' = 4
 type MaxStringLength' = 20
 type Symbols' = LhsSymbols + RhsSymbols'
 
-synthesizer ∷ Test
-synthesizer = let
-        numHoles     :: Int = natValI @NumHoles'
-        rules        :: Int = natValI @Rules'
-        t            :: Int = natValI @MaxStringLength'
-        symbols      :: Int = natValI @Symbols'
+numHoles     :: Int = natValI @NumHoles'
+rules        :: Int = natValI @Rules'
+t            :: Int = natValI @MaxStringLength'
+symbols      :: Int = natValI @Symbols'
 
+nsps ∷ Spec
+nsps = parallel $ let
         dropOut :: Double = 0.0
         dsl = fmap parseExpr
                 $ insert "nil" "[]"
                 $ insert "not" "not"
                 $ singleton "true" "True"
+        -- expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        expr_blocks :: [(String, Expr)] = second parseExpr <$> [("nil", "nil"), ("true", "true"), ("not", "not"), ("not", "not (undefined :: Bool)")]
         lr = D.asTensor (0.01 :: Float)
-    in TestList
+    in do
 
-    -- technically the encoder test doesn't use Hint so can use Tasty...
-    [ TestLabel "LstmEncoder" $ TestCase $ do
+    it "LstmEncoder" $ do
         -- io_pairs for task fn `trues :: Int -> [Bool]`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
@@ -514,8 +517,7 @@ synthesizer = let
         putStrLn $ "LstmEncoder.loss': " <> show loss'
         toBool (lt loss' loss) `shouldBe` True
 
-    , TestLabel "R3NN" $ TestCase $ do
-        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+    it "R3NN" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
@@ -535,8 +537,7 @@ synthesizer = let
         let loss' :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model' $ sumAll hole_expansion_probs'
         toBool (lt loss' loss) `shouldBe` True
 
-    , TestLabel "predictHole" $ TestCase $ do
-        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+    it "predictHole" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         -- io_pairs for task fn `trues :: Int -> [Bool]`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
@@ -549,8 +550,7 @@ synthesizer = let
         (ppt', _used') <- predictHole variants ppt (Data.Set.singleton "not") hole_expansion_probs
         pp ppt' `shouldNotBe` pp ppt
 
-    , TestLabel "superviseHole" $ TestCase $ do
-        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+    it "superviseHole" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variantMap :: HashMap String Expr = fromList variants
         let task_fn :: Expr = parseExpr "not (not (true))"
@@ -558,8 +558,7 @@ synthesizer = let
         ppt' :: Expr <- superviseHole variantMap numHoles task_fn ppt
         pp ppt' `shouldBe` pp task_fn
 
-    , TestLabel "fillHoleTrain" $ TestCase $ do
-        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+    it "fillHoleTrain" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variantMap :: HashMap String Expr = fromList variants
         let task_fn :: Expr = parseExpr "not (not (true))"
@@ -575,8 +574,19 @@ synthesizer = let
         pp task_fn' `shouldBe` pp task_fn
         D.shape (toDynamic gold) `shouldBe` [numHoles]
 
-    , TestLabel "calcLoss" $ TestCase $ do
-        expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+synthesizer ∷ Test
+synthesizer = let
+        dropOut :: Double = 0.0
+        dsl = fmap parseExpr
+                $ insert "nil" "[]"
+                $ insert "not" "not"
+                $ singleton "true" "True"
+        -- expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        expr_blocks :: [(String, Expr)] = second parseExpr <$> [("nil", "nil"), ("true", "true"), ("not", "not"), ("not", "not (undefined :: Bool)")]
+        lr = D.asTensor (0.01 :: Float)
+    in TestList
+
+    [ TestLabel "calcLoss" $ TestCase $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let variantMap :: HashMap String Expr = fromList variants
