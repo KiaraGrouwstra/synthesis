@@ -73,7 +73,7 @@ main = do
     ast_ <- testSpec "Ast" ast
     synth_util_ <- testSpec "Synthesizer: Utility" synth_util
     nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, synth_util_, nsps_]
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
     defaultMain tree
 
 util ∷ Spec
