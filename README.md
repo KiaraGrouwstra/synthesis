@@ -23,7 +23,8 @@ nix-env -iA cachix -f https://cachix.org/api/v1/install
 # enter dev shell
 cachix use tycho01
 nix-build | cachix push tycho01
-nix-shell
+nix-shell # cpu
+nix-shell --arg cudaVersion 10 # gpu
 hpack --force
 
 # basic commands
@@ -59,3 +60,4 @@ questions for NSPS authors:
 - why not concatenate i/o features directly to symbol features?
 - tanh activation: XCorrIO too, so for any LSTMs too?
 - how does batching work in the R3NN?
+- given the complexity limit of 13 ops on generation, did NSPS also limit complexity during synthesis?
