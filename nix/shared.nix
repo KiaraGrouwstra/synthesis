@@ -3,7 +3,7 @@
 let
   haskTorchSrc = builtins.fetchGit {
     url = https://github.com/hasktorch/hasktorch;
-    rev = "86aa86799a2f6927b5278b3b88ca94c9ec31da0d";
+    rev = "720700ce79dc65670454a754194d114f9df6df7c";
     ref = "master";
   };
 
