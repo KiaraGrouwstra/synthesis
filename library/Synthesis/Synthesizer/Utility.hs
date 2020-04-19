@@ -272,7 +272,7 @@ assertEqBy fn gold x = let x' = fn x in case x' == gold of
     False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " ):\n" <> prettyCallStack ?loc
 
 -- | assert an equality check -- yields a nicer stack trace than assertP
-assertEq :: (?loc :: CallStack, Show a, Eq a) => a -> a -> a
+assertEq :: (Show a, Eq a) => a -> a -> a
 assertEq = assertEqBy id
 
 -- | apply a softmax over all dimensions

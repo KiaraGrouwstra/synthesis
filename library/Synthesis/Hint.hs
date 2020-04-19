@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 
 -- | utility functions related to the Haskell Interpreter `hint`
 module Synthesis.Hint (module Synthesis.Hint) where
@@ -8,6 +9,7 @@ import Data.Either (fromRight)
 import Data.Functor ((<&>))
 import Data.Bifunctor (second)
 import Data.List (intercalate)
+import GHC.Stack
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Interpreter
 import Synthesis.Ast
@@ -24,10 +26,10 @@ imports =
   ]
 
 -- | test an interpreter monad, printing errors, returning values
-interpretUnsafe :: Interpreter a -> IO a
+interpretUnsafe :: (?loc :: CallStack, Show a) => Interpreter a -> IO a
 interpretUnsafe fn = join $
   interpretSafe fn <&> \case
-    Left err_ -> error $ errorString err_
+    Left err_ -> error $ "interpretUnsafe failed: " <> errorString err_ <> "\n" <> prettyCallStack ?loc
     Right x -> return x
 
 -- | run an interpreter monad with imports
@@ -96,6 +98,7 @@ showError :: GhcError -> String
 showError (GhcError e) = e
 
 -- | interpret a stringified IO command, either performing an additional typecheck (slower), or just crashing on error for a bogus Either
+-- TODO: can I generalize Right from String to `a` and not have GHC complain?
 interpretIO :: Bool -> String -> Interpreter (Either String String)
 interpretIO crash_on_error cmd =
   if crash_on_error then do
