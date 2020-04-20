@@ -47,10 +47,9 @@ logger = "my_logger"
 say :: String -> Interpreter ()
 say = warning
 
--- -- | log: debug
--- -- | deprecated, not in use
--- debug :: String -> Interpreter ()
--- debug = liftIO . debugM logger
+-- | log: debug
+debug :: String -> Interpreter ()
+debug = liftIO . debugM logger
 
 -- -- | log: info
 -- -- | deprecated, not in use
@@ -106,14 +105,18 @@ interpretIO crash_on_error cmd =
     Right <$> lift io
   else do
     res <- typeChecksWithDetails cmd
-    sequence
-      . bimap
-        (show . fmap showError)
-        ( \_s -> do
-            io <- interpret cmd (as :: IO String)
-            lift io
-        )
-      $ res
+    either <- sequence . bimap
+                  (show . fmap showError)
+                  ( \_s -> do
+                    io <- interpret cmd (as :: IO String)
+                    lift io
+                  )
+                $ res
+    case either of
+        Left str -> do
+            debug str
+        _ -> pure ()
+    return either
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
 -- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
