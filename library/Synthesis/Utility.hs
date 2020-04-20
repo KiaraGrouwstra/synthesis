@@ -136,3 +136,7 @@ nest n f x0 = foldM (\x () -> f x) x0 (replicate n ())
 -- | flipped composition
 pipe :: (a -> b) -> (b -> c) -> a -> c
 pipe = flip (.)
+
+-- | see https://hackage.haskell.org/package/yjtools/docs/Control-Applicative-Tools.html
+(<.>) :: Functor f => (a -> b) -> (c -> f a) -> c -> f b
+(<.>) a b = fmap a . b
