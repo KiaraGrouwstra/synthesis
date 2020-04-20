@@ -226,8 +226,9 @@ lit :: Literal L -> Expr
 lit = Lit l
 
 -- | Int expression
-int :: Integer -> Expr
-int i = lit $ Int l i $ show i
+int :: (Integral a) => a -> Expr
+int i = lit $ Int l i' $ show i'
+    where i' = fromIntegral i
 
 -- | String expression
 string :: String -> Expr
@@ -268,6 +269,16 @@ unTuple2 :: Expr -> (Expr, Expr)
 unTuple2 = unTuple `pipe` \case
   [a,b] -> (a,b)
   _ -> error "expected tuple2"
+
+-- | unpack a maybe expression
+unMaybe :: Expr -> Maybe Expr
+unMaybe = \case
+  Con _l qname -> case unQName qname of
+    "Nothing" -> Nothing
+  App _l a b -> case a of
+    Con _l qname -> case unQName qname of
+      "Just" -> Just b
+  _ -> error "expected Maybe"
 
 -- | unpack an either wrapping function results
 unEitherError :: Expr -> Either String Expr
