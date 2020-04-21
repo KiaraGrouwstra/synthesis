@@ -17,13 +17,14 @@ import           Data.Int                     (Int64)
 import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
-import           Data.Bifunctor               (second)
+import           Data.Bifunctor               (first, second)
 import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
 import qualified Data.Set
 import           System.Random                (StdGen, mkStdGen)
 import           System.Timeout               (timeout)
 import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks, typeChecksWithDetails)
 import           Util                         (fstOf3)
+import           Language.Haskell.Interpreter
 
 import           GHC.TypeNats
 import           Torch.Typed.Functional

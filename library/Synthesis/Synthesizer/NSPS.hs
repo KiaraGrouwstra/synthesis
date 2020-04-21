@@ -23,7 +23,7 @@ import           Data.Set                      (Set, empty, insert)
 import qualified Data.Set
 import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size)
 import           Foreign.Marshal.Utils         (fromBool)
-import           Control.Monad                 (join, replicateM, forM, void)
+import           Control.Monad                 (join, replicateM, forM, void, when)
 import           Language.Haskell.Exts.Syntax  ( Exp (..) )
 import           Prelude                        hiding (abs)
 import           Language.Haskell.Interpreter  ( Interpreter, liftIO, lift )
@@ -264,12 +264,12 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                                     (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt io_feats
                                     return (ppt', used', filled + 1)
                             in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
-                    say $ pp program
+                    -- say $ pp program
                     if hasHoles program then pure False else do
                         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
                         let program' :: Expr = if null defs then program else letIn defs program
 
-                        say $ "type_ins: " <> pp_ type_ins
+                        -- say $ "type_ins: " <> pp_ type_ins
                         prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
                                 compileInput :: [Expr] -> Interpreter [(Expr, Either String Expr)] = \ins -> let
                                         n :: Int = length $ unTuple' $ ins !! 0
@@ -277,7 +277,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                                         -- (fromMaybe []) . liftIO . timeout 10000 . lift . fmap 
                                         in fnIoPairs False n program' $ list ins
                                 in compileInput `mapM` type_ins
-                        say $ "prediction_type_ios: " <> pp_ prediction_type_ios
+                        -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
                         let prediction_io_pairs :: [(Expr, Either String Expr)] =
                                 join . elems $ prediction_type_ios
                         let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
@@ -316,7 +316,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-            -- stop if loss has converged!
             let earlyStop :: Bool = whenOr False (length eval_results >= 2 * checkWindow) $ let
                     losses  :: [Tnsr '[]] = id <$> eval_results
                     losses' :: [Tnsr '[]] = take (2 * checkWindow) losses
@@ -325,6 +324,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                     prev    :: D.Tensor = F.mean . stack' 0 $ toDynamic <$>    prev_losses
                     earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
                     in earlyStop
+            when earlyStop $ say "loss has converged, stopping early!"
 
             let eval_result = loss_test
             return $ (earlyStop, eval_result : eval_results)
