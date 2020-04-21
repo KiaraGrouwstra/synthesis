@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.Synthesizer.Synthesizer (module Spec.Synthesizer.Synthesizer) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,42 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+import           Spec.Synthesizer.Types
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+synthesizer ∷ Test
+synthesizer = let
+        dropOut :: Double = 0.0
+        dsl = fmap parseExpr
+                $ insert "nil" "[]"
+                $ insert "not" "not"
+                $ singleton "true" "True"
+        -- expr_blocks :: [(String, Expr)] <- interpretUnsafe $ dslVariants dsl
+        expr_blocks :: [(String, Expr)] = second parseExpr <$> [("nil", "nil"), ("true", "true"), ("not", "not"), ("not", "not (undefined :: Bool)")]
+        lr = D.asTensor (0.01 :: Float)
+    in TestList
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    [ TestLabel "calcLoss" $ TestCase $ do
+        let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+        let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
+        let variantMap :: HashMap String Expr = fromList variants
+        let task_fn :: Expr = letIn (pickKeysSafe ["true"] dsl) $ parseExpr "not (not true)"
+        taskType :: Tp <- interpretUnsafe $ exprType task_fn
+        let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
+        let encoder_spec :: LstmEncoderSpec = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' BatchSize = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
+        model :: NSPS M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
+        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder (encoder model) io_pairs
+        let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
+        let synth_max_holes = 3
+
+        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        toFloat loss > 0.0 `shouldBe` True
+
+        let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
+        (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
+        let model' :: NSPS M Symbols' Rules' MaxStringLength' BatchSize = A.replaceParameters model newParam
+        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        toBool (lt loss' loss) `shouldBe` True
+
+    ]

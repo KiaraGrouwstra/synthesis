@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.Synthesizer.Utility (module Spec.Synthesizer.Utility) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,52 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+synth_util ∷ Spec
+synth_util = parallel $ do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "unravelIdx" $ do
+        unravelIdx (D.asTensor [ [0.3, 0.2], [0.4, 0.1 :: Float] ]) 2 `shouldBe` [1, 0]
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "cumulative" $ do
+        cumulative [1,2,3] `shouldBe` [1,3,6 :: Int]
+
+    it "nodeRule" $ do
+        nodeRule (parseExpr "f") `shouldBe` "f"
+        nodeRule (parseExpr "f a b") `shouldBe` "f _ _"
+        nodeRule (parseExpr "f (g c) (h d)") `shouldBe` "f _ _"
+
+    it "fnAppNodes" $ do
+        pp_ (fnAppNodes $ parseExpr "f a b") `shouldBe` "[\"f\", \"a\", \"b\"]"
+        pp_ (fnAppNodes $ parseExpr "f") `shouldBe` "[\"f\"]"
+
+    it "rotate" $ do
+        rotate [10,20] `shouldBe` [[10,20,0],[0,10,20],[20,0,10]]
+
+    -- it "rotateT" $ do
+    --     let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
+    --     rotateT r `shouldBe` ?
+
+    it "categorical" $ do
+        t :: Tnsr '[2, 3] <- abs <$> randn
+        x <- Distribution.sample (Categorical.fromProbs $ toDynamic t) [1]
+        D.shape x `shouldBe` [1,2]
+
+    it "sampleIdxs" $ do
+        let t = D.asTensor [[0.0, 0.0], [1.0, 0.0 :: Float]]
+        idxs <- sampleIdxs t
+        D.asValue (foldl (\ t' idx -> D.select t' 0 idx) t idxs) `shouldBe` (1.0 :: Float)
+
+    it "crossEntropy" $ do
+        let rule_dim = 1
+        let gold_rule_probs = D.asTensor [ 2 :: Int64 ]
+        let hole_expansion_probs = D.asTensor [[0.2606, -7.2186e-2, 0.4544 :: Float]]
+        let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+        toFloat loss > 0.0 `shouldBe` True
+
+    -- it "gpu" $ do
+    --     putStrLn $ "availableDevices: " <> show availableDevices
+    --     dev <- getDevice
+    --     putStrLn $ "dev: " <> show dev
+    --     let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
+    --     putStrLn $ "t: " <> show t
+    --     False `shouldBe` True

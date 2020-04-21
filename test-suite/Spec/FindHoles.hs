@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.FindHoles (module Spec.FindHoles) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,25 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+find ∷ Spec
+find = do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "findHolesExpr" $ do
+        let expr = parseExpr "(undefined :: Int -> Bool)"
+        let hole_lenses = findHolesExpr expr
+        let hole_lens = head hole_lenses
+        let hole_getter = fst hole_lens
+        let hole_setter = snd hole_lens
+        let hole :: Expr = hole_getter expr
+        pp hole `shouldBe` "undefined :: Int -> Bool"
+        let xpr = hole_setter expr holeExpr
+        pp xpr `shouldBe` "(undefined)"
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "findHolesExpr: transfer lenses" $ do
+        let xpr  = parseExpr "(undefined :: a) (bar (undefined :: b))"
+        let xpr' = parseExpr "foo (baz boo)"
+        let getters = fst <$> findHolesExpr xpr
+        length getters `shouldBe` 2
+        let [gtr1, gtr2] = getters
+        pp (gtr1 xpr') `shouldBe` "foo"
+        pp (gtr2 xpr') `shouldBe` "boo"

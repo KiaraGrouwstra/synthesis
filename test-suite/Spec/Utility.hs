@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.Utility (module Spec.Utility) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,49 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+util ∷ Spec
+util = parallel $ do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "mapTuple" $
+        mapTuple show (1 :: Int, 2) `shouldBe` ("1", "2")
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "mapTuple3" $
+        mapTuple3 show (1 :: Int, 2, 3) `shouldBe` ("1", "2", "3")
+
+    it "tuplify3" $
+        tuplify3 [1 :: Int, 2, 3] `shouldBe` (1 :: Int, 2, 3)
+
+    it "untuple3" $
+        untuple3 (1 :: Int, 2, 3) `shouldBe` [1 :: Int, 2, 3]
+
+    it "flatten" $
+        flatten (Many [One [1], One [2]]) `shouldBe` [1 :: Int, 2]
+
+    it "pick" $ do
+        x <- pick [1 :: Int, 2, 3]
+        x < 5 `shouldBe` True
+
+    it "groupByVal" $
+        groupByVal [(1 :: Int, "odd"), (2, "even"), (3, "odd")] `shouldBe` (insert "odd" [1, 3] (singleton "even" [2]) :: HashMap String [Int])
+
+    it "fromKeys" $
+        fromKeys show [1 :: Int, 2] `shouldBe` insert 1 "1" (singleton 2 "2")
+
+    it "fromKeysM" $ do
+        x <- fromKeysM (pure . show) [1 :: Int, 2]
+        x `shouldBe` insert 1 "1" (singleton 2 "2")
+
+    it "fromValsM" $ do
+        x <- fromValsM (pure . show) [1 :: Int, 2]
+        x `shouldBe` insert "1" 1 (singleton "2" 2)
+
+    it "pickKeys" $ do
+        let b = singleton "b" "B"
+        pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
+
+    it "randomSplit" $ do
+        GenerationConfig {..} :: GenerationConfig <- liftIO parseGenerationConfig
+        let stdGen :: StdGen = mkStdGen seed
+        let (nums_train, _nums_validation, _nums_test) =
+                randomSplit stdGen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
+        length nums_train `shouldBe` 5

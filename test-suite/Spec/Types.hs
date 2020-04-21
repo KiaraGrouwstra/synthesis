@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.Types (module Spec.Types) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,57 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+types ∷ Spec
+types = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+    in do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "var" $
+        pp (var "foo") @?= "foo"
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "tyVar" $
+        pp (tyVar "a") `shouldBe` "a"
+
+    it "tyCon" $
+        pp (tyCon "Int") `shouldBe` "Int"
+
+    it "tyApp" $
+        pp (tyApp (tyCon "[]") $ tyCon "Int") `shouldBe` "[] Int"
+
+    it "expTypeSig" $
+        pp (expTypeSig holeExpr $ tyCon "Int") `shouldBe` "undefined :: Int"
+
+    it "fnTypeIO" $ do
+        let a = tyVar "a"
+        let b = tyVar "b"
+        fnTypeIO (tyFun a b) `shouldBe` ([a], b)
+
+    it "parseExpr" $
+        pp (parseExpr "a") `shouldBe` "a"
+
+    it "parseType" $ do
+        pp (parseType "a") `shouldBe` "a"
+        let s = "(Eq (a -> Bool)) => a"
+        either_ :: Either SomeException Tp <- try $ evaluate $ parseType s
+        isRight either_ `shouldBe` False
+
+    it "isFn" $ do
+        isFn bl `shouldBe` False
+        isFn (tyVar "a") `shouldBe` False
+        isFn (tyFun bl int_) `shouldBe` True
+    
+    it "typeSane" $ do
+        typeSane bl `shouldBe` True
+        typeSane (tyList bl) `shouldBe` True
+        typeSane (tyFun bl bl) `shouldBe` True
+        typeSane (tyFun (tyFun bl bl) (tyFun bl bl)) `shouldBe` True
+        typeSane (tyList (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyList (tyFun bl bl)) (tyFun bl bl)) `shouldBe` False
+        typeSane (tyFun (tyFun bl bl) (tyList (tyFun bl bl))) `shouldBe` False
+        typeSane (tyParen (tyFun bl bl)) `shouldBe` True
+        let a = tyVar "a"
+        -- (Eq (a -> Bool)) => a
+        typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
+        -- I guess this means I'd judge HaskTorch's Typed functions as insane, but
+        -- for the purpose of program synthesis, for the moment let's say they are.

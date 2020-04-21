@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.Ast (module Spec.Ast) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,42 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+ast ∷ Spec
+ast = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+    in do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "skeleton" $ do
+        pp (skeleton bl) `shouldBe` "undefined :: Bool"
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "numAstNodes" $
+        numAstNodes holeExpr `shouldBe` 3
+
+    it "hasHoles" $ do
+        hasHoles holeExpr `shouldBe` False
+        let expr = expTypeSig holeExpr int_
+        hasHoles expr `shouldBe` True
+
+    it "genUncurry" $
+        pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
+
+    it "genInputs" $ do
+        GenerationConfig { seed = seed
+                , numMin = numMin
+                , numMax = numMax
+                , listMin = listMin
+                , listMax = listMax
+                } :: GenerationConfig <- liftIO parseGenerationConfig
+        let stdGen :: StdGen = mkStdGen seed
+        let intRange = (numMin, numMax)
+        let listLengths = (listMin, listMax)
+        -- Bool
+        pp <$> (genInputs stdGen intRange listLengths 10 bl) `shouldContain` ["True"]
+        -- [Bool]
+        let lists = genInputs stdGen intRange listLengths 10 $ tyList bl
+        (length . nubPp . concat . fmap unList) lists `shouldBe` 2
+
+    it "genHoledVariants" $ do
+        let tp = parseType "Int -> String -> Tp"
+        fmap pp (genHoledVariants 0 "f" tp) `shouldBe` ["f", "f (undefined :: Int)", "f (undefined :: Int) (undefined :: String)"]

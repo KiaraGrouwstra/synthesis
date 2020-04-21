@@ -5,6 +5,8 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Spec.TypeGen (module Spec.TypeGen) where
+
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
 import           Test.HUnit.Text              (runTestTT)
@@ -60,30 +62,45 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-import           Spec.Ast
-import           Spec.FindHoles
-import           Spec.Generation
-import           Spec.Hint
-import           Spec.TypeGen
-import           Spec.Types
-import           Spec.Utility
-import           Spec.Synthesizer.NSPS
-import           Spec.Synthesizer.Synthesizer
-import           Spec.Synthesizer.Utility
+typeGen ∷ Spec
+typeGen = parallel $ let
+        bl = tyCon "Bool"
+        int_ = tyCon "Int"
+        str = tyCon "String"
+        types_by_arity = insert 1 ["[]"] (singleton 0 ["Bool", "Int"])
+    in do
 
-main ∷ IO ()
-main = do
-    -- unlike Tasty, HUnit's default printer is illegible,
-    -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    it "findTypeVars" $ do
+        -- Num a => a -> Set b
+        let a = tyVar "a"
+        let tp = tyForall Nothing (Just $ cxTuple [typeA (qName "Num") a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
+        findTypeVars tp `shouldBe` insert "a" (0, [tyCon "Num"]) (singleton "b" (0, []))
+        -- Ord a => [a] -> [a]
+        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" (0, [tyCon "Ord"])
+        -- Foldable t => t a -> Bool
+        pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
 
-    -- Tasty HSpec
-    util_ <- testSpec "Utility" util
-    types_ <- testSpec "Types" types
-    typeGen_ <- testSpec "TypeGen" typeGen
-    find_ <- testSpec "FindHoles" find
-    ast_ <- testSpec "Ast" ast
-    synth_util_ <- testSpec "Synthesizer: Utility" synth_util
-    nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
-    defaultMain tree
+    it "randomType" $ do
+        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
+        tp <- randomType types_by_arity False False nestLimit empty 0
+        [tyCon "Bool", tyCon "Int"] `shouldContain` [tp]
+
+    it "randomFnType" $ do
+        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
+        tp <- randomFnType types_by_arity False False nestLimit empty 0
+        [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
+
+    it "genTypes" $ do
+        hm <- genTypes types_by_arity 0 10
+        hm ! 0 `shouldContain` [bl]
+
+    it "fillTypeVars" $ do
+        let a = tyVar "a"
+        -- int_ -> a: a => Bool
+        pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
+        -- Ord a => [a] -> [a]
+        let tp = tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a
+        pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
+
+    it "mergeTyVars" $
+        mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
