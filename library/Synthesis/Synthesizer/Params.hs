@@ -15,7 +15,7 @@ type LhsSymbols = 1
 
 -- | actually Char seems in Int range, i.e. [-2^29 .. 2^29-1]... I think I wouldn't need more than ascii tho.
 -- TODO: see if I can further trim this down
-type MaxChar = 256
+type MaxChar = 128
 max_char :: Int
 max_char = natValI @MaxChar
 
