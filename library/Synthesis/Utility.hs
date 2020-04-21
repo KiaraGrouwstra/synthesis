@@ -90,7 +90,7 @@ pickKeys ks hashmap = fromKeys (hashmap !) ks
 
 -- | pick some keys from a hashmap
 pickKeysSafe :: (Hashable k, Eq k) => [k] -> HashMap k v -> HashMap k v
-pickKeysSafe ks hashmap = fmap fromJust . HM.filter isJust $ fromKeys (`HM.lookup` hashmap) ks
+pickKeysSafe ks hashmap = fromJust <.> HM.filter isJust $ fromKeys (`HM.lookup` hashmap) ks
 
 -- | compose two setter functions, as I didn't figure out lenses and their monad instantiations
 composeSetters :: (s -> s -> s_) -> (s -> t) -> (t -> b -> s) -> s -> b -> s_
@@ -137,6 +137,12 @@ nest n f x0 = foldM (\x () -> f x) x0 (replicate n ())
 pipe :: (a -> b) -> (b -> c) -> a -> c
 pipe = flip (.)
 
--- | see https://hackage.haskell.org/package/yjtools/docs/Control-Applicative-Tools.html
+-- | compose over a function returning a functor. this is to `(.)` as `(<$>)` is to `($)`.
+-- | helps refactor `fmap a . b` to `a <.> b`.
+-- | I picked a precedence to tackle the more painful `fmap (a . b) . c` over `a . fmap b . c`.
+-- | still trying to figure out if that decision seems sensible,
+-- | as it makes this op left-associative unlike the other three.
+-- | also see https://hackage.haskell.org/package/yjtools/docs/Control-Applicative-Tools.html
 (<.>) :: Functor f => (a -> b) -> (c -> f a) -> c -> f b
 (<.>) a b = fmap a . b
+infixl 5 <.>

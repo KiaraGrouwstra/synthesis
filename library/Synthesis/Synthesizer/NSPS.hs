@@ -274,7 +274,6 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                                 compileInput :: [Expr] -> Interpreter [(Expr, Either String Expr)] = \ins -> let
                                         n :: Int = length $ unTuple' $ ins !! 0
                                         -- crash_on_error=False is slower but lets me check if it compiles
-                                        -- (fromMaybe []) . liftIO . timeout 10000 . lift . fmap 
                                         in fnIoPairs False n program' $ list ins
                                 in compileInput `mapM` type_ins
                         -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios

@@ -154,19 +154,19 @@ hint = let
         pp_ x @?= pp_ ([(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))] :: [(Expr, Either String Expr)])
         q <- interpretUnsafe $ fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]"
         pp_ q @?= pp_ ([(parseExpr "(1, 2)", Right (parseExpr "3")), (parseExpr "(3, 4)", Right (parseExpr "7"))] :: [(Expr, Either String Expr)])
-        errored <- fmap isNothing . timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") $ list []
+        errored <- isNothing <.> timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") $ list []
         errored `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
         x <- interpretUnsafe $ exprType $ parseExpr "True"
         pp x `shouldBe` "Bool"
-        errored <- fmap isNothing . timeout 10000 . interpretUnsafe . exprType $ parseExpr "div (const const) div"
+        errored <- isNothing <.> timeout 10000 . interpretUnsafe . exprType $ parseExpr "div (const const) div"
         errored `shouldBe` True
 
     , TestLabel "handling infinite types: typeChecks" $ TestCase $ do
 
         -- typeChecks
-        errored <- fmap not . interpretUnsafe . typeChecks $ infTp
+        errored <- not <.> interpretUnsafe . typeChecks $ infTp
         errored `shouldBe` True
 
         -- typeChecksWithDetails
@@ -180,7 +180,7 @@ hint = let
         let timeout_micros :: Int = 100000
         either <- interpretUnsafe . typeChecksWithDetails $ infTp
         errored <- case either of
-            Right _ -> fmap isNothing . timeout timeout_micros . interpretUnsafe . exprType . parseExpr $ infTp
+            Right _ -> isNothing <.> timeout timeout_micros . interpretUnsafe . exprType . parseExpr $ infTp
             _ -> pure True
         errored `shouldBe` True
 
@@ -189,7 +189,7 @@ hint = let
         -- fnIoPairs + type check
         let n = 1
         let crash_on_error = False
-        errored <- fmap null . interpretUnsafe . fnIoPairs crash_on_error n (parseExpr infTp) $ list []
+        errored <- null <.> interpretUnsafe . fnIoPairs crash_on_error n (parseExpr infTp) $ list []
         errored `shouldBe` True
 
     ]

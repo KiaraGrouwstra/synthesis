@@ -77,8 +77,8 @@ program = do
     say $ pp_ input_types
     -- split the input types for our programs into functions vs other -- then instantiate others.
     let fns_rest :: ([Tp], [Tp]) = partition isFn input_types
-    let mapRest :: [Tp] -> Interpreter [Tp] = fmap concat . mapM (instantiateTypes typesByArity fill_types)
-    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (fmap nubPp . mapRest) $ first nubPp fns_rest
+    let mapRest :: [Tp] -> Interpreter [Tp] = concat <.> mapM (instantiateTypes typesByArity fill_types)
+    (param_fn_types, rest_type_instantiations) :: ([Tp], [Tp]) <- secondM (nubPp <.> mapRest) $ first nubPp fns_rest
     say "\nparam_fn_types:"
     say $ pp_ param_fn_types
     say "\nrest_type_instantiations:"

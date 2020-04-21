@@ -155,6 +155,6 @@ fillTypeVars tp substitutions =
 genTypes :: HashMap Int [String] -> Int -> Int -> IO (HashMap Int [Tp])
 genTypes tpsByArity nestLimit maxInstances = do
   tps :: [Tp] <- nubPp . flatten <$> Many . fmap (One . pure) <$> replicateM maxInstances makeTp
-  return $ insert 0 tps $ delete 0 $ fmap tyCon <$> tpsByArity
+  return . insert 0 tps . delete 0 $ fmap tyCon <$> tpsByArity
   where
     makeTp :: IO Tp = randomType tpsByArity False False nestLimit empty 0

@@ -147,8 +147,8 @@ fnIoPairs crash_on_error n fn_ast ins = do
               Qualifier l $ infixApp (var "return") dollar $ app (var "show") $ var "ios"
             ]
   -- say cmd
-  fmap (second unEitherError . unTuple2) . unList . parseExpr . fromRight "[]" <$> interpretIO crash_on_error cmd
+  second unEitherError . unTuple2 <.> unList . parseExpr . fromRight "[]" <$> interpretIO crash_on_error cmd
 
 -- | get the type of an expression
 exprType :: Expr -> Interpreter Tp
-exprType = fmap parseType . typeOf . pp
+exprType = parseType <.> typeOf . pp
