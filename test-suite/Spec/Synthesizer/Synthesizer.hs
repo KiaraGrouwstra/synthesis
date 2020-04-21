@@ -32,6 +32,7 @@ import           GHC.TypeNats
 import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
+import qualified Torch.DType                   as D
 import qualified Torch.Optim                   as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
@@ -84,20 +85,23 @@ synthesizer = let
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        let encoder_spec :: LstmEncoderSpec = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' BatchSize = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants batchSize dropOut
-        model :: NSPS M Symbols' Rules' MaxStringLength' BatchSize <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
-        io_feats :: Tnsr '[BatchSize, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder (encoder model) io_pairs
+        let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants encoderBatch dropOut
+        model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch R3nnBatch <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
+        --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
+        io_feats <- lstmEncoder (encoder model) io_pairs
+        sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch]
+        let sampled_feats :: Tnsr '[R3nnBatch, MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 
-        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
-        let model' :: NSPS M Symbols' Rules' MaxStringLength' BatchSize = A.replaceParameters model newParam
-        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' io_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        let model' :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch R3nnBatch = A.replaceParameters model newParam
+        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toBool (lt loss' loss) `shouldBe` True
 
     ]

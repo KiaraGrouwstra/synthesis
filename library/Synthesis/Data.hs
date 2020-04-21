@@ -61,7 +61,8 @@ data SynthesizerConfig = SynthesizerConfig
   , seed :: Int
   , numEpochs :: Int
   , modelPath :: String
-  -- , batchSize :: Int
+  -- , encoderBatch :: Int
+  -- , r3nnBatch :: Int
   , bestOf :: Int
   , dropoutRate :: Double
   , evalFreq :: Int

@@ -203,21 +203,51 @@ dslVariants dsl = do
             where maxWildcardDepth = 0  -- no * here
 
 -- | split a (batch-first) tensor into batches (zero-padded for the last one)
--- | deprecated, not in use
 batchTensor :: Int -> D.Tensor -> [D.Tensor]
 batchTensor batch_size tensor = let
-    nDim = 0
-    n = D.shape tensor !! nDim
-    numIters = (n-1) `div` batch_size
+    nDim :: Int = 0
+    n :: Int = D.size tensor nDim
+    numBatches :: Int = ((n-1) `div` batch_size) + 1
+    diff :: Int = numBatches * batch_size - n
+    paddings :: [Int] = replicate (2 * D.dim tensor - 1) 0 <> [diff]
+    tensor' :: D.Tensor = F.constantPadNd1d paddings 0.0 tensor
     f :: Int -> D.Tensor = \i -> let
-            from :: Int = (i - 1) * batch_size
-            to   :: Int =  i * batch_size  - 1
+            from :: Int = i * batch_size
+            to   :: Int = (i+1) * batch_size - 1
             idxs :: [Int] = [from .. to]
-            paddings :: [Int] = replicate (2 * D.dim tensor + 1) 0 <> [batch_size - n]
-        in D.indexSelect tensor nDim . F.constantPadNd1d paddings 0.0 . D.asTensor $ asLong <$> idxs
-    in f <$> [0 .. numIters]
+        in D.indexSelect tensor' nDim . D.asTensor $ asLong <$> idxs
+    in f <$> [0 .. numBatches-1]
 
+-- | statically typed version of batchTensor
+-- | deprecated, not in use
+batchTensor'
+    :: forall batchSize dim device dtype shape shape'
+     . ( KnownNat batchSize
+       , KnownShape shape
+       , TensorOptions shape dtype device
+       , dim ~ 0
+       , shape' ~ FromMaybe (ReplaceDim dim shape batchSize)
+       )
+    => Tensor device dtype shape
+    -> [Tensor device dtype shape']
+batchTensor' tensor = let
+    batch_size = natValI @batchSize
+    nDim = natValI @dim
+    n :: Int = D.size (toDynamic tensor) nDim
+    numBatches :: Int = ((n-1) `div` batch_size) + 1
+    diff :: Int = numBatches * batch_size - n
+    paddings :: [Int] = replicate (2 * Torch.Typed.Tensor.dim tensor - 1) 0 <> [diff]
+    tensor' :: D.Tensor = F.constantPadNd1d paddings 0.0 $ toDynamic tensor
+    f :: Int -> Tensor device dtype shape' = \i -> let
+            from :: Int = i * batch_size
+            to   :: Int = (i+1) * batch_size - 1
+            idxs :: [Int] = [from .. to]
+        in UnsafeMkTensor $ D.indexSelect tensor' nDim . D.asTensor $ asLong <$> idxs
+    in f <$> [0 .. numBatches-1]
 
+type family FromMaybe (maybe :: Maybe a) :: a where
+  FromMaybe (Just a) = a
+--   FromMaybe Nothing = Nothing
 
 -- | deprecated, not in use
 toMaybe :: Bool -> a -> Maybe a

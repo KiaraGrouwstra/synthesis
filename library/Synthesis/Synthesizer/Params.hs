@@ -25,9 +25,12 @@ m :: Int
 m = natValI @M
 
 -- | must use a static batch size i/o making it dynamic by SynthesizerConfig...
-type BatchSize = 8
-batchSize :: Int
-batchSize = natValI @BatchSize
+type EncoderBatch = 8
+encoderBatch :: Int
+encoderBatch = natValI @EncoderBatch
+type R3nnBatch = 8
+r3nnBatch :: Int
+r3nnBatch = natValI @R3nnBatch
 
 -- left/right MLPs
 type Hidden0 = 20

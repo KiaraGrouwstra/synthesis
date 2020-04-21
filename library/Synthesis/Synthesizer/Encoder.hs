@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
@@ -14,7 +15,7 @@ import Data.Bifunctor (first, second)
 import Data.Int (Int64) 
 import Data.Char (ord)
 import GHC.Generics (Generic)
-import GHC.TypeNats (KnownNat, type (*))
+import GHC.TypeNats (Nat, KnownNat, type (*))
 import Util (fstOf3)
 
 import           Torch.Typed.Tensor
@@ -38,38 +39,57 @@ import Synthesis.Synthesizer.Utility
 import Synthesis.Synthesizer.Params
 
 data LstmEncoderSpec
+    (t :: Nat)
+    (batch_size :: Nat)
  where LstmEncoderSpec :: {
         lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
-    } -> LstmEncoderSpec
+    } -> LstmEncoderSpec t batch_size
  deriving (Show)
 
 data LstmEncoder
+    (t :: Nat)
+    (batch_size :: Nat)
  where LstmEncoder :: {
     in_model  :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
     out_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-    } -> LstmEncoder
+    } -> LstmEncoder t batch_size
  deriving (Show, Generic)
 
-instance A.Parameterized (LstmEncoder)
+instance A.Parameterized (LstmEncoder t batch_size)
 
-instance A.Randomizable LstmEncoderSpec LstmEncoder where
+instance A.Randomizable (LstmEncoderSpec t batch_size) (LstmEncoder t batch_size) where
     sample LstmEncoderSpec {..} = LstmEncoder
         <$> A.sample spec
         <*> A.sample spec
             -- TODO: consider LearnedInitialization
             where spec = LSTMWithZerosInitSpec lstmSpec
 
+lstmBatch
+    :: forall batch_size t n n'
+     . (KnownNat batch_size, KnownNat t)
+    => LstmEncoder t batch_size
+    -> Tnsr '[batch_size, t, MaxChar]
+    -> Tnsr '[batch_size, t, MaxChar]
+    -> Tnsr '[batch_size, t * (2 * Dirs * H)]
+lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
+    lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
+    emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
+    emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
+    -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
+    feat_vec :: Tnsr '[batch_size, t * (2 * Dirs * H)] =
+            reshape $ cat @2 $ emb_in :. emb_out :. HNil
+
 -- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
-    :: forall batch_size t
+    :: forall batch_size t n n'
      . (KnownNat batch_size, KnownNat t)
-    => LstmEncoder
+    => LstmEncoder t batch_size
     -> [(Expr, Either String Expr)]
-    -> IO (Tnsr '[batch_size, t * (2 * Dirs * H)])
-lstmEncoder LstmEncoder{..} io_pairs = do
+    -> IO (Tnsr '[n', t * (2 * Dirs * H)])
+lstmEncoder encoder io_pairs = do
+    let LstmEncoder{..} = encoder
     let t_ :: Int = natValI @t
     let batch_size_ :: Int = natValI @batch_size
-    let n_ :: Int = length io_pairs
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
@@ -79,20 +99,23 @@ lstmEncoder LstmEncoder{..} io_pairs = do
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size
-    let stackPad :: [D.Tensor] -> Tnsr '[batch_size, t, MaxChar] =
-            UnsafeMkTensor . F.constantPadNd1d [0, 0, 0, 0, 0, batch_size_ - n_] 0.0 . stack' 0
-    let  in_vec :: Tnsr '[batch_size, t, MaxChar] =
+    let stackPad :: [D.Tensor] -> [Tnsr '[batch_size, t, MaxChar]] =
+            fmap UnsafeMkTensor . batchTensor batch_size_ . stack' 0
+            -- batchTensor' @0 . UnsafeMkTensor . stack' 0  -- ambiguous shape
+    let  in_vecs :: [Tnsr '[batch_size, t, MaxChar]] =
             stackPad $ toDynamic . fst <$> vec_pairs
-    let out_vec :: Tnsr '[batch_size, t, MaxChar] =
+    let out_vecs :: [Tnsr '[batch_size, t, MaxChar]] =
             stackPad $ toDynamic . snd <$> vec_pairs
+    -- print $ "out_vecs"
+    -- print $ "out_vecs: " ++ show (D.shape . toDynamic <$> out_vecs)
 
-    let lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
-    let emb_in  :: Tnsr '[batch_size, t, Dirs * H] = lstm'  in_model  in_vec
-    let emb_out :: Tnsr '[batch_size, t, Dirs * H] = lstm' out_model out_vec
-
-    -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    let feat_vec :: Tnsr '[batch_size, t * (2 * Dirs * H)] =
-            reshape $ cat @2 $ emb_in :. emb_out :. HNil
+    let feat_vecs :: [Tnsr '[batch_size, t * (2 * Dirs * H)]] =
+            uncurry (lstmBatch encoder) <$> zip in_vecs out_vecs
+    -- print $ "feat_vecs"
+    -- print $ "feat_vecs: " ++ show (D.shape . toDynamic <$> feat_vecs)
+    let feat_vec :: Tnsr '[n', t * (2 * Dirs * H)] =
+            UnsafeMkTensor $ F.cat 0 $ toDynamic <$> feat_vecs
+    -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
     return feat_vec
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??

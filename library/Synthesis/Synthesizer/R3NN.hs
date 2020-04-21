@@ -71,10 +71,11 @@ data R3NN
     (rules      :: Nat)
     (t          :: Nat)
     (batch_size :: Nat)
+    -- I imagine NSPS fixed their batch to the sample size, but I have those for each type instantiation, making this harder for me to fix. as a work-around, I'm sampling instead.
  where
     R3NN :: forall m symbols rules t batch_size
       . { condition_model :: LSTMWithInit (m + batch_size * t * (2 * Dirs * H)) (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
-        , score_model     :: LSTMWithInit  m                                        (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
+        , score_model     :: LSTMWithInit  m                                    (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float Dev
         -- NSPS: for each production rule r∈R, a nnet f_r from x∈R^(Q⋅M) to y∈R^M,
         -- with Q as the number of symbols on the RHS of the production rule r.
         , left_nnets :: HashMap String MLP

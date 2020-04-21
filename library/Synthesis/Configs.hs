@@ -118,10 +118,15 @@ synthesizerConfig = SynthesizerConfig
         <> showDefault
         <> help "the file path at which to store trained models" )
     -- <*> option auto
-    --     ( long "batchSize"
+    --     ( long "encoderBatch"
     --     <> value 8
     --     <> showDefault
-    --     <> help "the batch size i.e. number of items to process in one go" )
+    --     <> help "the encoder batch size i.e. number of samples to process in one go" )
+    -- <*> option auto
+    --     ( long "r3nnBatch"
+    --     <> value 8
+    --     <> showDefault
+    --     <> help "the R3NN batch size i.e. number of i/o samples to sample per invocation" )
     <*> option auto
         ( long "bestOf"
         <> value 100
