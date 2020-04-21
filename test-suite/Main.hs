@@ -126,6 +126,7 @@ util = parallel $ do
 
 hint ∷ Test
 hint = let
+        infTp :: String = "div (const const) div"
     in TestList
 
     [ TestLabel "interpretSafe" $ TestCase $ do
@@ -160,6 +161,35 @@ hint = let
         x <- interpretUnsafe $ exprType $ parseExpr "True"
         pp x `shouldBe` "Bool"
         errored <- fmap isNothing . timeout 10000 . interpretUnsafe . exprType $ parseExpr "div (const const) div"
+        errored `shouldBe` True
+
+    , TestLabel "handling infinite types: typeChecks" $ TestCase $ do
+
+        -- typeChecks
+        errored <- fmap not . interpretUnsafe . typeChecks $ infTp
+        errored `shouldBe` True
+
+        -- typeChecksWithDetails
+        either <- interpretUnsafe . typeChecksWithDetails $ infTp
+        let errored = not $ isRight either
+        errored `shouldBe` True
+
+    , TestLabel "handling infinite types: typeOf" $ TestCase $ do
+
+        -- type check + typeOf
+        let timeout_micros :: Int = 100000
+        either <- interpretUnsafe . typeChecksWithDetails $ infTp
+        errored <- case either of
+            Right _ -> fmap isNothing . timeout timeout_micros . interpretUnsafe . exprType . parseExpr $ infTp
+            _ -> pure True
+        errored `shouldBe` True
+
+    , TestLabel "handling infinite types: fnIoPairs" $ TestCase $ do
+
+        -- fnIoPairs + type check
+        let n = 1
+        let crash_on_error = False
+        errored <- fmap null . interpretUnsafe . fnIoPairs crash_on_error n (parseExpr infTp) $ list []
         errored `shouldBe` True
 
     ]
