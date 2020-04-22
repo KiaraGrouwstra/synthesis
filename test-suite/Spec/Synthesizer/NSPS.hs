@@ -101,7 +101,7 @@ nsps = parallel $ let
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         io_feats :: Tnsr '[R3nnBatch, 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model io_pairs
-        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants encoderBatch dropOut
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @R3nnBatch r3nn_model symbolIdxs ppt io_feats
@@ -125,7 +125,7 @@ nsps = parallel $ let
         sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch]
         let sampled_feats :: Tnsr '[R3nnBatch, MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants encoderBatch dropOut
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @R3nnBatch r3nn_model symbolIdxs ppt io_feats
         (ppt', _used') <- predictHole variants ppt (Data.Set.singleton "not") hole_expansion_probs
@@ -151,7 +151,7 @@ nsps = parallel $ let
         io_feats <- lstmEncoder enc_model io_pairs
         sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch]
         let sampled_feats :: Tnsr '[R3nnBatch, MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
-        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants encoderBatch dropOut
+        r3nn_model :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch <- A.sample $ initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch dropOut
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @R3nnBatch r3nn_model symbolIdxs ppt sampled_feats
         (task_fn', gold) :: (Expr, Tnsr '[NumHoles']) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs

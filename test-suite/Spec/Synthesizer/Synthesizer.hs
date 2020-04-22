@@ -86,7 +86,7 @@ synthesizer = let
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
         let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants encoderBatch dropOut
+        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch dropOut
         model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch R3nnBatch <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
         --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
         io_feats <- lstmEncoder (encoder model) io_pairs
