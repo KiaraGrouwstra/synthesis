@@ -65,23 +65,23 @@ import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.Params
 
-data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) where
-  NSPSSpec :: forall m symbols rules t encoderBatch r3nnBatch
-     . { encoderSpec :: LstmEncoderSpec t encoderBatch, r3nnSpec :: R3NNSpec m symbols rules t r3nnBatch }
-    -> NSPSSpec m symbols rules t encoderBatch r3nnBatch
+data NSPSSpec (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) (maxChar :: Nat) where
+  NSPSSpec :: forall m symbols rules t encoderBatch r3nnBatch maxChar
+     . { encoderSpec :: LstmEncoderSpec t encoderBatch maxChar, r3nnSpec :: R3NNSpec m symbols rules t r3nnBatch }
+    -> NSPSSpec m symbols rules t encoderBatch r3nnBatch maxChar
  deriving (Show)
 
-data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) where
-  NSPS :: forall m symbols rules t encoderBatch r3nnBatch
-        . { encoder :: LstmEncoder t encoderBatch, r3nn :: R3NN m symbols rules t r3nnBatch }
-       -> NSPS m symbols rules t encoderBatch r3nnBatch
+data NSPS (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) (maxChar :: Nat) where
+  NSPS :: forall m symbols rules t encoderBatch r3nnBatch maxChar
+        . { encoder :: LstmEncoder t encoderBatch maxChar, r3nn :: R3NN m symbols rules t r3nnBatch }
+       -> NSPS m symbols rules t encoderBatch r3nnBatch maxChar
  deriving (Show, Generic)
 
-instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch )
-  => A.Parameterized (NSPS m symbols rules t encoderBatch r3nnBatch)
+instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar )
+  => A.Parameterized (NSPS m symbols rules t encoderBatch r3nnBatch maxChar)
 
-instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch )
-  => A.Randomizable (NSPSSpec m symbols rules t encoderBatch r3nnBatch) (NSPS m symbols rules t encoderBatch r3nnBatch) where
+instance ( KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar )
+  => A.Randomizable (NSPSSpec m symbols rules t encoderBatch r3nnBatch maxChar) (NSPS m symbols rules t encoderBatch r3nnBatch maxChar) where
     sample NSPSSpec {..} = NSPS
             <$> A.sample encoderSpec
             <*> A.sample r3nnSpec
@@ -154,7 +154,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules encoderBatch r3nnBatch t . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat r3nnBatch) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t encoderBatch r3nnBatch -> Tnsr '[r3nnBatch, t * (2 * Dirs * H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tnsr '[])
+calcLoss :: forall m symbols rules encoderBatch r3nnBatch t maxChar . (KnownNat m, KnownNat symbols, KnownNat t, KnownNat r3nnBatch, KnownNat maxChar) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS m symbols rules t encoderBatch r3nnBatch maxChar -> Tnsr '[r3nnBatch, t * (2 * Dirs * H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tnsr '[])
 calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
@@ -169,7 +169,7 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
     let loss :: Tnsr '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
-train :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
+train :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
 train SynthesizerConfig{..} TaskFnDataset{..} = do
     let rules :: Int = natValI @rules
 
@@ -191,7 +191,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
     let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
     let symbols :: Int = assertEq (natValI @LhsSymbols + size dsl) $ natValI @symbols
-    say $ "symbols : " <> show symbols <> ", rules: " <> show rules
+    let maxChar :: Int = assertEq (size charMap + 1) $ natValI @maxChar
+    say $ "symbols : " <> show symbols <> ", rules: " <> show rules <> ", maxChar: " <> show maxChar
     let lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
 
     -- pre-calculate DSL stuff
@@ -213,9 +214,9 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     say $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
-    let encoder_spec :: LstmEncoderSpec t encoderBatch = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
+    let encoder_spec :: LstmEncoderSpec t encoderBatch maxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec m symbols rules t r3nnBatch = initR3nn @m @symbols @rules @t @r3nnBatch variants r3nnBatch dropoutRate
-    init_model :: NSPS m symbols rules t encoderBatch r3nnBatch <- liftIO $ A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
+    init_model :: NSPS m symbols rules t encoderBatch r3nnBatch maxChar <- liftIO $ A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
     let init_state = (stdGen, init_model, init_optim, False, [])
 
@@ -224,7 +225,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
 
         -- TRAIN LOOP
         let foldrM_ x xs f = foldrM f x xs
-        (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules t encoderBatch r3nnBatch, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
+        (train_losses, model', optim') :: ([D.Tensor], NSPS m symbols rules t encoderBatch r3nnBatch maxChar, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             -- putStrLn $ "task_fn: \n" <> pp task_fn
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
@@ -232,7 +233,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tnsr '[n'1, t * (2 * Dirs * H)]
-            io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) target_io_pairs
+            io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
             sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length target_io_pairs) [r3nnBatch]
             let sampled_feats :: Tnsr '[r3nnBatch, t * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
             loss :: Tnsr '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
@@ -256,7 +257,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                         task_outputs                                ! task_fn
 
                 --  :: Tnsr '[n'2, t * (2 * Dirs * H)]
-                io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') target_io_pairs
+                io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
                 sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length target_io_pairs) [r3nnBatch]
                 let sampled_feats :: Tnsr '[r3nnBatch, t * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
                 loss :: Tnsr '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles

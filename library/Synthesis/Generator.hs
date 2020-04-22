@@ -19,6 +19,7 @@ import Data.HashMap.Lazy
     size,
   )
 import Data.List (partition, maximum)
+import qualified Data.Set as Set
 import Data.Store (encode)
 import qualified Data.ByteString as BS
 import System.Random (StdGen, mkStdGen)
@@ -130,6 +131,7 @@ program = do
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fn_in_type_instance_outputs
     let longest_string :: Int = maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
+    let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> ios
 
     -- it's kinda weird this splitting is non-monadic, cuz it should be random
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
@@ -148,6 +150,7 @@ program = do
         datasets
         expr_blocks
         longest_string
+        charMap
 
     say "\n\nenumerating function i/o examples:"
     forM_ kept_fns $ \ast -> do

@@ -20,8 +20,8 @@ import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.Bifunctor               (first, second)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
-import qualified Data.Set
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList, toList)
+import qualified Data.Set as Set
 import           System.Random                (StdGen, mkStdGen)
 import           System.Timeout               (timeout)
 import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks, typeChecksWithDetails)
@@ -85,13 +85,14 @@ synthesizer = let
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "[]")), (parseExpr "1", Right (parseExpr "[True]")), (parseExpr "2", Right (parseExpr "[True, True]"))]
-        let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch dropOut
-        model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch R3nnBatch <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
+        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch' MaxChar' = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
+        let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch' = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch' dropOut
+        model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
         --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
-        io_feats <- lstmEncoder (encoder model) io_pairs
-        sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch]
-        let sampled_feats :: Tnsr '[R3nnBatch, MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
+        io_feats <- lstmEncoder (encoder model) charMap io_pairs
+        sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch']
+        let sampled_feats :: Tnsr '[R3nnBatch', MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 
@@ -100,7 +101,7 @@ synthesizer = let
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
-        let model' :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch R3nnBatch = A.replaceParameters model newParam
+        let model' :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' = A.replaceParameters model newParam
         loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toBool (lt loss' loss) `shouldBe` True
 

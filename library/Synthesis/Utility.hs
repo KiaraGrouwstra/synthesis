@@ -146,3 +146,7 @@ pipe = flip (.)
 (<.>) :: Functor f => (a -> b) -> (c -> f a) -> c -> f b
 (<.>) a b = fmap a . b
 infixl 5 <.>
+
+-- | create a reverse index (elements to indices) from a list
+indexList :: (Eq a, Hashable a) => [a] -> HashMap a Int
+indexList xs = fromList $ zip xs [0 .. length xs - 1]

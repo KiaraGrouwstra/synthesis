@@ -318,10 +318,6 @@ foldLoop x count block = foldM block x ([1 .. count] :: [a])
 unravelIdx :: D.Tensor -> Int -> [Int]
 unravelIdx t idx = snd . foldr (\ dim_ (idx_, idxs) -> (idx_ `Prelude.div` dim_, idx_ `Prelude.mod` dim_ : idxs)) (idx, []) $ D.shape t
 
--- | create a reverse index (elements to indices) from a list
-indexList :: (Eq a, Hashable a) => [a] -> HashMap a Int
-indexList xs = fromList $ zip xs [0 .. length xs - 1]
-
 -- TODO: replace with built-in
 -- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
 crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor

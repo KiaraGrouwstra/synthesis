@@ -32,6 +32,7 @@ data TaskFnDataset = TaskFnDataset
   , datasets :: ([Expr], [Expr], [Expr])
   , exprBlocks :: [(String, Expr)]
   , longestString :: Int
+  , charMap :: HashMap Char Int
   } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig

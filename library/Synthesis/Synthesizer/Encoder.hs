@@ -14,6 +14,7 @@ module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) wher
 import Data.Bifunctor (first, second)
 import Data.Int (Int64) 
 import Data.Char (ord)
+import Data.HashMap.Lazy (HashMap, (!))
 import GHC.Generics (Generic)
 import GHC.TypeNats (Nat, KnownNat, type (*))
 import Util (fstOf3)
@@ -33,6 +34,7 @@ import qualified Torch.Tensor                  as D
 import qualified Torch.DType                   as D
 import           Torch.Typed.NN.Recurrent.LSTM
 
+import Synthesis.Orphanage ()
 import Synthesis.Data (Expr)
 import Synthesis.Utility (pp)
 import Synthesis.Synthesizer.Utility
@@ -41,23 +43,25 @@ import Synthesis.Synthesizer.Params
 data LstmEncoderSpec
     (t :: Nat)
     (batch_size :: Nat)
+    (maxChar :: Nat)
  where LstmEncoderSpec :: {
-        lstmSpec :: LSTMSpec MaxChar H NumLayers Dir 'D.Float Dev
-    } -> LstmEncoderSpec t batch_size
+        lstmSpec :: LSTMSpec maxChar H NumLayers Dir 'D.Float Dev
+    } -> LstmEncoderSpec t batch_size maxChar
  deriving (Show)
 
 data LstmEncoder
     (t :: Nat)
     (batch_size :: Nat)
+    (maxChar :: Nat)
  where LstmEncoder :: {
-    in_model  :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
-    out_model :: LSTMWithInit MaxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
-    } -> LstmEncoder t batch_size
+    in_model  :: LSTMWithInit maxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev,
+    out_model :: LSTMWithInit maxChar H NumLayers Dir 'ConstantInitialization 'D.Float Dev
+    } -> LstmEncoder t batch_size maxChar
  deriving (Show, Generic)
 
-instance A.Parameterized (LstmEncoder t batch_size)
+instance A.Parameterized (LstmEncoder t batch_size maxChar)
 
-instance A.Randomizable (LstmEncoderSpec t batch_size) (LstmEncoder t batch_size) where
+instance (KnownNat maxChar) => A.Randomizable (LstmEncoderSpec t batch_size maxChar) (LstmEncoder t batch_size maxChar) where
     sample LstmEncoderSpec {..} = LstmEncoder
         <$> A.sample spec
         <*> A.sample spec
@@ -65,11 +69,11 @@ instance A.Randomizable (LstmEncoderSpec t batch_size) (LstmEncoder t batch_size
             where spec = LSTMWithZerosInitSpec lstmSpec
 
 lstmBatch
-    :: forall batch_size t n n'
-     . (KnownNat batch_size, KnownNat t)
-    => LstmEncoder t batch_size
-    -> Tnsr '[batch_size, t, MaxChar]
-    -> Tnsr '[batch_size, t, MaxChar]
+    :: forall batch_size t maxChar n n'
+     . (KnownNat batch_size, KnownNat t, KnownNat maxChar)
+    => LstmEncoder t batch_size maxChar
+    -> Tnsr '[batch_size, t, maxChar]
+    -> Tnsr '[batch_size, t, maxChar]
     -> Tnsr '[batch_size, t * (2 * Dirs * H)]
 lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
     lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
@@ -81,30 +85,32 @@ lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
 
 -- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
-    :: forall batch_size t n n'
-     . (KnownNat batch_size, KnownNat t)
-    => LstmEncoder t batch_size
+    :: forall batch_size t maxChar n n'
+     . (KnownNat batch_size, KnownNat t, KnownNat maxChar)
+    => LstmEncoder t batch_size maxChar
+    -> HashMap Char Int
     -> [(Expr, Either String Expr)]
     -> IO (Tnsr '[n', t * (2 * Dirs * H)])
-lstmEncoder encoder io_pairs = do
+lstmEncoder encoder charMap io_pairs = do
     let LstmEncoder{..} = encoder
     let t_ :: Int = natValI @t
     let batch_size_ :: Int = natValI @batch_size
+    let max_char :: Int = natValI @maxChar
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    let str2tensor :: Int -> String -> Tnsr '[1, t, MaxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . ord)
-    let vec_pairs :: [(Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
+    let str2tensor :: Int -> String -> Tnsr '[1, t, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
+    let vec_pairs :: [(Tnsr '[1, t, maxChar], Tnsr '[1, t, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size
-    let stackPad :: [D.Tensor] -> [Tnsr '[batch_size, t, MaxChar]] =
+    let stackPad :: [D.Tensor] -> [Tnsr '[batch_size, t, maxChar]] =
             fmap UnsafeMkTensor . batchTensor batch_size_ . stack' 0
             -- batchTensor' @0 . UnsafeMkTensor . stack' 0  -- ambiguous shape
-    let  in_vecs :: [Tnsr '[batch_size, t, MaxChar]] =
+    let  in_vecs :: [Tnsr '[batch_size, t, maxChar]] =
             stackPad $ toDynamic . fst <$> vec_pairs
-    let out_vecs :: [Tnsr '[batch_size, t, MaxChar]] =
+    let out_vecs :: [Tnsr '[batch_size, t, maxChar]] =
             stackPad $ toDynamic . snd <$> vec_pairs
     -- print $ "out_vecs"
     -- print $ "out_vecs: " ++ show (D.shape . toDynamic <$> out_vecs)
@@ -148,7 +154,7 @@ lstmEncoder encoder io_pairs = do
 
     -- -- sequential
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
-    -- let lstm_step :: Spec -> Tnsr '[1, t, MaxChar] -> IO (Tnsr '[1, t, Dirs * H], Spec) = \ spec tensor -> do
+    -- let lstm_step :: Spec -> Tnsr '[1, t, maxChar] -> IO (Tnsr '[1, t, Dirs * H], Spec) = \ spec tensor -> do
     --         lstm :: LSTMWithInit 1 H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (emb, hidden, cell) :: (
     --             Tnsr '[1, t, Dirs * H],
@@ -157,7 +163,7 @@ lstmEncoder encoder io_pairs = do
     --                 = lstmWithDropout @'BatchFirst lstm tensor
     --         let spec_ = LSTMWithConstInitSpec lstm_spec cell hidden
     --         return (emb, spec_)
-    -- let f :: (Tnsr '[1, t, MaxChar], Tnsr '[1, t, MaxChar])
+    -- let f :: (Tnsr '[1, t, maxChar], Tnsr '[1, t, maxChar])
     --         -> ([Tnsr '[1, t, 2 * Dirs * H * t]], Spec, Spec)
     --         -> IO ([Tnsr '[1, t, 2 * Dirs * H * t]], Spec, Spec)
     --         = \ (tensor_in, tensor_out) (feats, spec_in, spec_out) -> do
@@ -179,7 +185,7 @@ lstmEncoder encoder io_pairs = do
 
     -- -- sequential: hidden, t as N
     -- let lstm_spec :: LSTMSpec t H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
-    -- let lstm_step :: Spec -> Tnsr '[t, 1, MaxChar] -> IO (Tnsr '[Dirs, t, H], Spec) = \ spec tensor -> do
+    -- let lstm_step :: Spec -> Tnsr '[t, 1, maxChar] -> IO (Tnsr '[Dirs, t, H], Spec) = \ spec tensor -> do
     --         lstm :: LSTMWithInit 1 H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (_emb, hidden, cell) :: (
     --                 Tnsr '[t, 1, Dirs * H],
@@ -189,7 +195,7 @@ lstmEncoder encoder io_pairs = do
     --         let spec_ :: Spec = LSTMWithConstInitSpec lstm_spec cell hidden
     --         let last_hidden :: Tnsr '[Dirs, t, H] = assert (dirs == 2) $ stack @0 (select @0 @(NumLayers - 1) hidden :. select @0 @NumLayers hidden :. HNil)  -- is it really the last two?
     --         return (last_hidden, spec_)
-    -- let f :: (Tnsr '[t, 1, MaxChar], Tnsr '[t, 1, MaxChar])
+    -- let f :: (Tnsr '[t, 1, maxChar], Tnsr '[t, 1, maxChar])
     --         -> ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec)
     --         -> IO ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec)
     --         = \ (tensor_in, tensor_out) (feats, spec_in, spec_out) -> do
@@ -211,8 +217,8 @@ lstmEncoder encoder io_pairs = do
 
     -- -- sequential: hidden, loop over t
     -- let lstm_spec :: LSTMSpec 1 H NumLayers Dir 'D.Float Dev = LSTMSpec dropoutSpec
-    -- let lstm_step :: Spec -> Tnsr '[1, 1, MaxChar] -> IO (Tnsr '[Dirs, 1, H], Spec) = \ spec tensor -> do
-    --         -- tensor :: Tnsr '[1, 1, MaxChar] = asUntyped (select'' 0 0) tensor_in  -- asUntyped'
+    -- let lstm_step :: Spec -> Tnsr '[1, 1, maxChar] -> IO (Tnsr '[Dirs, 1, H], Spec) = \ spec tensor -> do
+    --         -- tensor :: Tnsr '[1, 1, maxChar] = asUntyped (select'' 0 0) tensor_in  -- asUntyped'
     --         lstm :: LSTMWithInit 1 H NumLayers Dir 'ConstantInitialization 'D.Float Dev <- A.sample spec
     --         let (_emb, hidden, cell) :: (
     --                 Tnsr '[1, 1, Dirs * H],
@@ -223,7 +229,7 @@ lstmEncoder encoder io_pairs = do
     --         let last_hidden :: Tnsr '[Dirs, 1, H] = assert (dirs == 2) $ stack @0 (select @0 @(Dirs * (NumLayers-1)) hidden :. select @0 @(Dirs * NumLayers - 1) hidden :. HNil)  -- last two?
     --         -- let last_hidden :: Tnsr '[Dirs, 1, H] = assert (dirs == 2) $ stack @0 (select @0 @((Dirs-1) * NumLayers - 1) hidden :. select @0 @(Dirs * NumLayers - 1) hidden :. HNil)  -- last interspersed?
     --         return (last_hidden, spec_)
-    -- let f :: (Tnsr '[t, 1, MaxChar], Tnsr '[t, 1, MaxChar])
+    -- let f :: (Tnsr '[t, 1, maxChar], Tnsr '[t, 1, maxChar])
     --         -> ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec)
     --         -> IO ([Tnsr '[t, 1, 2 * Dirs * H]], Spec, Spec)
     --         = \ (tensor_in, tensor_out) (feats, spec_in, spec_out) -> do
