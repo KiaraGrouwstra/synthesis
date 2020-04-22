@@ -281,8 +281,8 @@ unMaybe = \case
   _ -> error "expected Maybe"
 
 -- | unpack an either wrapping function results
-unEitherError :: Expr -> Either String Expr
-unEitherError = \case
+unEitherString :: Expr -> Either String Expr
+unEitherString expr = case expr of
   App _l a b -> case a of
     Con _l qname -> case qname of
       UnQual _l name -> case name of
@@ -294,7 +294,7 @@ unEitherError = \case
       _ -> error s
     _ -> error s
   _ -> error s
-  where s = "expected Either SomeException _ !"
+  where s = "expected Either String _, got: " <> pp expr
 
 -- unpack a ParseResult into an Either
 unParseResult :: ParseResult a -> Either String a
