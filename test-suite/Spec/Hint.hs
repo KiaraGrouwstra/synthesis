@@ -87,11 +87,17 @@ hint = let
         x @?= "foo"
 
     , TestLabel "fnIoPairs" $ TestCase $ do
-        GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
+        let crashOnError = False
+        -- n=1
         x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "not") $ parseExpr "[True, False]"
         pp_ x @?= pp_ ([(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))] :: [(Expr, Either String Expr)])
+        -- n=2
         q <- interpretUnsafe $ fnIoPairs crashOnError 2 (parseExpr "(+)") $ parseExpr "[(1,2),(3,4)]"
         pp_ q @?= pp_ ([(parseExpr "(1, 2)", Right (parseExpr "3")), (parseExpr "(3, 4)", Right (parseExpr "7"))] :: [(Expr, Either String Expr)])
+        -- run-time error
+        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "succ") $ parseExpr "[False, True]"
+        pp_ x @?= pp_ ([(parseExpr "False", Right (parseExpr "True")), (parseExpr "True", Left "\"Prelude.Enum.Bool.succ: bad argument\"")] :: [(Expr, Either String Expr)])
+        -- bad type
         errored <- isNothing <.> timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") $ list []
         errored `shouldBe` True
 
