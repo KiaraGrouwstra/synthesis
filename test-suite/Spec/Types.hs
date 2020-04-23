@@ -93,9 +93,8 @@ types = parallel $ let
 
     it "parseType" $ do
         pp (parseType "a") `shouldBe` "a"
-        let s = "(Eq (a -> Bool)) => a"
-        either_ :: Either SomeException Tp <- try $ evaluate $ parseType s
-        isRight either_ `shouldBe` False
+        let s = "  (Eq (a -> Bool)) => a"
+        pp (parseType s) `shouldBe` s
 
     it "isFn" $ do
         isFn bl `shouldBe` False
