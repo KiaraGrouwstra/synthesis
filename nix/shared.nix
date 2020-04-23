@@ -1,13 +1,13 @@
-{ compiler ? "ghc865" }:
+{ compiler ? "ghc883" }:
 
 let
   haskTorchSrc = builtins.fetchGit {
     url = https://github.com/hasktorch/hasktorch;
-    rev = "720700ce79dc65670454a754194d114f9df6df7c";
+    rev = "99545bb638430b321c03dcf79328ea27cd8a282a";
     ref = "master";
   };
 
-  hasktorchOverlay = (import (haskTorchSrc + "/nix/shared.nix") { compiler = "ghc865"; }).overlayShared;
+  hasktorchOverlay = (import (haskTorchSrc + "/nix/shared.nix") { compiler = "ghc883"; }).overlayShared;
 
   synthesisOverlay = pkgsNew: pkgsOld: {
     haskell = pkgsOld.haskell // {
