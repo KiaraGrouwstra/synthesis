@@ -113,6 +113,6 @@ types = parallel $ let
         typeSane (tyParen (tyFun bl bl)) `shouldBe` True
         let a = tyVar "a"
         -- (Eq (a -> Bool)) => a
-        typeSane (tyForall Nothing (Just (cxTuple [typeA (qName "Eq") (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
+        typeSane (tyForall Nothing (Just (cxTuple [typeA "Eq" (tyFun a (tyCon "Bool"))])) a) `shouldBe` False
         -- I guess this means I'd judge HaskTorch's Typed functions as insane, but
         -- for the purpose of program synthesis, for the moment let's say they are.

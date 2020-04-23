@@ -73,10 +73,10 @@ typeGen = parallel $ let
     it "findTypeVars" $ do
         -- Num a => a -> Set b
         let a = tyVar "a"
-        let tp = tyForall Nothing (Just $ cxTuple [typeA (qName "Num") a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
+        let tp = tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
         findTypeVars tp `shouldBe` insert "a" (0, [tyCon "Num"]) (singleton "b" (0, []))
         -- Ord a => [a] -> [a]
-        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" (0, [tyCon "Ord"])
+        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" (0, [tyCon "Ord"])
         -- Foldable t => t a -> Bool
         pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
 
@@ -99,7 +99,7 @@ typeGen = parallel $ let
         -- int_ -> a: a => Bool
         pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
         -- Ord a => [a] -> [a]
-        let tp = tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a
+        let tp = tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a
         pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
 
     it "mergeTyVars" $

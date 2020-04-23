@@ -190,8 +190,8 @@ cxEmpty :: Context L
 cxEmpty = CxEmpty l
 
 -- type assertion
-typeA :: QName L -> Tp -> Asst L
-typeA qname tp = ClassA l qname [tp]
+typeA :: String -> Tp -> Asst L
+typeA str tp = TypeA l $ tyApp (tyCon str) tp
 
 -- | get the string from a QName
 unQName :: QName L -> String
@@ -402,9 +402,11 @@ typeSane tp = constraintsSane tp && (not (hasFn tp) || (isFn tp && (and (typeSan
                 CxSingle _l asst -> unAsst asst
                 CxEmpty _l -> True
               unAsst :: Asst L -> Bool = \case
-                ClassA _l _qname tps -> flip all tps $ \case
-                  TyVar _l _name -> True
-                  _ -> False
+                TypeA _l typ -> case typ of
+                  TyApp _l _a b -> case b of
+                    TyVar _l _name -> True
+                    _ -> False
+                  _ -> True
                 IParam _l _iPName a -> typeSane a
                 ParenA _l asst -> unAsst asst
                 _ -> error "unsupported Assist!"

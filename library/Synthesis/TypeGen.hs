@@ -101,12 +101,9 @@ findTypeVars_ arity tp =
               CxSingle _l asst -> unAsst asst
               CxEmpty _l -> []
             unAsst :: Asst L -> [(String, (Int, [Tp]))] = \case
-              ClassA _l qname tps -> case tps of
-                  [] -> f typ
-                  _ -> (\tp' -> case tp' of
-                      TyVar _l name -> (unName name, (arity, [TyCon l qname]))
-                      _ -> error "expected TyVar"
-                    ) <$> tps
+              TypeA _l tp' -> case tp' of
+                TyApp _l a b -> [(pp b, (arity, [a]))]
+                _ -> f typ
               IParam _l _iPName a -> f a
               ParenA _l asst -> unAsst asst
               _ -> error "unsupported Assist"

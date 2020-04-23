@@ -104,17 +104,17 @@ gen = let
         (pp <$> l1) `shouldContain` (pp <$> [set_ "Bool", set_ "Int"])
         -- Num a => a -> a -> a
         let a = tyVar "a"
-        l2 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Num") a]) $ tyFun a $ tyFun a a)
+        l2 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyFun a a)
         (pp <$> l2) `shouldBe` (pp <$> [tyFun int_ $ tyFun int_ int_])
         -- Ord a => [a] -> [a]
-        l3 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Ord") a]) $ tyFun (tyList a) $ tyList a)
+        l3 <- interpretUnsafe $ instantiateTypes types_by_arity (singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a)
         (pp <$> l3) `shouldBe` (pp <$> [tyFun (tyList bl) $ tyList bl, tyFun (tyList int_) $ tyList int_])
         -- Foldable t => t Bool -> Bool
-        l4 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") a]) $ tyFun (tyApp a bl) bl)
+        l4 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Foldable" a]) $ tyFun (tyApp a bl) bl)
         (pp <$> l4) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl])
         -- Foldable t => t a -> Bool
         let t = tyVar "t"
-        l5 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA (qName "Foldable") t]) $ tyFun (tyApp t a) bl)
+        l5 <- interpretUnsafe $ instantiateTypes types_by_arity (insert 1 [lst_] $ singleton 0 [bl, int_]) (tyForall Nothing (Just $ cxTuple [typeA "Foldable" t]) $ tyFun (tyApp t a) bl)
         (pp <$> l5) `shouldBe` (pp <$> [tyFun (tyApp lst_ bl) bl, tyFun (tyApp lst_ int_) bl])
 
     , TestLabel "instantiateTypeVars" $ TestCase $ do
