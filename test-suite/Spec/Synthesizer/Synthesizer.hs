@@ -85,7 +85,7 @@ synthesizer = let
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let charMap :: HashMap Char Int = mkCharMap io_pairs
         let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch' MaxChar' = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch' = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch' dropOut
         model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec

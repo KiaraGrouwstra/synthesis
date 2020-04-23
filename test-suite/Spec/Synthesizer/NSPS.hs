@@ -81,7 +81,7 @@ nsps = parallel $ let
     it "LstmEncoder" $ do
         -- io_pairs for task fn `trues :: Int -> String`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let charMap :: HashMap Char Int = mkCharMap io_pairs
         -- putStrLn $ show (size charMap + 1)
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch' MaxChar' <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         io_feats :: Tnsr '[EncoderBatch', 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model charMap io_pairs
@@ -102,7 +102,7 @@ nsps = parallel $ let
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let charMap :: HashMap Char Int = mkCharMap io_pairs
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch' MaxChar' <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         io_feats :: Tnsr '[R3nnBatch', 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model charMap io_pairs
         sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch']
@@ -125,7 +125,7 @@ nsps = parallel $ let
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
         -- io_pairs for task fn `trues :: Int -> String`
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let charMap :: HashMap Char Int = mkCharMap io_pairs
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch' MaxChar' <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
         io_feats <- lstmEncoder enc_model charMap io_pairs
@@ -153,7 +153,7 @@ nsps = parallel $ let
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = indexList . Set.toList . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> io_pairs
+        let charMap :: HashMap Char Int = mkCharMap io_pairs
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch' MaxChar' <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
         io_feats <- lstmEncoder enc_model charMap io_pairs

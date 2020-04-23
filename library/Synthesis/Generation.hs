@@ -20,7 +20,7 @@ import Data.HashMap.Lazy
 import Data.List (minimumBy, partition)
 import Data.Ord (Ordering (..))
 import Data.Set (Set, insert)
-import qualified Data.Set
+import qualified Data.Set as Set
 import Language.Haskell.Exts.Parser (ParseResult, parse)
 import Language.Haskell.Exts.Syntax (Type (..))
 import Language.Haskell.Interpreter
@@ -46,7 +46,7 @@ import Util (nTimes, fstOf3, thdOf3)
 -- | in this approach, further nodes can impose new constraints on the type variables introduced in earlier nodes.
 genFns :: Int -> [(String, Expr)] -> HashMap String Expr -> Interpreter [Expr]
 genFns maxHoles expr_blocks block_asts =
-  fillHoles maxHoles block_asts Data.Set.empty expr_blocks anyFn
+  fillHoles maxHoles block_asts Set.empty expr_blocks anyFn
 
 -- | generate potential programs filling any holes in a given expression using some building blocks
 fillHoles :: Int -> HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter [Expr]
@@ -73,7 +73,7 @@ fillHole block_asts used_blocks expr_blocks expr = do
     hole_setter :: Expr -> Expr -> Expr = snd hole_lens
     buildExpr :: (String, Expr) -> (Expr, Set String, Expr) = \(block_name, inserted) ->
       let used :: Set String = insert block_name used_blocks
-          defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) block_asts
+          defs :: HashMap String Expr = pickKeysSafe (Set.toList used) block_asts
           lets :: Expr = if null defs then inserted else letIn defs inserted
        in (inserted, used, lets)
     inserteds :: [(String, Expr)] = second (hole_setter expr) <$> expr_blocks
@@ -194,3 +194,7 @@ dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
   type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minByMap numAstNodes) <$> type_sig_io_fns
   -- TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
   kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
+
+-- find the characters occurring in an i/o dataset and hash them to unique contiguous numbers
+mkCharMap :: [(Expr, Either String Expr)] -> HashMap Char Int
+mkCharMap ios = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> ios
