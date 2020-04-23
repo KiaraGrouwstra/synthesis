@@ -29,7 +29,7 @@ program = do
     cfg :: SynthesizerConfig <- liftIO parseSynthesizerConfig
     say $ show cfg
     let SynthesizerConfig{..} = cfg
-    taskFnDataset :: TaskFnDataset <- decodeFileThrow filePath
+    taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
     liftIO $ manual_seed_L $ fromIntegral seed

@@ -24,7 +24,7 @@ main = do
     cfg :: ViewDatasetConfig <- parseViewDatasetConfig
     putStrLn $ show cfg
     let ViewDatasetConfig{..} = cfg
-    taskFnDataset :: TaskFnDataset <- decodeFileThrow filePath
+    taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
     let TaskFnDataset{..} = taskFnDataset
     let (train_set, validation_set, test_set) = datasets
     putStrLn $ show generationCfg

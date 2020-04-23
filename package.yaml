@@ -42,6 +42,8 @@ dependencies:
   - ghc-typelits-extra
   - aeson
   - yaml
+  - cassava
+  - directory
 
 library:
   dependencies:

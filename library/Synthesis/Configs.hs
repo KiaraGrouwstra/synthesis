@@ -7,7 +7,7 @@ import Data.Semigroup ((<>))
 generationConfig :: Parser GenerationConfig
 generationConfig = GenerationConfig
     <$> strOption
-        ( long "filePath"
+        ( long "taskPath"
         <> short 'f'
         <> value "./datasets.yml"
         <> showDefault
@@ -96,7 +96,7 @@ parseGenerationConfig = execParser opts
 synthesizerConfig :: Parser SynthesizerConfig
 synthesizerConfig = SynthesizerConfig
     <$> strOption
-        ( long "filePath"
+        ( long "taskPath"
         <> short 'f'
         <> value "./datasets.yml"
         <> showDefault
@@ -162,6 +162,12 @@ synthesizerConfig = SynthesizerConfig
         <> value 1
         <> showDefault
         <> help "the maximum number of holes to allow in a synthesized expression" )
+    <*> strOption
+        ( long "resultFolder"
+        <> short 'f'
+        <> value "."
+        <> showDefault
+        <> help "the file path from which to load generated datasets" )
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -174,7 +180,7 @@ parseSynthesizerConfig = execParser opts
 viewDatasetConfig :: Parser ViewDatasetConfig
 viewDatasetConfig = ViewDatasetConfig
     <$> strOption
-        ( long "filePath"
+        ( long "taskPath"
         <> short 'f'
         <> value "./datasets.yml"
         <> showDefault

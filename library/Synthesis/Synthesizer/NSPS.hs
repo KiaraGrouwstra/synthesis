@@ -17,11 +17,16 @@ module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 
 import           System.Random                 (StdGen, mkStdGen)
 import           System.Timeout                (timeout)
+import           System.Directory              (createDirectoryIfMissing)
 import           Data.Foldable                 (foldrM)
 import           Data.Maybe                    (fromMaybe)
 import           Data.Set                      (Set, empty, insert)
 import qualified Data.Set
+import qualified Data.ByteString               as BS
+import qualified Data.ByteString.Internal      as BS
+import qualified Data.ByteString.Lazy.Internal as BL
 import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size)
+import           Data.Csv
 import           Foreign.Marshal.Utils         (fromBool)
 import           Control.Monad                 (join, replicateM, forM, void, when)
 import           Language.Haskell.Exts.Syntax  ( Exp (..) )
@@ -170,7 +175,8 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
     return loss
 
 train :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
-train SynthesizerConfig{..} TaskFnDataset{..} = do
+train synthesizerConfig TaskFnDataset{..} = do
+    let SynthesizerConfig{..} = synthesizerConfig
     let rules :: Int = natValI @rules
 
     -- GENERAL
@@ -220,7 +226,7 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
     let init_state = (stdGen, init_model, init_optim, False, [])
 
-    void $ foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results) epoch -> if earlyStop then pure state else do
+    (_, _, _, _, eval_results) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results) epoch -> if earlyStop then pure state else do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
         -- TRAIN LOOP
@@ -309,31 +315,33 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
                 let best_works :: Bool = or sample_matches
                 let score :: Tnsr '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
                 return (not best_works, loss)
-                -- return loss
 
             let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
             let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
-            -- let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic <$> test_stats
 
             say
                 $  "Epoch: "                <> show epoch
                 <> ". Train loss: "         <> show loss_train
                 <> ". Test loss: "          <> show loss_test
-                -- <> ". Test error-rate: "    <> show err_test
+                <> ". Test error-rate: "    <> show err_test
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
             let earlyStop :: Bool = whenOr False (length eval_results >= 2 * checkWindow) $ let
-                    losses  :: [Tnsr '[]] = id <$> eval_results
-                    losses' :: [Tnsr '[]] = take (2 * checkWindow) losses
+                    losses  :: [Float] = lossTest <$> eval_results
+                    losses' :: [Float] = take (2 * checkWindow) losses
                     (current_losses, prev_losses) = splitAt checkWindow losses'
-                    current :: D.Tensor = F.mean . stack' 0 $ toDynamic <$> current_losses
-                    prev    :: D.Tensor = F.mean . stack' 0 $ toDynamic <$>    prev_losses
+                    current :: D.Tensor = F.mean . D.asTensor $ current_losses
+                    prev    :: D.Tensor = F.mean . D.asTensor $ prev_losses
                     earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
                     in earlyStop
             when earlyStop $ say "loss has converged, stopping early!"
 
-            let eval_result = loss_test
+            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat err_test)
             return $ (earlyStop, eval_result : eval_results)
 
         return (gen', model', optim', earlyStop, eval_results')
+
+    liftIO $ createDirectoryIfMissing True resultFolder
+    let resultPath = resultFolder <> "/" <> show synthesizerConfig <> ".csv"
+    liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results

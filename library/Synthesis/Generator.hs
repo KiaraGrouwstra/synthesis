@@ -136,7 +136,7 @@ program = do
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
 
     -- save task function data
-    liftIO $ encodeFile filePath $ TaskFnDataset
+    liftIO $ encodeFile taskPath $ TaskFnDataset
         cfg
         blockAsts
         typesByArity
@@ -164,4 +164,4 @@ program = do
     let numRules = length expr_blocks
     say $ "rules: " <> show numRules
     say $ "max input/output string length: " <> show longest_string
-    say $ "data written to " <> filePath
+    say $ "data written to " <> taskPath

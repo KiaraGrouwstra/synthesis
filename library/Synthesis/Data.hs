@@ -1,10 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | self-defined types
 module Synthesis.Data (module Synthesis.Data) where
 
 import Data.HashMap.Lazy (HashMap)
+import Data.Csv
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
@@ -36,7 +38,7 @@ data TaskFnDataset = TaskFnDataset
   } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig
-  { filePath :: String
+  { taskPath :: String
   , crashOnError :: Bool
   , seed :: Int
   -- type generation
@@ -58,7 +60,7 @@ data GenerationConfig = GenerationConfig
   } deriving (Show, Generic)
 
 data SynthesizerConfig = SynthesizerConfig
-  { filePath :: String
+  { taskPath :: String
   , seed :: Int
   , numEpochs :: Int
   , modelPath :: String
@@ -71,8 +73,25 @@ data SynthesizerConfig = SynthesizerConfig
   , checkWindow :: Int
   , convergenceThreshold :: Float
   , synthMaxHoles :: Int
+  , resultFolder :: String
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig
-  { filePath :: String
+  { taskPath :: String
   } deriving (Show, Generic)
+
+data EvalResult = EvalResult { epoch     :: !Int
+                              , lossTrain :: !Float
+                              , lossTest  :: !Float
+                              , errTest   :: !Float
+                              }
+
+instance ToNamedRecord EvalResult where
+    toNamedRecord (EvalResult epoch lossTrain lossTest errTest) =
+        namedRecord [ "epoch"     .= epoch
+                    , "lossTrain" .= lossTrain
+                    , "lossTest"  .= lossTest
+                    , "errTest"   .= errTest
+                    ]
+
+evalResultHeader :: Header = header ["epoch", "lossTrain", "lossTest", "errTest"]
