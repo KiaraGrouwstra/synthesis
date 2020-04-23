@@ -542,3 +542,6 @@ instance (Foldable t, Traversable t, A.Parameterized a) => A.Parameterized (t a)
 instance A.Parameterized (Parameter device dtype shape) where
   flattenParameters (UnsafeMkParameter param) = pure param
   replaceOwnParameters _ = UnsafeMkParameter <$> A.nextParameter
+
+replace :: Eq a => a -> [a] -> [a] -> [a]
+replace a b s = concatMap (\x -> if x == a then b else [x]) s

@@ -343,5 +343,5 @@ train synthesizerConfig TaskFnDataset{..} = do
         return (gen', model', optim', earlyStop, eval_results')
 
     liftIO $ createDirectoryIfMissing True resultFolder
-    let resultPath = resultFolder <> "/" <> show synthesizerConfig <> ".csv"
+    let resultPath = replace '/' "\\" $ resultFolder <> "/" <> replace ' ' "" (show synthesizerConfig) <> ".csv"
     liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results
