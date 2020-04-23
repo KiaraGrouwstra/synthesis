@@ -327,8 +327,10 @@ train synthesizerConfig TaskFnDataset{..} = do
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-            let earlyStop :: Bool = whenOr False (length eval_results >= 2 * checkWindow) $ let
-                    losses  :: [Float] = lossTest <$> eval_results
+            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat err_test)
+            let eval_results' = eval_result : eval_results
+            let earlyStop :: Bool = whenOr False (length eval_results' >= 2 * checkWindow) $ let
+                    losses  :: [Float] = lossTest <$> eval_results'
                     losses' :: [Float] = take (2 * checkWindow) losses
                     (current_losses, prev_losses) = splitAt checkWindow losses'
                     current :: D.Tensor = F.mean . D.asTensor $ current_losses
@@ -337,8 +339,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                     in earlyStop
             when earlyStop $ say "loss has converged, stopping early!"
 
-            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat err_test)
-            return $ (earlyStop, eval_result : eval_results)
+            return $ (earlyStop, eval_results')
 
         return (gen', model', optim', earlyStop, eval_results')
 
