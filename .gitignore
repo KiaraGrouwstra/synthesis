@@ -1,6 +1,7 @@
 *.log
 *.bin
 result*
+*.yml
 *.pt
 
 # Created by https://www.gitignore.io/api/haskell
