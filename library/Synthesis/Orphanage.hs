@@ -1,23 +1,25 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | defined type class instances
-module Synthesis.Orphanage
-  (
-  )
-where
+module Synthesis.Orphanage () where
 
 import Data.ByteString.Char8 (pack)
 import Data.HashMap.Lazy (HashMap, toList)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Aeson
+import Data.Yaml
 import Data.Hashable (Hashable (..))
-import Data.Store (Store (..)) -- , Size (..), Peek, Poke
-import Data.Store.Internal (genericSize, genericPeek, genericPoke)
 import Data.Text.Prettyprint.Doc
+import qualified Data.Text.Prettyprint.Doc as PP
 import Language.Haskell.Exts.Pretty (prettyPrint)
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.SrcLoc
 import Synthesis.Data
+import Synthesis.Utility
+import Synthesis.Types
 
 -- | ensure I can use expressions as keys in HashMaps
 instance Hashable (Exp l) where
@@ -178,425 +180,37 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 -- | ensure I can print eithers
 instance (Pretty l, Pretty r) => Pretty (Either l r) where
   pretty = unsafeViaShow . \case
-    Left l -> pretty "Left (" <> pretty l <> pretty ")"
-    Right r -> pretty "Right (" <> pretty r <> pretty ")"
-
+    Left  l -> PP.pretty ( "Left (" :: String) <> PP.pretty l <> PP.pretty (")" :: String)
+    Right r -> PP.pretty ("Right (" :: String) <> PP.pretty r <> PP.pretty (")" :: String)
 
 -- | ensure I can print sets
 instance (Pretty a) => Pretty (Set a) where
   pretty = pretty . Set.toList
 
-instance Store l => Store (Module l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSON Tp where
+    parseJSON = withObject "Tp" $ parseType <.> (.: "type")
 
-instance Store l => Store (ModuleHead l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance ToJSON Tp where
+    toJSON tp = object ["type" .= pp tp]
 
-instance Store l => Store (ExportSpecList l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance ToJSONKey Tp
 
-instance Store l => Store (ExportSpec l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSONKey Tp
 
-instance Store l => Store (ImportDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSON Expr where
+    parseJSON = withObject "Expr" $ parseExpr <.> (.: "expr")
 
-instance Store l => Store (ImportSpecList l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance ToJSON Expr where
+    toJSON expr = object ["expr" .= pp expr]
 
-instance Store l => Store (ImportSpec l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance ToJSONKey Expr
 
-instance Store l => Store (Assoc l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSONKey Expr
 
-instance Store l => Store (Namespace l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSON TaskFnDataset
+instance ToJSON TaskFnDataset where
+    toEncoding = genericToEncoding defaultOptions
 
-instance Store l => Store (Decl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (DeclHead l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (InstRule l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (InstHead l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (IPBind l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (InjectivityInfo l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (ResultSig l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (ClassDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (InstDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Deriving l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (DerivStrategy l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (DataOrNew l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (ConDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (FieldDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (QualConDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (GadtDecl l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (BangType l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Unpackedness l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Match l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Rhs l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (GuardedRhs l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Context l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (FunDep l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Asst l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Type l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (TyVarBind l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Promoted l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (TypeEqn l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Exp l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Stmt l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (QualStmt l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (FieldUpdate l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Alt l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (XAttr l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Pat l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (PatField l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (PXAttr l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (RPat l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (RPatOp l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Literal l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (ModuleName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (QName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Name l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (QOp l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Op l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (SpecialCon l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (CName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (IPName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (XName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Role l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (MaybePromotedName l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Bracket l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Splice l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Safety l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (CallConv l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (ModulePragma l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store Tool where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Overlap l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Rule l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (RuleVar l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Activation l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Annotation l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (BooleanFormula l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Sign l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (Binds l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (EWildcard l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (WarningText l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store l => Store (PatternSynDirection l) where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store Boxed where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store SrcSpanInfo where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store SrcSpan where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store GenerationConfig where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store SynthesizerConfig where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
-
-instance Store TaskFnDataset where
-    size = genericSize
-    poke = genericPoke
-    peek = genericPeek
+instance FromJSON GenerationConfig
+instance ToJSON GenerationConfig where
+    toEncoding = genericToEncoding defaultOptions

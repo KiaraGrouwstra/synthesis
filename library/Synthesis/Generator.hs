@@ -20,8 +20,7 @@ import Data.HashMap.Lazy
   )
 import Data.List (partition, maximum)
 import qualified Data.Set as Set
-import Data.Store (encode)
-import qualified Data.ByteString as BS
+import Data.Yaml
 import System.Random (StdGen, mkStdGen)
 import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Synthesis.Blocks
@@ -140,7 +139,7 @@ program = do
         putStrLn $ k <> ": " <> show (length dataset)
 
     -- save task function data
-    liftIO $ BS.writeFile filePath $ encode $ TaskFnDataset
+    liftIO $ encodeFile filePath $ TaskFnDataset
         cfg
         blockAsts
         typesByArity

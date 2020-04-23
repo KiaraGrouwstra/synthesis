@@ -40,6 +40,8 @@ dependencies:
   - libtorch-ffi
   - ghc-typelits-knownnat
   - ghc-typelits-extra
+  - aeson
+  - yaml
 
 library:
   dependencies:

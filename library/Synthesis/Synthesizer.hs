@@ -8,8 +8,7 @@
 module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
 
 import GHC.TypeNats (type (+))
-import Data.Store (decodeIO)
-import qualified Data.ByteString as BS
+import Data.Yaml
 import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Torch.Internal.Managed.Type.Context (manual_seed_L)
 import Synthesis.Hint
@@ -30,8 +29,7 @@ program = do
     cfg :: SynthesizerConfig <- liftIO parseSynthesizerConfig
     say $ show cfg
     let SynthesizerConfig{..} = cfg
-    bs :: BS.ByteString <- liftIO $ BS.readFile filePath
-    taskFnDataset :: TaskFnDataset <- liftIO $ decodeIO bs
+    taskFnDataset :: TaskFnDataset <- decodeFileThrow filePath
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
     liftIO $ manual_seed_L $ fromIntegral seed

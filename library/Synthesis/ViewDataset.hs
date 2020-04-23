@@ -8,9 +8,8 @@
 module Synthesis.ViewDataset (module Synthesis.ViewDataset) where
 
 import Data.HashMap.Lazy
-import Data.Store (decodeIO)
 import Control.Monad (forM_)
-import qualified Data.ByteString as BS
+import Data.Yaml
 import Synthesis.Hint
 import Synthesis.Orphanage ()
 import Synthesis.Data
@@ -25,8 +24,7 @@ main = do
     cfg :: ViewDatasetConfig <- parseViewDatasetConfig
     putStrLn $ show cfg
     let ViewDatasetConfig{..} = cfg
-    bs :: BS.ByteString <- BS.readFile filePath
-    taskFnDataset :: TaskFnDataset <- decodeIO bs
+    taskFnDataset :: TaskFnDataset <- decodeFileThrow filePath
     let TaskFnDataset{..} = taskFnDataset
     let (train_set, validation_set, test_set) = datasets
     putStrLn $ show generationCfg
