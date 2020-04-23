@@ -9,7 +9,7 @@ generationConfig = GenerationConfig
     <$> strOption
         ( long "filePath"
         <> short 'f'
-        <> value "./datasets.bin"
+        <> value "./datasets.yml"
         <> showDefault
         <> help "the file path at which to store generated datasets" )
     <*> switch
@@ -98,7 +98,7 @@ synthesizerConfig = SynthesizerConfig
     <$> strOption
         ( long "filePath"
         <> short 'f'
-        <> value "./datasets.bin"
+        <> value "./datasets.yml"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
     <*> option auto
@@ -176,7 +176,7 @@ viewDatasetConfig = ViewDatasetConfig
     <$> strOption
         ( long "filePath"
         <> short 'f'
-        <> value "./datasets.bin"
+        <> value "./datasets.yml"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
 
