@@ -321,9 +321,9 @@ train synthesizerConfig TaskFnDataset{..} = do
 
             say
                 $  "Epoch: "                <> show epoch
-                <> ". Train loss: "         <> show loss_train
-                <> ". Test loss: "          <> show loss_test
-                <> ". Test error-rate: "    <> show err_test
+                <> ". Train loss: "         <> show (toFloat loss_train)
+                <> ". Test loss: "          <> show (toFloat loss_test)
+                <> ". Test error-rate: "    <> show (toFloat err_test)
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
