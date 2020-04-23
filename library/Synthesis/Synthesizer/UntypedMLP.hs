@@ -32,7 +32,7 @@ instance Randomizable MLPSpec MLP where
 
 mlp :: MLP -> Tensor -> Tensor
 mlp MLP{..} input = 
-    logSoftmax 1
+    logSoftmax (Dim 1)
     . linear l2
     . tanh
     . linear l1

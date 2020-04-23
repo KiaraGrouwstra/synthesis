@@ -120,7 +120,7 @@ lstmEncoder encoder charMap io_pairs = do
     -- print $ "feat_vecs"
     -- print $ "feat_vecs: " ++ show (D.shape . toDynamic <$> feat_vecs)
     let feat_vec :: Tnsr '[n', t * (2 * Dirs * H)] =
-            UnsafeMkTensor $ F.cat 0 $ toDynamic <$> feat_vecs
+            UnsafeMkTensor $ F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
     -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
     return feat_vec
 

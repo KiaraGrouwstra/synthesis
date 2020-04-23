@@ -85,7 +85,7 @@ nsps = parallel $ let
         -- putStrLn $ show (size charMap + 1)
         enc_model :: LstmEncoder MaxStringLength' EncoderBatch' MaxChar' <- A.sample $ LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         io_feats :: Tnsr '[EncoderBatch', 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model charMap io_pairs
-        D.shape (toDynamic io_feats) `shouldBe` [length io_pairs, 2 * dirs * h * t]
+        D.shape (toDynamic io_feats) `shouldBe` [length io_pairs, 2 * dirs * h * maxStringLength']
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters enc_model
         let loss :: Tnsr '[] = sumAll io_feats  -- dummy op for loss with gradient

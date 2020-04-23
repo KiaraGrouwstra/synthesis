@@ -321,7 +321,7 @@ unravelIdx t idx = snd . foldr (\ dim_ (idx_, idxs) -> (idx_ `Prelude.div` dim_,
 -- TODO: replace with built-in
 -- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
 crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor
-crossEntropy target dim input = F.nllLoss' target (F.logSoftmax dim input)
+crossEntropy target dim input = F.nllLoss' target (F.logSoftmax (F.Dim dim) input)
 
 -- | TODO: replace with actual F.sumDim
 f_sumDim :: Int -> D.Tensor -> D.Tensor
@@ -438,9 +438,6 @@ d_mkAdam iter beta1 beta2 parameters =
         (D.zerosLike . D.toDependent <$> parameters)
         (D.zerosLike . D.toDependent <$> parameters)
         iter
-
-toBool :: forall device . Tensor device 'D.Bool '[] -> Bool
-toBool t = D.asValue . toDynamic . toCPU $ t
 
 untypeParam :: Parameter device dtype shape -> A.Parameter
 untypeParam (UnsafeMkParameter param) = param

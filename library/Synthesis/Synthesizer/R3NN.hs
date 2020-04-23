@@ -167,7 +167,7 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf
     let io_feats' :: Tnsr '[batch_size * (t * (2 * Dirs * H))] = reshape io_feats
     let conditioned :: Tnsr '[symbols, m + batch_size * t * (2 * Dirs * H)] =
-            UnsafeMkTensor $ F.cat 1 [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
+            UnsafeMkTensor $ F.cat (F.Dim 1) [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
             where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats'
     -- conditioning can use an MLP or (bidir) LSTM; LSTM learns more about the relative position of each leaf node in the tree.
     let conditioned' :: Tnsr '[symbols, m] = 
@@ -176,7 +176,7 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
             fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
     let root_emb :: Tnsr '[1, m] = forwardPass @m r3nn symbolIdxs conditioned' ppt
     let node_embs :: Tnsr '[num_holes, m] = 
-            UnsafeMkTensor $ F.cat 0 $ toDynamic <$> reversePass @m r3nn root_emb ppt
+            UnsafeMkTensor $ F.cat (F.Dim 0) $ toDynamic <$> reversePass @m r3nn root_emb ppt
     -- | bidirectional LSTM to process the global leaf representations right before calculating the scores.
     let node_embs' :: Tnsr '[num_holes, m] =
             -- asUntyped to type-check m*2/2
@@ -196,8 +196,8 @@ variantInt = (appRule &&& length) . fnAppNodes
 patchLoss :: forall m symbols rules t batch_size . (KnownNat m) => HashMap String Int -> R3NN m symbols rules t batch_size -> Tnsr '[] -> Tnsr '[]
 patchLoss variant_sizes r3nn_model = let
         m :: Int = natValI @m
-        left_dummy  :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat 1 $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model)
-        right_dummy :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat 1 $ fmap (\   mlp_  ->                              mlp mlp_ $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model)
+        left_dummy  :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model)
+        right_dummy :: Tnsr '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model)
     in add $ left_dummy `add` right_dummy
 
 -- | perform a recursive pass going up in the tree to assign a global tree representation to the root.
@@ -225,7 +225,7 @@ forwardPass r3nn symbolIdxs conditioned' expr = let
         App _l _exp1 _exp2 -> let
                 tensors :: [Tnsr '[1, m]] = f <$> fnAppNodes expr
                 nnet = mlp $ lookupRule left_nnets $ nodeRule expr
-            in UnsafeMkTensor $ nnet $ F.cat 1 $ toDynamic <$> tensors
+            in UnsafeMkTensor $ nnet $ F.cat (F.Dim 1) $ toDynamic <$> tensors
         _ -> error $ "unexpected Expr: " ++ show expr
 
 -- | perform a reverse-recursive pass starting from the root to assign a global tree representation to each node in the tree.

@@ -73,7 +73,7 @@ type R3nnBatch' = 1
 
 numHoles     :: Int = natValI @NumHoles'
 rules        :: Int = natValI @Rules'
-t            :: Int = natValI @MaxStringLength'
+maxStringLength' :: Int = natValI @MaxStringLength'
 symbols      :: Int = natValI @Symbols'
 encoderBatch':: Int = natValI @EncoderBatch'
 r3nnBatch'   :: Int = natValI @R3nnBatch'

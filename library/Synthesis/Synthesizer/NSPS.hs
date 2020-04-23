@@ -164,8 +164,8 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
                     -- putStrLn $ "ppt': " <> pp ppt'
                     return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
             in while (\(expr, _, _, filled) -> hasHoles expr && filled < synth_max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
-    let gold_rule_probs :: D.Tensor = F.cat 0 golds
-    let hole_expansion_probs :: D.Tensor = F.cat 0 predictions
+    let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
+    let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
     let loss :: Tnsr '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
