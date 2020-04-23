@@ -210,8 +210,8 @@ train SynthesizerConfig{..} TaskFnDataset{..} = do
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
     say $ show $ natValI @t
-    let longest_string :: Int = assertEq longestString $ natValI @t
-    say $ "longest allowed i/o string length: " <> show longest_string
+    -- let longest_string :: Int = assertEq longestString $ natValI @t
+    -- say $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
     let encoder_spec :: LstmEncoderSpec t encoderBatch maxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
