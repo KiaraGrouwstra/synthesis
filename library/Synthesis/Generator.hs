@@ -134,9 +134,6 @@ program = do
 
     -- it's kinda weird this splitting is non-monadic, cuz it should be random
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
-    let set_list = untuple3 datasets
-    liftIO $ forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
-        putStrLn $ k <> ": " <> show (length dataset)
 
     -- save task function data
     liftIO $ encodeFile filePath $ TaskFnDataset
@@ -159,6 +156,9 @@ program = do
         let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
         say $ pp_ in_type_instance_outputs
 
+    let set_list = untuple3 datasets
+    liftIO $ forM_ (zip ["train", "validation", "test"] set_list) $ \(k, dataset) -> do
+        putStrLn $ k <> ": " <> show (length dataset)
     let numSymbols = 1 + size blockAsts
     say $ "symbols: " <> show numSymbols
     let numRules = length expr_blocks

@@ -41,12 +41,12 @@ blockAstsTamandu =
     $ insert "zero" "0 :: Int"
     -- $ insert "flip" "flip"
     -- $ insert "not" "not"
-    $ insert "isZero" "(== (0 :: Int))"
+    -- $ insert "isZero" "(== (0 :: Int))"
     -- $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"  -- "\\f -> foldNatNat (const f)"
     -- $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
     $ insert "add" "(+)" -- test!
     $ insert "mul" "(*)"
-    $ insert "div" "div"
+    -- $ insert "div" "div"
     -- $ insert "max" "max" -- Int: for fractions use (/)
     -- $ insert "eq" "(==)"
     -- $ insert "neq" "(/=)" -- Tamandu restricts this to Int
@@ -54,8 +54,8 @@ blockAstsTamandu =
     -- $ insert "head" "head"
     -- $ insert "tail" "tail"
     -- $ insert "isNil" "null"
-    -- $ insert "map" "map"
-    -- $ insert "foldr" "foldr" -- list-specific, unlike fmap
+    -- $ insert "map" "map" -- list-specific, unlike fmap
+    -- $ insert "foldr" "foldr"
     -- $ insert "foldl" "foldl"
     -- $ insert "filter" "filter"
     -- $ insert "length" "length"
@@ -69,8 +69,8 @@ blockAstsTamandu =
     -- $ insert "member" "elem"
     -- $ insert "enumTo" "\\i -> [1..i]"
     -- $ insert "enumFromTo" "enumFromTo"
-    -- $ insert "succ" "succ"
-    $ singleton "const" "const"
+    -- $ insert "const" "const"
+    $ singleton "succ" "succ"
 
 -- -- | task functions specifically aimed at trying my synthesizers on another paper's algorithm.
 -- -- | the point here is to ensure I'd put these in the test set, while deduping any equivalent functions out of my training set.
