@@ -94,8 +94,6 @@ nsps = parallel $ let
 
         io_feats' :: Tnsr '[EncoderBatch', 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model' charMap io_pairs
         let loss' :: Tnsr '[] = sumAll io_feats'
-        putStrLn $ "LstmEncoder.loss: " <> show loss
-        putStrLn $ "LstmEncoder.loss': " <> show loss'
         toBool (lt loss' loss) `shouldBe` True
 
     it "R3NN" $ do
