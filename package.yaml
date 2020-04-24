@@ -44,6 +44,7 @@ dependencies:
   - yaml
   - cassava
   - directory
+  - split
 
 library:
   dependencies:

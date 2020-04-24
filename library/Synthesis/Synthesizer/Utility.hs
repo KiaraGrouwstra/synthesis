@@ -22,7 +22,8 @@ import GHC.TypeNats (KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
-import Data.List (findIndex)
+import Data.List (findIndex, intercalate)
+import Data.List.Split (splitOn)
 import Data.Foldable (toList)
 import Data.Monoid
 import Data.Hashable (Hashable)
@@ -543,5 +544,10 @@ instance A.Parameterized (Parameter device dtype shape) where
   flattenParameters (UnsafeMkParameter param) = pure param
   replaceOwnParameters _ = UnsafeMkParameter <$> A.nextParameter
 
-replace :: Eq a => a -> [a] -> [a] -> [a]
-replace a b s = concatMap (\x -> if x == a then b else [x]) s
+-- | replace occurrences of a sub-list
+replace :: Eq a => [a] -> [a] -> [a] -> [a]
+replace from to = intercalate to . splitOn from
+
+-- | perform multiple sub-list replacements
+replacements :: Eq a => [([a],[a])] -> [a] -> [a]
+replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
