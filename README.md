@@ -49,11 +49,18 @@ cabal v1-build --enable-documentation
 cabal v1-build --enable-profiling --ghc-options="-fno-prof-auto"
 `cabal v1-exec which generator` +RTS -p
 
-# viz
+# viz profiling
 stack install ghc-prof-flamegraph
 ghc-prof-flamegraph generator.prof
 stack install profiterole
 profiterole generator.prof
+
+# plot synthesis results
+cd plotting/
+pip install -r requirements.txt
+cd ../
+python plotting/plot.py
+# makes plots for ./results/*.csv
 ```
 
 questions for NSPS authors:
