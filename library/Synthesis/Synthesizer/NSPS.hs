@@ -27,6 +27,7 @@ import qualified Data.ByteString.Internal      as BS
 import qualified Data.ByteString.Lazy.Internal as BL
 import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size)
 import           Data.Csv
+import           Text.Printf
 import           Foreign.Marshal.Utils         (fromBool)
 import           Control.Monad                 (join, replicateM, forM, void, when)
 import           Language.Haskell.Exts.Syntax  ( Exp (..) )
@@ -319,11 +320,12 @@ train synthesizerConfig TaskFnDataset{..} = do
             let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
             let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
 
-            say
-                $  "Epoch: "                <> show epoch
-                <> ". Train loss: "         <> show (toFloat loss_train)
-                <> ". Test loss: "          <> show (toFloat loss_test)
-                <> ". Test error-rate: "    <> show (toFloat err_test)
+            liftIO $ printf
+                "Epoch: %d. Train loss: %.4f. Test loss: %.4f. Test error-rate: %.4f\n"
+                epoch
+                (toFloat loss_train)
+                (toFloat loss_test)
+                (toFloat err_test)
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
