@@ -339,7 +339,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                     prev    :: D.Tensor = F.mean . D.asTensor $ prev_losses
                     earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
                     in earlyStop
-            when earlyStop $ say "loss has converged, stopping early!"
+            when earlyStop $ say "test loss has converged, stopping early!"
 
             return $ (earlyStop, eval_results')
 

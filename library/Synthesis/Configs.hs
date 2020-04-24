@@ -9,7 +9,7 @@ generationConfig = GenerationConfig
     <$> strOption
         ( long "taskPath"
         <> short 'f'
-        <> value "./datasets.yml"
+        <> value "./results/datasets.yml"
         <> showDefault
         <> help "the file path at which to store generated datasets" )
     <*> switch
@@ -98,7 +98,7 @@ synthesizerConfig = SynthesizerConfig
     <$> strOption
         ( long "taskPath"
         <> short 'f'
-        <> value "./datasets.yml"
+        <> value "./results/datasets.yml"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
     <*> option auto
@@ -114,7 +114,7 @@ synthesizerConfig = SynthesizerConfig
     <*> strOption
         ( long "modelPath"
         <> short 'm'
-        <> value "./synthesis.pt"
+        <> value "./results/synthesis.pt"
         <> showDefault
         <> help "the file path at which to store trained models" )
     -- <*> option auto
@@ -165,7 +165,7 @@ synthesizerConfig = SynthesizerConfig
     <*> strOption
         ( long "resultFolder"
         <> short 'f'
-        <> value "."
+        <> value "results"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
 
@@ -182,7 +182,7 @@ viewDatasetConfig = ViewDatasetConfig
     <$> strOption
         ( long "taskPath"
         <> short 'f'
-        <> value "./datasets.yml"
+        <> value "results/datasets.yml"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
 
