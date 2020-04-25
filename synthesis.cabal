@@ -1,0 +1,249 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 8b3a68571426a90219c963e73975525a1e5c653aa9a623dddd4fe2cb5e719728
+
+name:           synthesis
+version:        0.0.0
+synopsis:       typed neural program synthesis
+description:    code-base for my UvA MSc AI thesis on typed neural program synthesis
+category:       Machine Learning
+homepage:       https://github.com/tycho01/synthesis#readme
+bug-reports:    https://github.com/tycho01/synthesis/issues
+author:         Kiara Grouwstra
+maintainer:     Kiara Grouwstra
+license:        MIT
+build-type:     Simple
+extra-source-files:
+    CHANGELOG.md
+    LICENSE.md
+    package.yaml
+    README.md
+    stack.yaml
+
+source-repository head
+  type: git
+  location: https://github.com/tycho01/synthesis
+
+library
+  exposed-modules:
+      Synthesis.Ast
+      Synthesis.Blocks
+      Synthesis.Configs
+      Synthesis.Data
+      Synthesis.FindHoles
+      Synthesis.Generation
+      Synthesis.Generator
+      Synthesis.Hint
+      Synthesis.Orphanage
+      Synthesis.Synthesizer
+      Synthesis.Synthesizer.Categorical
+      Synthesis.Synthesizer.Constraints
+      Synthesis.Synthesizer.Distribution
+      Synthesis.Synthesizer.Encoder
+      Synthesis.Synthesizer.NSPS
+      Synthesis.Synthesizer.Params
+      Synthesis.Synthesizer.R3NN
+      Synthesis.Synthesizer.UntypedMLP
+      Synthesis.Synthesizer.Utility
+      Synthesis.TypeGen
+      Synthesis.Types
+      Synthesis.Utility
+      Synthesis.ViewDataset
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      library
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , cassava
+    , containers
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , hashable
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , hslogger
+    , libtorch-ffi
+    , mtl
+    , optparse-applicative
+    , prettyprinter
+    , random
+    , split
+    , store
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
+
+executable generator
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      generator
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , cassava
+    , containers
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , libtorch-ffi
+    , mtl
+    , random
+    , split
+    , synthesis
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
+
+executable synthesizer
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      synthesizer
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , cassava
+    , containers
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , libtorch-ffi
+    , mtl
+    , random
+    , split
+    , synthesis
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
+
+executable view-dataset
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      view-dataset
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , cassava
+    , containers
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , libtorch-ffi
+    , mtl
+    , random
+    , split
+    , synthesis
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
+
+test-suite synthesis-test-suite
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Spec.Ast
+      Spec.FindHoles
+      Spec.Generation
+      Spec.Hint
+      Spec.Synthesizer.NSPS
+      Spec.Synthesizer.Synthesizer
+      Spec.Synthesizer.Types
+      Spec.Synthesizer.Utility
+      Spec.TypeGen
+      Spec.Types
+      Spec.Utility
+      Paths_synthesis
+  hs-source-dirs:
+      test-suite
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      HUnit
+    , aeson
+    , base
+    , cassava
+    , containers
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , libtorch-ffi
+    , mtl
+    , random
+    , split
+    , synthesis
+    , tasty
+    , tasty-hspec
+    , tasty-hunit
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
+
+benchmark synthesis-benchmarks
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_synthesis
+  hs-source-dirs:
+      benchmark
+  default-extensions: LambdaCase ScopedTypeVariables UnicodeSyntax RankNTypes
+  ghc-options: -Wall -rtsopts -threaded -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , cassava
+    , containers
+    , criterion
+    , directory
+    , ghc-lib-parser
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
+    , haskell-src-exts
+    , hasktorch
+    , hint
+    , libtorch-ffi
+    , mtl
+    , random
+    , split
+    , synthesis
+    , unordered-containers
+    , yaml
+  default-language: Haskell2010
