@@ -18,11 +18,12 @@ You can build and run this project using [Nix](https://nixos.org/nix/) + [Cabal]
 ``` sh
 # install Nix, Cachix:
 bash <(curl https://nixos.org/nix/install)
+. ~/.nix-profile/etc/profile.d/nix.sh
 nix-env -iA cachix -f https://cachix.org/api/v1/install
 
 # enter dev shell
 cachix use tycho01
-nix-build | cachix push tycho01
+nix-build # | cachix push tycho01
 nix-shell # cpu
 nix-shell --arg cudaVersion 10 # gpu
 hpack --force
