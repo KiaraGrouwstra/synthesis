@@ -19,12 +19,16 @@ You can build and run this project using [Nix](https://nixos.org/nix/) + [Cabal]
 # install Nix, Cachix:
 bash <(curl https://nixos.org/nix/install)
 nix-env -iA cachix -f https://cachix.org/api/v1/install
+# nixGL for GPU thru Nix: https://github.com/guibou/nixGL
 
 # enter dev shell
 cachix use tycho01
 nix-build | cachix push tycho01
-nix-shell # cpu
-nix-shell --arg cudaVersion 10 # gpu
+# cpu:
+nix-shell
+# gpu:
+nixGLNvidia nix-shell --arg cudaVersion 10
+# remake Cabal file any time you add/move files in package.yml:
 hpack --force
 
 # basic commands
