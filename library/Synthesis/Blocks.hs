@@ -9,8 +9,8 @@ import Synthesis.Data
 typesByArity :: HashMap Int [String]
 typesByArity =
   -- insert 1 ["[]"] $
-  -- singleton 0 ["Bool", "Int"]
-  singleton 0 ["Int"]
+  singleton 0 ["Bool", "Int"]
+  -- singleton 0 ["Int"]
 
 -- | building blocks
 -- | cf. NSPS: A DSL can be considered a context-free grammar with a start symbol S and a
@@ -36,12 +36,12 @@ blockAstsTamandu :: HashMap String Expr
 blockAstsTamandu =
   fmap parseExpr
     -- $ insert "nil" "[]"
-    -- $ insert "true" "True"
-    -- $ insert "false" "False"
+    $ insert "true" "True"
+    $ insert "false" "False"
     $ insert "zero" "0 :: Int"
     -- $ insert "flip" "flip"
-    -- $ insert "not" "not"
-    -- $ insert "isZero" "(== (0 :: Int))"
+    $ insert "not" "not"
+    $ insert "isZero" "(== (0 :: Int))"
     -- $ insert "foldNat" "\\ f acc i -> foldr (const f) acc ([1..i] :: [Int])"  -- "\\f -> foldNatNat (const f)"
     -- $ insert "foldNatNat" "\\ f acc i -> foldr f acc ([1..i] :: [Int])" -- test!
     $ insert "add" "(+)" -- test!
