@@ -241,6 +241,8 @@ train synthesizerConfig TaskFnDataset{..} = do
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tnsr '[n'1, t * (2 * Dirs * H)]
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
+            -- to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
+            -- I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
             sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length target_io_pairs) [r3nnBatch]
             let sampled_feats :: Tnsr '[r3nnBatch, t * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
             loss :: Tnsr '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
