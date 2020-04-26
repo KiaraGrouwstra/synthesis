@@ -28,9 +28,11 @@ import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks
 import           Util                         (fstOf3)
 import           Language.Haskell.Interpreter
 
+import           Data.Proxy
 import           GHC.TypeNats
 import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
+import qualified Torch.Device                  as D
 import qualified Torch.TensorFactories         as D
 import qualified Torch.Optim                   as D
 import qualified Torch.Functional.Internal     as I
@@ -104,10 +106,6 @@ synth_util = parallel $ do
         let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
-    -- it "gpu" $ do
-    --     putStrLn $ "availableDevices: " <> show availableDevices
-    --     dev <- getDevice
-    --     putStrLn $ "dev: " <> show dev
-    --     let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
-    --     putStrLn $ "t: " <> show t
-    --     False `shouldBe` True
+    it "toDevice" $ do
+        let t = toDev . D.asTensor $ [1,2,3::Int]
+        D.shape t `shouldBe` [3]

@@ -70,8 +70,11 @@ type Dirs = NumberOfDirections Dir
 dirs :: Int
 dirs = natValI @Dirs
 
-type Dev = '( 'D.CPU, 0)
+type Dev = '( 'D.CUDA, 0)
 type Tnsr dims = Tensor Dev 'D.Float dims
+
+toDev :: D.Tensor -> D.Tensor
+toDev = D.toDevice $ deviceVal @Dev
 
 getDevice :: IO D.Device
 getDevice = do
