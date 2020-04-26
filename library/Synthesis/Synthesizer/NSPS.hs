@@ -35,7 +35,7 @@ import           Prelude                        hiding (abs)
 import           Language.Haskell.Interpreter  ( Interpreter, liftIO, lift )
 import           GHC.Exts
 import           GHC.Generics                  (Generic)
-import           GHC.TypeNats                  (KnownNat, Nat, type (*))
+import           GHC.TypeNats                  (KnownNat, Nat, type (*), type (-))
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.DType                   as D
 import qualified Torch.Tensor                  as D
@@ -178,7 +178,6 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
 train :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
 train synthesizerConfig TaskFnDataset{..} = do
     let SynthesizerConfig{..} = synthesizerConfig
-    let rules :: Int = natValI @rules
 
     -- GENERAL
 
@@ -186,22 +185,50 @@ train synthesizerConfig TaskFnDataset{..} = do
     let set_list = untuple3 datasets
     let [train_set, validation_set, test_set] :: [[Expr]] = set_list
     let all_sets :: [Expr] = join set_list
-    let [n_train, n_validation, n_test] :: [Int] = assertEq (length <$> set_list) [natValI @n_train, natValI @n_validation, natValI @n_test]
-    say $ "n_train : " <> show n_train <> ", n_validation: " <> show n_validation <> ", n_test: " <> show n_test
+
+    -- verify static parameters
+    -- for copy/pasting convenience, show how the params should be
+    liftIO $ printf
+        "type Rules = %d\ntype MaxStringLength = %d\ntype N_train = %d\ntype N_validation = %d\ntype N_test = %d\ntype RhsSymbols = %d\ntype MaxChar = %d\n"
+        (length exprBlocks)
+        longestString
+        (length train_set)
+        (length validation_set)
+        (length test_set)
+        (size dsl)
+        (size charMap + 1)
+    let (num_rules,     longest_string,     n_train,     n_validation,     n_test,     symbols,     maxChar) ::
+            (Int, Int, Int, Int, Int, Int, Int) = assertEq
+            ( length exprBlocks
+            , longestString
+            , length train_set
+            , length validation_set
+            , length test_set
+            , size dsl
+            , size charMap + 1
+            ) $
+            ( natValI @rules
+            -- TODO: longestString -> natValI @t, once the calculation works again...
+            , longestString
+            , natValI @n_train
+            , natValI @n_validation
+            , natValI @n_test
+            , natValI @symbols - natValI @LhsSymbols
+            , natValI @maxChar
+            )
+    -- print just to force lazy evaluation to actually check these variables
+    liftIO $ printf
+        "num_rules: %d. longest_string: %d. n_train: %d. n_validation: %d. n_test: %d. symbols: %d. maxChar: %d.\n"
+         num_rules      longest_string      n_train      n_validation      n_test      symbols      maxChar
 
     -- misc
     -- device <- liftIO $ getDevice
     -- let device :: D.Device = D.Device D.CPU 0
     let stdGen :: StdGen = mkStdGen seed
-    -- assert our (hole-variant) blocks match their static length
-    let expr_blocks :: [(String, Expr)] = assertEqBy length rules exprBlocks
-    let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
+    let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
     let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
-    let symbols :: Int = assertEq (natValI @LhsSymbols + size dsl) $ natValI @symbols
-    let maxChar :: Int = assertEq (size charMap + 1) $ natValI @maxChar
-    say $ "symbols : " <> show symbols <> ", rules: " <> show rules <> ", maxChar: " <> show maxChar
     let init_lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
-
+    
     -- pre-calculate DSL stuff
     let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
             fmap (fmap fst) <$> fnInTypeInstanceOutputs
@@ -216,9 +243,6 @@ train synthesizerConfig TaskFnDataset{..} = do
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
-    say $ show $ natValI @t
-    -- let longest_string :: Int = assertEq longestString $ natValI @t
-    -- say $ "longest allowed i/o string length: " <> show longest_string
 
     -- MODELS
     let encoder_spec :: LstmEncoderSpec t encoderBatch maxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
