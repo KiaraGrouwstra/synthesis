@@ -553,5 +553,6 @@ replacements :: Eq a => [([a],[a])] -> [a] -> [a]
 replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
 
 -- | conditionally transform a value
+-- | deprecated, not in use
 iff :: Bool -> (a -> a) -> (a -> a)
 iff cond fn = if cond then fn else id
