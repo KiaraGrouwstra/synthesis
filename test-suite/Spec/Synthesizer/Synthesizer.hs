@@ -103,6 +103,6 @@ synthesizer = let
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
         let model' :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' = A.replaceParameters model newParam
         loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
-        toBool (lt loss' loss) `shouldBe` True
+        toBool (loss' <. loss) `shouldBe` True
 
     ]

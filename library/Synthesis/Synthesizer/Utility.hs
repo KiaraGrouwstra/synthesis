@@ -551,3 +551,7 @@ replace from to = intercalate to . splitOn from
 -- | perform multiple sub-list replacements
 replacements :: Eq a => [([a],[a])] -> [a] -> [a]
 replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
+
+-- | conditionally transform a value
+iff :: Bool -> (a -> a) -> (a -> a)
+iff cond fn = if cond then fn else id

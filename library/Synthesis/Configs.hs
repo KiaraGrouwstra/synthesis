@@ -168,6 +168,12 @@ synthesizerConfig = SynthesizerConfig
         <> value "results"
         <> showDefault
         <> help "the file path from which to load generated datasets" )
+    <*> option auto
+        ( long "learningDecay"
+        <> value 5
+        <> showDefault
+        <> help "by how much to divide the learning rate when accuracy decreases" )
+
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts

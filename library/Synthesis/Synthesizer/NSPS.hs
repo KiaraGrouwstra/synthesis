@@ -200,7 +200,7 @@ train synthesizerConfig TaskFnDataset{..} = do
     let symbols :: Int = assertEq (natValI @LhsSymbols + size dsl) $ natValI @symbols
     let maxChar :: Int = assertEq (size charMap + 1) $ natValI @maxChar
     say $ "symbols : " <> show symbols <> ", rules: " <> show rules <> ", maxChar: " <> show maxChar
-    let lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
+    let init_lr :: Tnsr '[] = UnsafeMkTensor . D.asTensor $ learningRate
 
     -- pre-calculate DSL stuff
     let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
@@ -225,9 +225,9 @@ train synthesizerConfig TaskFnDataset{..} = do
     let r3nn_spec :: R3NNSpec m symbols rules t r3nnBatch = initR3nn @m @symbols @rules @t @r3nnBatch variants r3nnBatch dropoutRate
     init_model :: NSPS m symbols rules t encoderBatch r3nnBatch maxChar <- liftIO $ A.sample $ NSPSSpec @m @symbols @rules encoder_spec r3nn_spec
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
-    let init_state = (stdGen, init_model, init_optim, False, [])
+    let init_state = (stdGen, init_model, init_optim, False, [], init_lr, 0.0)
 
-    (_, _, _, _, eval_results) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results) epoch -> if earlyStop then pure state else do
+    (_, _, _, _, eval_results, _, _) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results, lr, prev_acc) epoch -> if earlyStop then pure state else do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
         -- TRAIN LOOP
@@ -317,21 +317,21 @@ train synthesizerConfig TaskFnDataset{..} = do
 
                 let best_works :: Bool = or sample_matches
                 let score :: Tnsr '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
-                return (not best_works, loss)
+                return (best_works, loss)
 
-            let err_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
+            let acc_test  :: Tnsr '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
             let loss_test :: Tnsr '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
 
             liftIO $ printf
-                "Epoch: %d. Train loss: %.4f. Test loss: %.4f. Test error-rate: %.4f\n"
+                "Epoch: %d. Train loss: %.4f. Test loss: %.4f. Test accuracy: %.4f\n"
                 epoch
                 (toFloat loss_train)
                 (toFloat loss_test)
-                (toFloat err_test)
+                (toFloat acc_test)
 
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat err_test)
+            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat acc_test)
             let eval_results' = eval_result : eval_results
             let earlyStop :: Bool = whenOr False (length eval_results' >= 2 * checkWindow) $ let
                     losses  :: [Float] = lossTest <$> eval_results'
@@ -345,7 +345,12 @@ train synthesizerConfig TaskFnDataset{..} = do
 
             return $ (earlyStop, eval_results')
 
-        return (gen', model', optim', earlyStop, eval_results')
+        let acc_test :: Float = accTest $ head eval_results'
+        -- decay the learning rate if accuracy decreases
+        -- TODO: have this use dev rather than test acc
+        let lr' :: Tnsr '[] = iff (acc_test > prev_acc) (divScalar learningDecay) lr
+
+        return (gen', model', optim', earlyStop, eval_results', lr', acc_test)
 
     liftIO $ createDirectoryIfMissing True resultFolder
     let resultPath = resultFolder <> "/" <> replacements [("/","\\"),(" ",""),("SynthesizerConfig","")] (show synthesizerConfig) <> ".csv"

@@ -94,7 +94,7 @@ nsps = parallel $ let
 
         io_feats' :: Tnsr '[EncoderBatch', 2 * Dirs * H * MaxStringLength'] <- lstmEncoder enc_model' charMap io_pairs
         let loss' :: Tnsr '[] = sumAll io_feats'
-        toBool (lt loss' loss) `shouldBe` True
+        toBool (loss' <. loss) `shouldBe` True
 
     it "R3NN" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks
@@ -117,7 +117,7 @@ nsps = parallel $ let
         let r3nn_model' :: R3NN M Symbols' Rules' MaxStringLength' R3nnBatch' = A.replaceParameters r3nn_model newParam
         hole_expansion_probs' :: Tnsr '[NumHoles', Rules'] <- runR3nn @Symbols' @M @MaxStringLength' @Rules' @R3nnBatch' r3nn_model' symbolIdxs ppt sampled_feats
         let loss' :: Tnsr '[] = patchLoss @M variant_sizes r3nn_model' $ sumAll hole_expansion_probs'
-        toBool (lt loss' loss) `shouldBe` True
+        toBool (loss' <. loss) `shouldBe` True
 
     it "predictHole" $ do
         let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> expr_blocks

@@ -74,6 +74,7 @@ data SynthesizerConfig = SynthesizerConfig
   , convergenceThreshold :: Float
   , synthMaxHoles :: Int
   , resultFolder :: String
+  , learningDecay :: Int
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig
@@ -83,15 +84,15 @@ data ViewDatasetConfig = ViewDatasetConfig
 data EvalResult = EvalResult { epoch     :: !Int
                               , lossTrain :: !Float
                               , lossTest  :: !Float
-                              , errTest   :: !Float
+                              , accTest   :: !Float
                               }
 
 instance ToNamedRecord EvalResult where
-    toNamedRecord (EvalResult epoch lossTrain lossTest errTest) =
+    toNamedRecord (EvalResult epoch lossTrain lossTest accTest) =
         namedRecord [ "epoch"     .= epoch
                     , "lossTrain" .= lossTrain
                     , "lossTest"  .= lossTest
-                    , "errTest"   .= errTest
+                    , "accTest"   .= accTest
                     ]
 
-evalResultHeader :: Header = header ["epoch", "lossTrain", "lossTest", "errTest"]
+evalResultHeader :: Header = header ["epoch", "lossTrain", "lossTest", "accTest"]
