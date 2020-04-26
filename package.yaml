@@ -76,6 +76,12 @@ executables:
     dependencies:
     - synthesis
 
+  grid-search:
+    source-dirs: grid-search
+    main: Main.hs
+    dependencies:
+    - synthesis
+
 benchmarks:
   synthesis-benchmarks:
     source-dirs: benchmark
