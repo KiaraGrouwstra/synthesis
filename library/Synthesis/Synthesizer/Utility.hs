@@ -18,7 +18,7 @@ module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) wher
 
 import Prelude hiding (lookup, exp)
 import GHC.Stack
-import GHC.TypeNats (KnownNat, type (+), type (*))
+import GHC.TypeNats (Nat, KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
@@ -70,8 +70,8 @@ type Dirs = NumberOfDirections Dir
 dirs :: Int
 dirs = natValI @Dirs
 
-type Dev = '( 'D.CPU, 0)
-type Tnsr dims = Tensor Dev 'D.Float dims
+type Cpu = '( 'D.CPU, 0)
+type Gpu = '( 'D.CUDA, 0)
 
 getDevice :: IO D.Device
 getDevice = do
@@ -87,14 +87,22 @@ cpu = Proxy @'( 'D.CPU, 0)
 
 cuda0 = Proxy @'( 'D.CUDA, 0)
 
+-- | any available devices
 availableDevices :: [D.Device]
 availableDevices =
-  let hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
-  in  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
-        <> (if hasCuda
-             then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
-             else mempty
-           )
+  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
+    <> (if hasCuda
+          then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
+          else mempty
+        )
+
+-- | check if we can use GPU
+hasCuda :: Bool
+hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
+
+-- | get the device to run on: CUDA if available, otherwise CPU
+fastestDevice :: (D.DeviceType, Nat)
+fastestDevice = (if hasCuda then D.CUDA else D.CPU, 0)
 
 -- | right-pad a list to a given length
 padRight :: a -> Int -> [a] -> [a]
@@ -273,7 +281,7 @@ shuffle gen dim tensor = (gen', shuffled)
         shuffled = D.indexSelect tensor dim $ D.asTensor $ asLong <$> idxs'
 
 -- | square a tensor, for use in mean-square-error loss
-square :: Tnsr shape -> Tnsr shape
+square :: Tensor device 'D.Float shape -> Tensor device 'D.Float shape
 square = pow (2 :: Int)
 
 -- | cumulative fold

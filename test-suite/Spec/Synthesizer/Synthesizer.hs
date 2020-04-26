@@ -65,6 +65,8 @@ import           Synthesis.Synthesizer.Params
 
 import           Spec.Synthesizer.Types
 
+type Device = Cpu
+
 synthesizer ∷ Test
 synthesizer = let
         dropOut :: Double = 0.0
@@ -89,20 +91,20 @@ synthesizer = let
         let encoder_spec :: LstmEncoderSpec MaxStringLength' EncoderBatch' MaxChar' = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         let r3nn_spec :: R3NNSpec M Symbols' Rules' MaxStringLength' R3nnBatch' = initR3nn @M @Symbols' @Rules' @MaxStringLength' variants r3nnBatch' dropOut
         model :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' <- A.sample $ NSPSSpec @M @Symbols' @Rules' encoder_spec r3nn_spec
-        --  :: Tnsr '[n, 2 * Dirs * H * MaxStringLength']
+        --  :: Tensor Device 'D.Float '[n, 2 * Dirs * H * MaxStringLength']
         io_feats <- lstmEncoder (encoder model) charMap io_pairs
         sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch']
-        let sampled_feats :: Tnsr '[R3nnBatch', MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
+        let sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 
-        loss :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss :: Tensor Device 'D.Float '[] <- calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
         let model' :: NSPS M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' = A.replaceParameters model newParam
-        loss' :: Tnsr '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss' :: Tensor Device 'D.Float '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toBool (loss' <. loss) `shouldBe` True
 
     ]
