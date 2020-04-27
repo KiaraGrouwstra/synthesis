@@ -23,7 +23,7 @@ nix-env -iA cachix -f https://cachix.org/api/v1/install
 
 # enter dev shell
 cachix use tycho01
-nix-build | cachix push tycho01
+nix-build # | cachix push tycho01
 # cpu:
 nix-shell
 # gpu:
