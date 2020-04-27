@@ -18,6 +18,7 @@ You can build and run this project using [Nix](https://nixos.org/nix/) + [Cabal]
 ``` sh
 # install Nix, Cachix:
 bash <(curl https://nixos.org/nix/install)
+. ~/.nix-profile/etc/profile.d/nix.sh
 nix-env -iA cachix -f https://cachix.org/api/v1/install
 # nixGL for GPU thru Nix: https://github.com/guibou/nixGL
 
