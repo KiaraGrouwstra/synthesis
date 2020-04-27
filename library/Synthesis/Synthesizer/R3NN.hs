@@ -171,27 +171,36 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
     let device = deviceVal @device
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf
     let io_feats' :: Tensor device 'D.Float '[batch_size * (t * (2 * Dirs * H))] = reshape io_feats
+    putStrLn $ "io_feats':\n" <> show (tensorStats io_feats')
+    -- let stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats'
+    -- putStrLn $ "stacked_io:\n" <> show (tensorStats' stacked_io)
     let conditioned :: Tensor device 'D.Float '[symbols, m + batch_size * t * (2 * Dirs * H)] =
             UnsafeMkTensor $ F.cat (F.Dim 1) [(D.toDevice device . toDynamic . Torch.Typed.Parameter.toDependent $ symbol_emb), stacked_io]
             where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats'
+    putStrLn $ "conditioned:\n" <> show (tensorStats conditioned)
     -- conditioning can use an MLP or (bidir) LSTM; LSTM learns more about the relative position of each leaf node in the tree.
     let conditioned' :: Tensor device 'D.Float '[symbols, m] = 
             -- asUntyped to type-check m*2/2
             asUntyped (\t -> I.squeezeDim t 0) .
             fstOf3 . lstmWithDropout @'SequenceFirst condition_model . unsqueeze @0 $ conditioned
+    putStrLn $ "conditioned':\n" <> show (tensorStats conditioned')
     let root_emb :: Tensor device 'D.Float '[1, m] = forwardPass @m r3nn symbolIdxs conditioned' ppt
+    putStrLn $ "root_emb:\n" <> show (tensorStats root_emb)
     let node_embs :: Tensor device 'D.Float '[num_holes, m] = 
             UnsafeMkTensor $ F.cat (F.Dim 0) $ toDynamic <$> reversePass @m r3nn root_emb ppt
+    putStrLn $ "node_embs:\n" <> show (tensorStats node_embs)
     -- | bidirectional LSTM to process the global leaf representations right before calculating the scores.
     let node_embs' :: Tensor device 'D.Float '[num_holes, m] =
             -- asUntyped to type-check m*2/2
             asUntyped (\t -> I.squeezeDim t 0) .
             fstOf3 . lstmDynamicBatch @'SequenceFirst dropoutOn score_model . unsqueeze @0 $ node_embs
                     where dropoutOn = True
+    putStrLn $ "node_embs':\n" <> show (tensorStats node_embs')
     -- | expansion score z_e=ϕ′(e.l)⋅ω(e.r), for expansion e, expansion type e.r (for rule r∈R), leaf node e.l
     let scores :: Tensor device 'D.Float '[num_holes, rules] =
             -- matmul node_embs' . toDevice . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
             UnsafeMkTensor . F.matmul (toDynamic node_embs') . D.toDevice device . toDynamic . transpose @0 @1 . Torch.Typed.Parameter.toDependent $ rule_emb
+    putStrLn $ "scores:\n" <> show (tensorStats scores)
     -- delay softmax for log-sum-exp trick (crossEntropy)
     return scores
 

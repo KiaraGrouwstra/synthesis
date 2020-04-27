@@ -30,6 +30,7 @@ import Data.Hashable (Hashable)
 import Data.HashMap.Lazy (HashMap, fromList, lookup)
 import Data.Proxy
 import System.Environment (getEnv)
+import Control.Arrow ((&&&))
 import Control.Exception (SomeException, try, assert)
 import Control.Monad (void, foldM, (=<<))
 import Language.Haskell.Interpreter (Interpreter)
@@ -579,3 +580,15 @@ sampleTensor :: forall dim size device dtype shape' . (KnownNat dim, KnownNat si
 sampleTensor n tensor = do
     sampled_idxs :: D.Tensor <- D.toDevice (D.device tensor) . F.toDType D.Int64 <$> D.randintIO' 0 n [natValI @size]
     return . UnsafeMkTensor $ D.indexSelect tensor (natValI @dim) sampled_idxs
+-- sampleTensor :: forall dim size shape device dtype shape' . (KnownNat dim, KnownNat size, KnownShape shape, TensorOptions shape dtype device, shape' ~ FromMaybe (ReplaceDim dim shape size)) => Int -> Tensor device dtype shape -> IO (Tensor device dtype shape')
+-- sampleTensor n tensor = do
+--     sampled_idxs :: D.Tensor <- D.toDevice (device tensor) . F.toDType D.Int64 <$> D.randintIO' 0 n [natValI @size]
+--     return . UnsafeMkTensor $ D.indexSelect (toDynamic tensor) (natValI @dim) sampled_idxs
+
+-- | print-friendly tensor stats
+tensorStats' :: D.Tensor -> (D.Device, [Int])
+tensorStats' = D.device &&& D.shape
+
+-- | print-friendly tensor stats
+tensorStats :: Tensor device dtype shape -> (D.Device, [Int])
+tensorStats = tensorStats' . toDynamic

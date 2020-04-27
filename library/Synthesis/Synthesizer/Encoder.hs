@@ -37,7 +37,7 @@ import           Synthesis.Synthesizer.LSTM
 
 import Synthesis.Orphanage ()
 import Synthesis.Data (Expr)
-import Synthesis.Utility (pp)
+import Synthesis.Utility (pp, mapTuple)
 import Synthesis.Synthesizer.Utility
 import Synthesis.Synthesizer.Params
 
@@ -108,6 +108,7 @@ lstmEncoder encoder charMap io_pairs = do
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
     let str2tensor :: Int -> String -> Tensor device 'D.Float '[1, t, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
     let vec_pairs :: [(Tensor device 'D.Float '[1, t, maxChar], Tensor device 'D.Float '[1, t, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
+    putStrLn $ "vec_pairs:\n" <> show (mapTuple tensorStats <$> vec_pairs)
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size
@@ -116,18 +117,19 @@ lstmEncoder encoder charMap io_pairs = do
             -- batchTensor' @0 . UnsafeMkTensor . stack' 0  -- ambiguous shape
     let  in_vecs :: [Tensor device 'D.Float '[batch_size, t, maxChar]] =
             stackPad $ toDynamic . fst <$> vec_pairs
+    putStrLn $ "in_vecs:\n" <> show (tensorStats <$> in_vecs)
     let out_vecs :: [Tensor device 'D.Float '[batch_size, t, maxChar]] =
             stackPad $ toDynamic . snd <$> vec_pairs
-    -- print $ "out_vecs"
-    -- print $ "out_vecs: " ++ show (D.shape . toDynamic <$> out_vecs)
+    -- putStrLn $ "out_vecs"
+    putStrLn $ "out_vecs:\n" <> show (tensorStats <$> out_vecs)
 
     let feat_vecs :: [Tensor device 'D.Float '[batch_size, t * (2 * Dirs * H)]] =
             uncurry (lstmBatch encoder) <$> zip in_vecs out_vecs
-    -- print $ "feat_vecs"
-    -- print $ "feat_vecs: " ++ show (D.shape . toDynamic <$> feat_vecs)
+    -- putStrLn $ "feat_vecs"
+    putStrLn $ "feat_vecs:\n" <> show (tensorStats <$> feat_vecs)
     let feat_vec :: Tensor device 'D.Float '[n', t * (2 * Dirs * H)] =
             UnsafeMkTensor $ F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
-    -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
+    putStrLn $ "feat_vec:\n" <> show (tensorStats feat_vec)
     return feat_vec
 
     -- -- mapped: I'm not quite sure if this is learning across samples as the lstms seem not updated? should it??

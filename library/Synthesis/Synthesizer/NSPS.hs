@@ -170,13 +170,20 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
             fill = \(ppt, golds, predictions, filled) -> do
                     predicted <- runR3nn @symbols @m (r3nn model) symbolIdxs ppt sampled_feats
+                    putStrLn $ "predicted:\n" <> show (tensorStats predicted)
                     (ppt', gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
+                    putStrLn $ "gold:\n" <> show (tensorStats gold)
                     -- putStrLn $ "ppt': " <> pp ppt'
                     return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
             in while (\(expr, _, _, filled) -> hasHoles expr && filled < synth_max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
+    putStrLn $ "golds:\n" <> show (tensorStats' <$> golds)
+    putStrLn $ "predictions:\n" <> show (tensorStats' <$> predictions)
     let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
+    putStrLn $ "gold_rule_probs:\n" <> show (tensorStats' gold_rule_probs)
     let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
+    putStrLn $ "hole_expansion_probs:\n" <> show (tensorStats' hole_expansion_probs)
     let loss :: Tensor device 'D.Float '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+    putStrLn $ "loss:\n" <> show (tensorStats loss)
     return loss
 
 trainCpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
@@ -270,17 +277,20 @@ train synthesizerConfig TaskFnDataset{..} = do
         -- TRAIN LOOP
         let foldrM_ x xs f = foldrM f x xs
         (train_losses, model', optim') :: ([D.Tensor], NSPS device m symbols rules t encoderBatch r3nnBatch maxChar, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
-            -- putStrLn $ "task_fn: \n" <> pp task_fn
+            -- putStrLn $ "task_fn:\n" <> pp task_fn
             let taskType :: Tp = fnTypes ! task_fn
-            -- putStrLn $ "taskType: " <> pp taskType
+            putStrLn $ "taskType: " <> pp taskType
             let target_io_pairs :: [(Expr, Either String Expr)] =
                     task_io_pairs ! task_fn
-            -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
+            putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * H)]
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
+            putStrLn $ "io_feats:\n" <> show (tensorStats io_feats)
             sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                     <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
+            putStrLn $ "sampled_feats:\n" <> show (tensorStats sampled_feats)
             loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+            putStrLn $ "loss:\n" <> show (tensorStats loss)
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -293,6 +303,7 @@ train synthesizerConfig TaskFnDataset{..} = do
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
             test_stats :: [(Bool, Tensor device 'D.Float '[])] <- forM test_set $ \task_fn -> do
+                say $ "task_fn: " <> pp task_fn
                 let taskType :: Tp = fnTypes                        ! task_fn
                 let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
                 let target_io_pairs :: [(Expr, Either String Expr)] =
@@ -302,9 +313,12 @@ train synthesizerConfig TaskFnDataset{..} = do
 
                 --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * H)]
                 io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
+                say $ "io_feats: " <> show (tensorStats io_feats)
                 sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                         <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
+                say $ "sampled_feats: " <> show (tensorStats sampled_feats)
                 loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+                say $ "loss:\n" <> show (tensorStats loss)
 
                 -- sample for best of 100 predictions
                 sample_matches :: [Bool] <- replicateM bestOf $ do
@@ -321,14 +335,14 @@ train synthesizerConfig TaskFnDataset{..} = do
                         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
                         let program' :: Expr = if null defs then program else letIn defs program
 
-                        -- say $ "type_ins: " <> pp_ type_ins
+                        say $ "type_ins: " <> pp_ type_ins
                         prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
                                 compileInput :: [Expr] -> Interpreter [(Expr, Either String Expr)] = \ins -> let
                                         n :: Int = length $ unTuple' $ ins !! 0
                                         -- crash_on_error=False is slower but lets me check if it compiles
                                         in fnIoPairs False n program' $ list ins
                                 in compileInput `mapM` type_ins
-                        -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
+                        say $ "prediction_type_ios: " <> pp_ prediction_type_ios
                         let prediction_io_pairs :: [(Expr, Either String Expr)] =
                                 join . elems $ prediction_type_ios
                         let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
