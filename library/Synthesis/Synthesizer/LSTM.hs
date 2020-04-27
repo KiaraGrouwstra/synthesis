@@ -50,12 +50,14 @@ import qualified Torch.Functional              as D
 import qualified Torch.NN                      as A
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
+import qualified Torch.TensorOptions           as D
 import           Torch.Typed
 import           Torch.Typed.Factories
 import           Torch.Typed.Functional      hiding ( sqrt )
 import           Torch.Typed.Tensor
 import           Torch.Typed.Parameter
 import           Torch.Typed.NN
+import           Torch.Typed.Aux
 
 data LSTMLayerSpec
   (inputSize :: Nat)
@@ -117,8 +119,7 @@ instance
     = K1 (LSTMBidirectionalLayer wi wh bi bh wi' wh' bi' bh')
 
 instance
-  ( RandDTypeIsValid device dtype
-  , KnownNat inputSize
+  ( KnownNat inputSize
   , KnownNat hiddenSize
   , KnownDType dtype
   , KnownDevice device
@@ -133,8 +134,7 @@ instance
       <*> (makeIndependent =<< pure zeros)
 
 instance
-  ( RandDTypeIsValid device dtype
-  , KnownNat inputSize
+  ( KnownNat inputSize
   , KnownNat hiddenSize
   , KnownDType dtype
   , KnownDevice device
@@ -215,8 +215,7 @@ instance {-# OVERLAPPABLE #-}
       in  K1 (LSTMLayerK lstmLayerStack' lstmLayer')
 
 instance {-# OVERLAPS #-}
-  ( RandDTypeIsValid device dtype
-  , KnownNat inputSize
+  ( KnownNat inputSize
   , KnownNat hiddenSize
   , KnownDType dtype
   , KnownDevice device
@@ -229,7 +228,6 @@ instance {-# OVERLAPS #-}
 
 instance {-# OVERLAPPABLE #-}
   ( 2 <= numLayers
-  , RandDTypeIsValid device dtype
   , KnownNat inputSize
   , KnownNat hiddenSize
   , KnownDType dtype
@@ -282,11 +280,11 @@ xavierUniformLSTM
      , KnownNat hiddenSize
      , KnownNat featureSize
      , KnownDevice device
-     , RandDTypeIsValid device dtype
      )
   => IO (Tensor device dtype '[4 * hiddenSize, featureSize])
 xavierUniformLSTM = do
-  init <- randn :: IO (Tensor device dtype '[4 * hiddenSize, featureSize])
+  -- init <- randn :: IO (Tensor device dtype '[4 * hiddenSize, featureSize])
+  init <- fmap UnsafeMkTensor $ D.randnIO [4 * natValI @hiddenSize, natValI @featureSize] $ D.withDevice (deviceVal @device) $ D.withDType (dtypeVal @dtype) $ D.defaultOpts
   UnsafeMkTensor <$> xavierUniformFIXME
     (toDynamic init)
     (5.0 / 3)
@@ -326,7 +324,6 @@ instance
   , KnownNat inputSize
   , KnownNat hiddenSize
   , KnownNat (NumberOfDirections directionality)
-  , RandDTypeIsValid device dtype
   , A.Randomizable (LSTMLayerStackSpec inputSize hiddenSize numLayers directionality dtype device)
                    (LSTMLayerStack     inputSize hiddenSize numLayers directionality dtype device)
   ) => A.Randomizable (LSTMSpec inputSize hiddenSize numLayers directionality dtype device)
