@@ -1,29 +1,19 @@
-library-vanilla: False
-shared: True
-executable-dynamic: True
-
-package *
-  ghc-options: -dynamic
-
-program-options
-  ghc-options: -dynamic
-
-source-repository-package
-  type: git
-  location: git://github.com/haskell-hint/hint.git
-  branch: dbb878955528d9125a601773b25a3c45b9fcef06
-
-packages: ./synthesis.cabal
-
 source-repository-package
   type: git
   location: git://github.com/hasktorch/hasktorch.git
   branch: 99545bb638430b321c03dcf79328ea27cd8a282a
+  subdir: hasktorch
 
 source-repository-package
   type: git
   location: git://github.com/hasktorch/hasktorch.git
   branch: 99545bb638430b321c03dcf79328ea27cd8a282a
   subdir: libtorch-ffi
+
+source-repository-package
+  type: git
+  location: git://github.com/hasktorch/hasktorch.git
+  branch: 99545bb638430b321c03dcf79328ea27cd8a282a
+  subdir: libtorch-ffi-helper
 
 packages: ./synthesis.cabal
