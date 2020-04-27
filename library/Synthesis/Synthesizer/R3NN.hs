@@ -29,7 +29,6 @@ import Torch.Typed.Aux
 import Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
-import Torch.TensorFactories (randnIO', zeros')
 import Torch.Autograd
 import Synthesis.Synthesizer.LSTM
 import Torch.HList
@@ -38,6 +37,7 @@ import qualified Torch.Functional              as F
 import qualified Torch.Tensor                  as D
 import qualified Torch.Device                  as D
 import qualified Torch.DType                   as D
+import qualified Torch.TensorFactories         as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Autograd                as D
 
@@ -122,9 +122,9 @@ instance ( KnownDevice device
             -- right: ditto
             <*> mapM (\q -> A.sample $ MLPSpec m rightH0 rightH1 (q * m)) variant_sizes
             -- symbol_emb
-            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< randnIO' [symbols, m])
+            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< D.randnIO' [symbols, m])
             -- rule_emb
-            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< randnIO' [rules,   m])
+            <*> (fmap UnsafeMkParameter . D.makeIndependent =<< D.randnIO' [rules,   m])
             where
                 -- m must be divisible by Dirs for `Div` in the LSTM specs to work out due to integer division...
                 m = assertP ((== 0) . (`mod` natValI @Dirs)) $ natValI @m
@@ -160,7 +160,7 @@ initR3nn variants batch_size dropoutRate = R3NNSpec @device @m @symbols @rules @
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.)
 runR3nn
     :: forall symbols m t rules batch_size num_holes device
-    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size )
+    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size, KnownDevice device )
     => R3NN device m symbols rules t batch_size
     -> HashMap String Int
     -> Expr
@@ -168,10 +168,11 @@ runR3nn
     -> IO (Tensor device 'D.Float '[num_holes, rules])
 runR3nn r3nn symbolIdxs ppt io_feats = do
     let R3NN{..} = r3nn
+    let device = deviceVal @device
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf
     let io_feats' :: Tensor device 'D.Float '[batch_size * (t * (2 * Dirs * H))] = reshape io_feats
     let conditioned :: Tensor device 'D.Float '[symbols, m + batch_size * t * (2 * Dirs * H)] =
-            UnsafeMkTensor $ F.cat (F.Dim 1) [toDynamic (Torch.Typed.Parameter.toDependent symbol_emb), stacked_io]
+            UnsafeMkTensor $ F.cat (F.Dim 1) [(D.toDevice device . toDynamic . Torch.Typed.Parameter.toDependent $ symbol_emb), stacked_io]
             where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats'
     -- conditioning can use an MLP or (bidir) LSTM; LSTM learns more about the relative position of each leaf node in the tree.
     let conditioned' :: Tensor device 'D.Float '[symbols, m] = 
@@ -189,8 +190,8 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
                     where dropoutOn = True
     -- | expansion score z_e=ϕ′(e.l)⋅ω(e.r), for expansion e, expansion type e.r (for rule r∈R), leaf node e.l
     let scores :: Tensor device 'D.Float '[num_holes, rules] =
-            -- matmul node_embs' . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
-            UnsafeMkTensor . F.matmul (toDynamic node_embs') . toDynamic . transpose @0 @1 . Torch.Typed.Parameter.toDependent $ rule_emb
+            -- matmul node_embs' . toDevice . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
+            UnsafeMkTensor . F.matmul (toDynamic node_embs') . D.toDevice device . toDynamic . transpose @0 @1 . Torch.Typed.Parameter.toDependent $ rule_emb
     -- delay softmax for log-sum-exp trick (crossEntropy)
     return scores
 
@@ -198,12 +199,12 @@ variantInt :: Expr -> (String, Int)
 variantInt = (appRule &&& length) . fnAppNodes
 
 -- | Torch gets sad not all nnets get used in the loss 😢 so let's give it a hug... 🤗🙄
-patchLoss :: forall m symbols rules t batch_size device . (KnownNat m) => HashMap String Int -> R3NN device m symbols rules t batch_size -> Tensor device 'D.Float '[] -> Tensor device 'D.Float '[]
+patchLoss :: forall m symbols rules t batch_size device . (KnownNat m, KnownDevice device) => HashMap String Int -> R3NN device m symbols rules t batch_size -> Tensor device 'D.Float '[] -> Tensor device 'D.Float '[]
 patchLoss variant_sizes r3nn_model other = let
         m :: Int = natValI @m
-        left_dummy  :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model
-        right_dummy :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model
-    in UnsafeMkTensor $ F.add (toDynamic other) $ left_dummy `F.add` right_dummy
+        left_dummy  :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ D.zeros' [1,q*m]) $ toList $  left_nnets r3nn_model
+        right_dummy :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ D.zeros' [1,  m]) $ elems  $ right_nnets r3nn_model
+    in UnsafeMkTensor $ F.add (toDynamic other) $ D.toDevice (deviceVal @device) $ left_dummy `F.add` right_dummy
 
 -- | perform a recursive pass going up in the tree to assign a global tree representation to the root.
 forwardPass
@@ -229,7 +230,7 @@ forwardPass r3nn symbolIdxs conditioned' expr = let
                             in asUntyped (select'' 0 idx) conditioned'
         App _l _exp1 _exp2 -> let
                 tensors :: [Tensor device 'D.Float '[1, m]] = f <$> fnAppNodes expr
-                nnet = mlp $ lookupRule left_nnets $ nodeRule expr
+                nnet = asCPU . mlp . lookupRule left_nnets $ nodeRule expr
             in UnsafeMkTensor $ nnet $ F.cat (F.Dim 1) $ toDynamic <$> tensors
         _ -> error $ "unexpected Expr: " ++ show expr
 
@@ -261,7 +262,7 @@ reversePass r3nn node_emb expr = let
             _ -> error $ "unexpected QName: " ++ show qname
         -- | If c is a non-leaf node, we iteratively apply this procedure to c
         App _l _exp1 _exp2 -> let
-                nnet = mlp $ lookupRule right_nnets $ nodeRule expr
+                nnet = asCPU . mlp . lookupRule right_nnets $ nodeRule expr
                 -- Tensor device 'D.Float '[1, q * m]
                 tensor :: D.Tensor = nnet $ toDynamic node_emb
                 child_exprs :: [Expr] = fnAppNodes expr

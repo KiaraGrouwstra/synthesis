@@ -93,8 +93,9 @@ synthesizer = let
         model :: NSPS Device M Symbols' Rules' MaxStringLength' EncoderBatch' R3nnBatch' MaxChar' <- A.sample $ NSPSSpec @Device @M @Symbols' @Rules' encoder_spec r3nn_spec
         --  :: Tensor Device 'D.Float '[n, 2 * Dirs * H * MaxStringLength']
         io_feats <- lstmEncoder (encoder model) charMap io_pairs
-        sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length io_pairs) [r3nnBatch']
-        let sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength' * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
+        sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength' * (2 * Dirs * H)]
+                <- sampleTensor @0 @R3nnBatch' (length io_pairs) $ toDynamic io_feats
+
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 

@@ -159,7 +159,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     let [num_holes, _rules] :: [Int] = shape' hole_expansion_probs
     ppt' :: Expr <- superviseHole @device variantMap num_holes task_fn ppt
     -- iterate over holes to get the loss for each
-    let gold_rule_probs :: Tensor device 'D.Float '[num_holes] = UnsafeMkTensor . D.asTensor $ getGold . fst <$> findHolesExpr ppt
+    let gold_rule_probs :: Tensor device 'D.Float '[num_holes] = UnsafeMkTensor . D.toDevice (deviceVal @device) . D.asTensor $ getGold . fst <$> findHolesExpr ppt
             where getGold = \gtr -> (ruleIdxs !) . nodeRule . gtr $ task_fn
     return (ppt', gold_rule_probs)
 
@@ -278,10 +278,8 @@ train synthesizerConfig TaskFnDataset{..} = do
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * H)]
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
-            -- to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
-            -- I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
-            sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length target_io_pairs) [r3nnBatch]
-            let sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
+            sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
+                    <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
             loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -304,8 +302,8 @@ train synthesizerConfig TaskFnDataset{..} = do
 
                 --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * H)]
                 io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
-                sampled_idxs :: D.Tensor <- liftIO $ F.toDType D.Int64 <$> D.randintIO' 0 (length target_io_pairs) [r3nnBatch]
-                let sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)] = UnsafeMkTensor $ D.indexSelect (toDynamic io_feats) 0 sampled_idxs
+                sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
+                        <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
                 loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
 
                 -- sample for best of 100 predictions

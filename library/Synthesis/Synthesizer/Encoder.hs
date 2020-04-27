@@ -92,7 +92,7 @@ lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
 -- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
     :: forall batch_size t maxChar n n' device
-     . (KnownNat batch_size, KnownNat t, KnownNat maxChar)
+     . (KnownDevice device, KnownNat batch_size, KnownNat t, KnownNat maxChar)
     => LstmEncoder device t batch_size maxChar
     -> HashMap Char Int
     -> [(Expr, Either String Expr)]
@@ -106,7 +106,7 @@ lstmEncoder encoder charMap io_pairs = do
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    let str2tensor :: Int -> String -> Tensor device 'D.Float '[1, t, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
+    let str2tensor :: Int -> String -> Tensor device 'D.Float '[1, t, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
     let vec_pairs :: [(Tensor device 'D.Float '[1, t, maxChar], Tensor device 'D.Float '[1, t, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
 
     -- pre-vectored
