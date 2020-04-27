@@ -42,7 +42,7 @@ import           Torch.Typed.Functional
 import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import           Torch.Typed.NN
-import           Torch.Typed.NN.Recurrent.LSTM
+import           Synthesis.Synthesizer.LSTM
 import           Torch.HList
 import qualified Torch.NN                      as A
 import           Torch.Autograd                as D
@@ -349,7 +349,7 @@ f_multinomial_tlb
 f_multinomial_tlb t l b =
   (cast3 ATen.multinomial_tlb) t l b
 
--- | adjusted Torch.Typed.NN.Recurrent.LSTM.lstm to dynamically calculate batch size
+-- | adjusted Synthesis.Synthesizer.LSTM.lstm to dynamically calculate batch size
 -- | TODO: just batch inputs, ensuring dummy items won't influence results?
 lstmDynamicBatch
   :: forall

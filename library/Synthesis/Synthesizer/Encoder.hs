@@ -33,7 +33,7 @@ import qualified Torch.Functional.Internal     as I
 import qualified Torch.Tensor                  as D
 import qualified Torch.Device                  as D
 import qualified Torch.DType                   as D
-import           Torch.Typed.NN.Recurrent.LSTM
+import           Synthesis.Synthesizer.LSTM
 
 import Synthesis.Orphanage ()
 import Synthesis.Data (Expr)

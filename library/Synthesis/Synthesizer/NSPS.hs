@@ -45,7 +45,7 @@ import qualified Torch.Serialize               as D
 import qualified Torch.Autograd                as D
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
-import           Torch.Typed.NN.Recurrent.LSTM
+import           Synthesis.Synthesizer.LSTM
 import           Torch.Typed.Aux
 import           Torch.Typed.Tensor
 import           Torch.Typed.NN

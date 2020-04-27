@@ -31,7 +31,7 @@ import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
 import Torch.TensorFactories (randnIO', zeros')
 import Torch.Autograd
-import Torch.Typed.NN.Recurrent.LSTM
+import Synthesis.Synthesizer.LSTM
 import Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
