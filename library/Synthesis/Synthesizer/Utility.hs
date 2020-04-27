@@ -18,7 +18,7 @@ module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) wher
 
 import Prelude hiding (lookup, exp)
 import GHC.Stack
-import GHC.TypeNats (KnownNat, type (+), type (*))
+import GHC.TypeNats (Nat, KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
@@ -42,7 +42,7 @@ import           Torch.Typed.Functional
 import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import           Torch.Typed.NN
-import           Torch.Typed.NN.Recurrent.LSTM
+import           Synthesis.Synthesizer.LSTM
 import           Torch.HList
 import qualified Torch.NN                      as A
 import           Torch.Autograd                as D
@@ -70,8 +70,11 @@ type Dirs = NumberOfDirections Dir
 dirs :: Int
 dirs = natValI @Dirs
 
-type Dev = '( 'D.CPU, 0)
-type Tnsr dims = Tensor Dev 'D.Float dims
+type Cpu = '( 'D.CPU, 0)
+type Gpu = '( 'D.CUDA, 0)
+
+cpu :: D.Device = D.Device D.CPU  0
+gpu :: D.Device = D.Device D.CUDA 0
 
 getDevice :: IO D.Device
 getDevice = do
@@ -83,18 +86,26 @@ getDevice = do
     Right "cpu"    -> D.Device D.CPU 0
     _              -> D.Device D.CPU 0
 
-cpu = Proxy @'( 'D.CPU, 0)
+-- cpu = Proxy @'( 'D.CPU, 0)
 
-cuda0 = Proxy @'( 'D.CUDA, 0)
+-- cuda0 = Proxy @'( 'D.CUDA, 0)
 
+-- | any available devices
 availableDevices :: [D.Device]
 availableDevices =
-  let hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
-  in  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
-        <> (if hasCuda
-             then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
-             else mempty
-           )
+  [D.Device { D.deviceType = D.CPU, D.deviceIndex = 0 }]
+    <> (if hasCuda
+          then [D.Device { D.deviceType = D.CUDA, D.deviceIndex = 0 }]
+          else mempty
+        )
+
+-- | check if we can use GPU
+hasCuda :: Bool
+hasCuda = unsafePerformIO $ cast0 ATen.hasCUDA
+
+-- | get the device to run on: CUDA if available, otherwise CPU
+fastestDevice :: (D.DeviceType, Nat)
+fastestDevice = (if hasCuda then D.CUDA else D.CPU, 0)
 
 -- | right-pad a list to a given length
 padRight :: a -> Int -> [a] -> [a]
@@ -120,6 +131,10 @@ asUntyped' f tensor = let
         gold = optionsRuntimeShape @shape' @dtype' @device'
         in assertEqBy check gold tensor'
 
+-- | lift a tensor operation for use on tensors on any device. useful for models that don't understand devices.
+asCPU :: (D.Tensor -> D.Tensor) -> D.Tensor -> D.Tensor
+asCPU f t = D.toDevice (D.device t) . f . D.toDevice (D.Device D.CPU 0) $ t
+
 -- | get the run-time shape of a typed tensor
 shape' :: Tensor device dtype shape -> [Int]
 shape' = D.shape . toDynamic
@@ -135,7 +150,7 @@ asLong = fromIntegral
 -- | `select` alternative that retains the dimension as a 1
 -- | I want this as a built-in, see https://github.com/pytorch/pytorch/issues/34788
 select' :: D.Tensor -> Int -> Int -> D.Tensor
-select' tensor dim idx = D.indexSelect tensor dim $ D.asTensor [asLong idx]
+select' tensor dim idx = D.indexSelect tensor dim . D.toDevice (D.device tensor) . D.asTensor $ [asLong idx]
 
 -- | point-free untyped select
 select'' :: Int -> Int -> D.Tensor -> D.Tensor
@@ -216,7 +231,7 @@ batchTensor batch_size tensor = let
             from :: Int = i * batch_size
             to   :: Int = (i+1) * batch_size - 1
             idxs :: [Int] = [from .. to]
-        in D.indexSelect tensor' nDim . D.asTensor $ asLong <$> idxs
+        in D.indexSelect tensor' nDim . D.toDevice (D.device tensor) . D.asTensor $ asLong <$> idxs
     in f <$> [0 .. numBatches-1]
 
 -- | statically typed version of batchTensor
@@ -243,7 +258,7 @@ batchTensor' tensor = let
             from :: Int = i * batch_size
             to   :: Int = (i+1) * batch_size - 1
             idxs :: [Int] = [from .. to]
-        in UnsafeMkTensor $ D.indexSelect tensor' nDim . D.asTensor $ asLong <$> idxs
+        in UnsafeMkTensor $ D.indexSelect tensor' nDim . D.toDevice (D.device $ toDynamic tensor) . D.asTensor $ asLong <$> idxs
     in f <$> [0 .. numBatches-1]
 
 type family FromMaybe (maybe :: Maybe a) :: a where
@@ -270,10 +285,10 @@ shuffle gen dim tensor = (gen', shuffled)
         n = D.size tensor dim
         idxs = [0 .. n-1]
         (idxs', gen') = fisherYates gen idxs
-        shuffled = D.indexSelect tensor dim $ D.asTensor $ asLong <$> idxs'
+        shuffled = D.indexSelect tensor dim . D.toDevice (D.device tensor) . D.asTensor $ asLong <$> idxs'
 
 -- | square a tensor, for use in mean-square-error loss
-square :: Tnsr shape -> Tnsr shape
+square :: Tensor device 'D.Float shape -> Tensor device 'D.Float shape
 square = pow (2 :: Int)
 
 -- | cumulative fold
@@ -320,9 +335,10 @@ unravelIdx :: D.Tensor -> Int -> [Int]
 unravelIdx t idx = snd . foldr (\ dim_ (idx_, idxs) -> (idx_ `Prelude.div` dim_, idx_ `Prelude.mod` dim_ : idxs)) (idx, []) $ D.shape t
 
 -- TODO: replace with built-in
+-- TODO: strip device moving off once nllLoss' patch gets in
 -- | calculate the cross-entropy loss given target indices, a class dimension, and a predictions tensor
 crossEntropy :: D.Tensor -> Int -> D.Tensor -> D.Tensor
-crossEntropy target dim input = F.nllLoss' target (F.logSoftmax (F.Dim dim) input)
+crossEntropy target dim input = D.toDevice (D.device target) $ F.nllLoss' (D.toDevice cpu target) $ F.logSoftmax (F.Dim dim) $ D.toDevice cpu $ input
 
 -- | TODO: replace with actual F.sumDim
 f_sumDim :: Int -> D.Tensor -> D.Tensor
@@ -341,7 +357,7 @@ f_multinomial_tlb
 f_multinomial_tlb t l b =
   (cast3 ATen.multinomial_tlb) t l b
 
--- | adjusted Torch.Typed.NN.Recurrent.LSTM.lstm to dynamically calculate batch size
+-- | adjusted Synthesis.Synthesizer.LSTM.lstm to dynamically calculate batch size
 -- | TODO: just batch inputs, ensuring dummy items won't influence results?
 lstmDynamicBatch
   :: forall
@@ -556,3 +572,10 @@ replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
 -- | deprecated, not in use
 iff :: Bool -> (a -> a) -> (a -> a)
 iff cond fn = if cond then fn else id
+
+-- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
+-- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
+sampleTensor :: forall dim size device dtype shape' . (KnownNat dim, KnownNat size, TensorOptions shape' dtype device, KnownShape shape') => Int -> D.Tensor -> IO (Tensor device dtype shape')
+sampleTensor n tensor = do
+    sampled_idxs :: D.Tensor <- D.toDevice (D.device tensor) . F.toDType D.Int64 <$> D.randintIO' 0 n [natValI @size]
+    return . UnsafeMkTensor $ D.indexSelect tensor (natValI @dim) sampled_idxs
