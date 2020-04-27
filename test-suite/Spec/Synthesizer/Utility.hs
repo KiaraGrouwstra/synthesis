@@ -33,6 +33,7 @@ import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
 import qualified Torch.Optim                   as D
+import qualified Torch.DType                   as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A

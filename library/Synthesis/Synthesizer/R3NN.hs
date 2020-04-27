@@ -189,7 +189,8 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
                     where dropoutOn = True
     -- | expansion score z_e=ϕ′(e.l)⋅ω(e.r), for expansion e, expansion type e.r (for rule r∈R), leaf node e.l
     let scores :: Tensor device 'D.Float '[num_holes, rules] =
-            matmul node_embs' . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
+            -- matmul node_embs' . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
+            UnsafeMkTensor . F.matmul (toDynamic node_embs') . toDynamic . transpose @0 @1 . Torch.Typed.Parameter.toDependent $ rule_emb
     -- delay softmax for log-sum-exp trick (crossEntropy)
     return scores
 
@@ -198,11 +199,11 @@ variantInt = (appRule &&& length) . fnAppNodes
 
 -- | Torch gets sad not all nnets get used in the loss 😢 so let's give it a hug... 🤗🙄
 patchLoss :: forall m symbols rules t batch_size device . (KnownNat m) => HashMap String Int -> R3NN device m symbols rules t batch_size -> Tensor device 'D.Float '[] -> Tensor device 'D.Float '[]
-patchLoss variant_sizes r3nn_model = let
+patchLoss variant_sizes r3nn_model other = let
         m :: Int = natValI @m
-        left_dummy  :: Tensor device 'D.Float '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model)
-        right_dummy :: Tensor device 'D.Float '[] = mulScalar (0.0 :: Float) $ sumAll (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model)
-    in add $ left_dummy `add` right_dummy
+        left_dummy  :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ zeros' [1,q*m]) $ toList $  left_nnets r3nn_model
+        right_dummy :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ zeros' [1,  m]) $ elems  $ right_nnets r3nn_model
+    in UnsafeMkTensor $ F.add (toDynamic other) $ left_dummy `F.add` right_dummy
 
 -- | perform a recursive pass going up in the tree to assign a global tree representation to the root.
 forwardPass
