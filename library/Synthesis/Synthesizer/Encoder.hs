@@ -7,6 +7,7 @@
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
@@ -22,6 +23,7 @@ import Util (fstOf3)
 import           Torch.Typed.Tensor
 import qualified Torch.Typed.Tensor
 import           Torch.Typed.Functional
+import           Torch.Typed.Factories
 import           Torch.Typed.Aux
 import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
@@ -33,7 +35,7 @@ import qualified Torch.Functional.Internal     as I
 import qualified Torch.Tensor                  as D
 import qualified Torch.Device                  as D
 import qualified Torch.DType                   as D
-import           Synthesis.Synthesizer.LSTM
+import           Torch.Typed.NN.Recurrent.LSTM
 
 import Synthesis.Orphanage ()
 import Synthesis.Data (Expr)
@@ -64,7 +66,7 @@ data LstmEncoder
 
 instance A.Parameterized (LstmEncoder device t batch_size maxChar)
 
-instance (KnownDevice device, KnownNat maxChar) => A.Randomizable (LstmEncoderSpec device t batch_size maxChar) (LstmEncoder device t batch_size maxChar) where
+instance (KnownDevice device, RandDTypeIsValid device 'D.Float, KnownNat maxChar) => A.Randomizable (LstmEncoderSpec device t batch_size maxChar) (LstmEncoder device t batch_size maxChar) where
     sample LstmEncoderSpec {..} = do
         in_model  :: LSTMWithInit maxChar H NumLayers Dir 'ConstantInitialization 'D.Float device <- A.sample spec
         out_model :: LSTMWithInit maxChar H NumLayers Dir 'ConstantInitialization 'D.Float device <- A.sample spec

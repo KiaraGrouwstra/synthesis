@@ -10,6 +10,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.R3NN (module Synthesis.Synthesizer.R3NN) where
@@ -30,7 +31,7 @@ import Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import Torch.Typed.Factories
 import Torch.Autograd
-import Synthesis.Synthesizer.LSTM
+import Torch.Typed.NN.Recurrent.LSTM
 import Torch.HList
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
@@ -102,6 +103,7 @@ instance ( KnownNat m
   => A.Parameterized (R3NN device m symbols rules t batch_size)
 
 instance ( KnownDevice device
+         , RandDTypeIsValid device 'D.Float
          , KnownNat m
          , KnownNat symbols
          , KnownNat rules
@@ -160,7 +162,7 @@ initR3nn variants batch_size dropoutRate = R3NNSpec @device @m @symbols @rules @
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.)
 runR3nn
     :: forall symbols m t rules batch_size num_holes device
-    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size, KnownDevice device )
+    . ( KnownNat symbols, KnownNat m, KnownNat t, KnownNat batch_size, KnownDevice device, MatMulDTypeIsValid device 'D.Float )
     => R3NN device m symbols rules t batch_size
     -> HashMap String Int
     -> Expr
@@ -190,8 +192,7 @@ runR3nn r3nn symbolIdxs ppt io_feats = do
                     where dropoutOn = True
     -- | expansion score z_e=ϕ′(e.l)⋅ω(e.r), for expansion e, expansion type e.r (for rule r∈R), leaf node e.l
     let scores :: Tensor device 'D.Float '[num_holes, rules] =
-            -- matmul node_embs' . toDevice . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
-            UnsafeMkTensor . F.matmul (toDynamic node_embs') . D.toDevice device . toDynamic . transpose @0 @1 . Torch.Typed.Parameter.toDependent $ rule_emb
+            matmul node_embs' . Torch.Typed.Tensor.toDevice . transpose @0 @1 $ Torch.Typed.Parameter.toDependent rule_emb
     -- delay softmax for log-sum-exp trick (crossEntropy)
     return scores
 
@@ -199,12 +200,12 @@ variantInt :: Expr -> (String, Int)
 variantInt = (appRule &&& length) . fnAppNodes
 
 -- | Torch gets sad not all nnets get used in the loss 😢 so let's give it a hug... 🤗🙄
-patchLoss :: forall m symbols rules t batch_size device . (KnownNat m, KnownDevice device) => HashMap String Int -> R3NN device m symbols rules t batch_size -> Tensor device 'D.Float '[] -> Tensor device 'D.Float '[]
-patchLoss variant_sizes r3nn_model other = let
+patchLoss :: forall m symbols rules t batch_size device . (KnownNat m, KnownDevice device, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float) => HashMap String Int -> R3NN device m symbols rules t batch_size -> Tensor device 'D.Float '[] -> Tensor device 'D.Float '[]
+patchLoss variant_sizes r3nn_model = let
         m :: Int = natValI @m
-        left_dummy  :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ D.zeros' [1,q*m]) $ toList $  left_nnets r3nn_model
-        right_dummy :: D.Tensor = F.mulScalar (0.0 :: Float) $ F.sumAll $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ D.zeros' [1,  m]) $ elems  $ right_nnets r3nn_model
-    in UnsafeMkTensor $ F.add (toDynamic other) $ D.toDevice (deviceVal @device) $ left_dummy `F.add` right_dummy
+        left_dummy  :: Tensor device 'D.Float '[] = mulScalar (0.0 :: Float) $ sumAll $ Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\(k,mlp_) -> let q = variant_sizes ! k in mlp mlp_ $ D.zeros' [1,q*m]) $ toList $  left_nnets r3nn_model
+        right_dummy :: Tensor device 'D.Float '[] = mulScalar (0.0 :: Float) $ sumAll $ Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor $ F.cat (F.Dim 1) $ fmap (\   mlp_  ->                              mlp mlp_ $ D.zeros' [1,  m]) $ elems  $ right_nnets r3nn_model
+    in add $ Torch.Typed.Tensor.toDevice $ left_dummy `add` right_dummy
 
 -- | perform a recursive pass going up in the tree to assign a global tree representation to the root.
 forwardPass

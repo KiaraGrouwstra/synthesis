@@ -42,7 +42,7 @@ import           Torch.Typed.Factories
 import           Torch.Typed.Optim
 import           Torch.Typed.Parameter
 import           Torch.Typed.NN
-import           Synthesis.Synthesizer.LSTM
+import           Torch.Typed.NN.Recurrent.LSTM
 
 import           Synthesis.Ast
 import           Synthesis.Configs
