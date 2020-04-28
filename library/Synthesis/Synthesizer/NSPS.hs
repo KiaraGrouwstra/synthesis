@@ -326,12 +326,12 @@ train synthesizerConfig TaskFnDataset{..} = do
 
                             -- say $ "type_ins: " <> pp_ type_ins
                             prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                                    compileInput :: [Expr] -> Interpreter [(Expr, Either String Expr)] = \ins -> let
+                                    compileInput :: [Tp] -> [Expr] -> Interpreter [(Expr, Either String Expr)] = \ in_instantiation ins -> let
                                             n :: Int = length $ unTuple' $ ins !! 0
                                             -- crash_on_error=False is slower but lets me check if it compiles.
                                             -- fitExpr already does a type-check tho, so don't repeat that here.
-                                            in fnIoPairs True n program' $ list ins
-                                    in compileInput `mapM` type_ins
+                                            in fnIoPairs True n program' in_instantiation $ list ins
+                                    in sequence $ compileInput `mapWithKey` type_ins
                             -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
                             let prediction_io_pairs :: [(Expr, Either String Expr)] =
                                     join . elems $ prediction_type_ios
