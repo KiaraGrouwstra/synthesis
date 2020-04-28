@@ -26,7 +26,7 @@ import qualified Data.Set
 import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Internal      as BS
 import qualified Data.ByteString.Lazy.Internal as BL
-import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size)
+import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size, mapWithKey, filterWithKey)
 import           Data.Csv
 import           Text.Printf
 import           Foreign.Marshal.Utils         (fromBool)
@@ -235,8 +235,6 @@ train synthesizerConfig TaskFnDataset{..} = do
          num_rules      longest_string      n_train      n_validation      n_test      symbols      maxChar
 
     -- misc
-    -- device <- liftIO $ getDevice
-    -- let device :: D.Device = D.Device D.CPU 0
     let stdGen :: StdGen = mkStdGen seed
     let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
     let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
@@ -256,6 +254,9 @@ train synthesizerConfig TaskFnDataset{..} = do
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
+    -- DSL without entries equal tot their key, for constructing let-in expressions.
+    -- without this, blocks identical to their keys are seen as recursive, causing non-termination
+    let dsl' = filterWithKey (\k v -> k /= pp v) dsl
 
     -- MODELS
     let encoder_spec :: LstmEncoderSpec device t encoderBatch maxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
@@ -280,7 +281,7 @@ train synthesizerConfig TaskFnDataset{..} = do
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
             sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                     <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -304,7 +305,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                 io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
                 sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                         <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
 
                 -- sample for best of 100 predictions
                 sample_matches :: [Bool] <- replicateM bestOf $ do
@@ -318,7 +319,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                             in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
                     -- say $ pp program
                     if hasHoles program then pure False else do
-                        let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
+                        let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl'
                         let program' :: Expr = if null defs then program else letIn defs program
                         sane :: Bool <- fitExpr program
                         if not sane then pure False else do
