@@ -147,7 +147,7 @@ fnIoPairs crash_on_error n fn_ast ins = do
                 ),
               Qualifier l $ infixApp (infixApp (var "return") dot $ var "show") dollar $ infixApp (app (var "second") $ app (var "first") $ var "show") (symbol "<$>") $ var "ios"
             ]
-  -- say cmd
+  say cmd
   second unEitherString . unTuple2 <.> unList . parseExpr . fromRight "[]" <$> interpretIO crash_on_error cmd
 
 -- | get the type of an expression

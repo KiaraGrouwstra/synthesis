@@ -334,6 +334,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl
                         let program' :: Expr = if null defs then program else letIn defs program
 
+                        say $ "program': " <> pp program'
                         say $ "type_ins: " <> pp_ type_ins
                         prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
                                 compileInput :: [Expr] -> Interpreter [(Expr, Either String Expr)] = \ins -> let
