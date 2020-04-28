@@ -33,6 +33,6 @@ program = do
     let TaskFnDataset{..} = taskFnDataset
     say $ show generationCfg
     liftIO $ manual_seed_L $ fromIntegral seed
-    if hasCuda
+    if False -- hasCuda
         then trainGpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg taskFnDataset
         else trainCpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg taskFnDataset
