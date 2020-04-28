@@ -575,6 +575,8 @@ iff cond fn = if cond then fn else id
 
 -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
 -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
+-- | for my purposes, being forced to pick a fixed sample size means simpler programs with few types may potentially be learned more easily than programs with e.g. a greater number of type instances.
+-- | there should be fancy ways to address this like giving more weight to hard programs (/ samples).
 sampleTensor :: forall dim size device dtype shape' . (KnownNat dim, KnownNat size, TensorOptions shape' dtype device, KnownShape shape') => Int -> D.Tensor -> IO (Tensor device dtype shape')
 sampleTensor n tensor = do
     sampled_idxs :: D.Tensor <- D.toDevice (D.device tensor) . F.toDType D.Int64 <$> D.randintIO' 0 n [natValI @size]
