@@ -131,7 +131,7 @@ fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
         _ -> do
           let n = length . head . head $ param_combs
           let ins :: [Expr] = list . fmap tuple <$> param_combs
-          fromList . zip in_instantiations <$> mapM (fnIoPairs crash_on_error n fn_ast) ins
+          fmap (fromList . zip in_instantiations) $ mapM (uncurry $ fnIoPairs crash_on_error n fn_ast) $ zip in_instantiations ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 

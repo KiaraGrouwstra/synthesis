@@ -51,5 +51,5 @@ type N_train = 30
 type N_validation = 7
 type N_test = 29
 type RhsSymbols = 4
-type Symbols = LhsSymbols + RhsSymbols
 type MaxChar = 19
+type Symbols = LhsSymbols + RhsSymbols

@@ -246,6 +246,10 @@ lambda = Lambda l
 tyList :: Tp -> Tp
 tyList = TyList l
 
+-- | tuple type
+tyTuple :: [Tp] -> Tp
+tyTuple = TyTuple l Boxed
+
 -- | unpack a list expression
 unList :: Expr -> [Expr]
 unList = \case

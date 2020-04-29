@@ -33,6 +33,7 @@ import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
 import qualified Torch.Optim                   as D
+import qualified Torch.DType                   as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
@@ -84,11 +85,11 @@ synth_util = parallel $ do
         rotate [10,20] `shouldBe` [[10,20,0],[0,10,20],[20,0,10]]
 
     -- it "rotateT" $ do
-    --     let r :: Tensor Dev 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
+    --     let r :: Tensor Cpu 'D.Float '[2] = UnsafeMkTensor . D.asTensor $ [10.0,20.0::Float]
     --     rotateT r `shouldBe` ?
 
     it "categorical" $ do
-        t :: Tnsr '[2, 3] <- abs <$> randn
+        t :: Tensor Cpu 'D.Float '[2, 3] <- abs <$> randn
         x <- Distribution.sample (Categorical.fromProbs $ toDynamic t) [1]
         D.shape x `shouldBe` [1,2]
 
@@ -101,7 +102,7 @@ synth_util = parallel $ do
         let rule_dim = 1
         let gold_rule_probs = D.asTensor [ 2 :: Int64 ]
         let hole_expansion_probs = D.asTensor [[0.2606, -7.2186e-2, 0.4544 :: Float]]
-        let loss :: Tnsr '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+        let loss :: Tensor Cpu 'D.Float '[] = UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
         toFloat loss > 0.0 `shouldBe` True
 
     -- it "gpu" $ do

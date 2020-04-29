@@ -1,0 +1,19 @@
+source-repository-package
+  type: git
+  location: git://github.com/hasktorch/hasktorch.git
+  branch: 99545bb638430b321c03dcf79328ea27cd8a282a
+  subdir: hasktorch
+
+source-repository-package
+  type: git
+  location: git://github.com/hasktorch/hasktorch.git
+  branch: 99545bb638430b321c03dcf79328ea27cd8a282a
+  subdir: libtorch-ffi
+
+source-repository-package
+  type: git
+  location: git://github.com/hasktorch/hasktorch.git
+  branch: 99545bb638430b321c03dcf79328ea27cd8a282a
+  subdir: libtorch-ffi-helper
+
+packages: ./synthesis.cabal

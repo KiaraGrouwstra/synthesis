@@ -10,7 +10,6 @@ import Data.HashMap.Lazy (HashMap, toList)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Aeson
-import Data.Yaml
 import Data.Hashable (Hashable (..))
 import Data.Text.Prettyprint.Doc
 import qualified Data.Text.Prettyprint.Doc as PP
@@ -213,4 +212,8 @@ instance ToJSON TaskFnDataset where
 
 instance FromJSON GenerationConfig
 instance ToJSON GenerationConfig where
+    toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON SynthesizerConfig
+instance ToJSON SynthesizerConfig where
     toEncoding = genericToEncoding defaultOptions

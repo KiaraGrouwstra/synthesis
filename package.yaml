@@ -40,11 +40,13 @@ dependencies:
   - libtorch-ffi
   - ghc-typelits-knownnat
   - ghc-typelits-extra
+  - ghc-typelits-natnormalise
   - aeson
   - yaml
   - cassava
   - directory
   - split
+  - text
 
 library:
   dependencies:
