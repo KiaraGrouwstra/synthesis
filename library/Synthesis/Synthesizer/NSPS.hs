@@ -28,6 +28,7 @@ import qualified Data.ByteString.Internal      as BS
 import qualified Data.ByteString.Lazy.Internal as BL
 import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size, mapWithKey, filterWithKey)
 import           Data.Csv
+import           Data.Text.Prettyprint.Doc (pretty)
 import           Text.Printf
 import           Foreign.Marshal.Utils         (fromBool)
 import           Control.Monad                 (join, replicateM, forM, void, when)
@@ -396,5 +397,5 @@ train synthesizerConfig TaskFnDataset{..} = do
         return (gen', model', optim', earlyStop, eval_results', lr', acc_test)
 
     liftIO $ createDirectoryIfMissing True resultFolder
-    let resultPath = resultFolder <> "/" <> replacements [("/","\\"),(" ",""),("SynthesizerConfig","")] (show synthesizerConfig) <> ".csv"
+    let resultPath = resultFolder <> "/" <> ppSynCfg synthesizerConfig <> ".csv"
     liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader $ reverse eval_results

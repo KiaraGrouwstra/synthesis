@@ -5,7 +5,8 @@ module Synthesis.Utility (module Synthesis.Utility) where
 import Control.Arrow ((***))
 import Control.Monad (filterM, join, foldM)
 import Data.Bifoldable (biList)
-import Data.List (replicate)
+import Data.List (replicate, intercalate)
+import Data.List.Split (splitOn)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
 import qualified Data.HashMap.Lazy as HM
@@ -150,3 +151,16 @@ infixl 5 <.>
 -- | create a reverse index (elements to indices) from a list
 indexList :: (Eq a, Hashable a) => [a] -> HashMap a Int
 indexList xs = fromList $ zip xs [0 .. length xs - 1]
+
+-- | replace occurrences of a sub-list
+replace :: Eq a => [a] -> [a] -> [a] -> [a]
+replace from to = intercalate to . splitOn from
+
+-- | perform multiple sub-list replacements
+replacements :: Eq a => [([a],[a])] -> [a] -> [a]
+replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
+
+-- | conditionally transform a value
+-- | deprecated, not in use
+iff :: Bool -> (a -> a) -> (a -> a)
+iff cond fn = if cond then fn else id

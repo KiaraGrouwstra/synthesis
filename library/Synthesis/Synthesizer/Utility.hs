@@ -22,13 +22,15 @@ import GHC.TypeNats (Nat, KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
-import Data.List (findIndex, intercalate)
-import Data.List.Split (splitOn)
+import Data.List (findIndex)
 import Data.Foldable (toList)
 import Data.Monoid
 import Data.Hashable (Hashable)
-import Data.HashMap.Lazy (HashMap, fromList, lookup)
+import Data.HashMap.Lazy (HashMap, fromList, lookup, filterWithKey)
 import Data.Proxy
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Aeson as Aeson
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
 import Control.Monad (void, foldM, (=<<))
@@ -57,8 +59,9 @@ import qualified Torch.Internal.Class                    as ATen
 import qualified Torch.Internal.Managed.Native           as ATen
 import qualified Torch.Internal.Unmanaged.Type.Context   as ATen
 
-import Synthesis.Data (Expr, Tp)
-import Synthesis.Utility (pp, fisherYates)
+import Synthesis.Data (Expr, Tp, SynthesizerConfig)
+import Synthesis.Orphanage ()
+import Synthesis.Utility (pp, fisherYates, replacements)
 import Synthesis.Ast (genBlockVariants)
 import Synthesis.Hint (exprType)
 
@@ -560,19 +563,6 @@ instance A.Parameterized (Parameter device dtype shape) where
   flattenParameters (UnsafeMkParameter param) = pure param
   replaceOwnParameters _ = UnsafeMkParameter <$> A.nextParameter
 
--- | replace occurrences of a sub-list
-replace :: Eq a => [a] -> [a] -> [a] -> [a]
-replace from to = intercalate to . splitOn from
-
--- | perform multiple sub-list replacements
-replacements :: Eq a => [([a],[a])] -> [a] -> [a]
-replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
-
--- | conditionally transform a value
--- | deprecated, not in use
-iff :: Bool -> (a -> a) -> (a -> a)
-iff cond fn = if cond then fn else id
-
 -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
 -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
 -- | for my purposes, being forced to pick a fixed sample size means simpler programs with few types may potentially be learned more easily than programs with e.g. a greater number of type instances.
@@ -581,3 +571,7 @@ sampleTensor :: forall dim size device dtype shape' . (KnownNat dim, KnownNat si
 sampleTensor n tensor = do
     sampled_idxs :: D.Tensor <- D.toDevice (D.device tensor) . F.toDType D.Int64 <$> D.randintIO' 0 n [natValI @size]
     return . UnsafeMkTensor $ D.indexSelect tensor (natValI @dim) sampled_idxs
+
+-- | pretty-print a configuration for use in file names of result files, which requires staying within a 256-character limit.
+ppSynCfg :: SynthesizerConfig -> String
+ppSynCfg cfg = replacements [("\"",""),("\\",""),("/","\\")] . show . Aeson.encode . filterWithKey (\ k _v -> k `Set.notMember` Set.fromList (Text.pack <$> ["numEpochs"])) . fromJust $ (Aeson.decode (Aeson.encode cfg) :: Maybe Aeson.Object)

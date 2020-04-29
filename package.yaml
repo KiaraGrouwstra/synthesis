@@ -46,6 +46,7 @@ dependencies:
   - cassava
   - directory
   - split
+  - text
 
 library:
   dependencies:
