@@ -31,7 +31,7 @@ for csv in csvs:
     fname = csv.replace('.csv', f'-{value_name}')
     save_ax(ax, fname)
 
-    metrics = ['errTest']
+    metrics = ['accTest']
     for metric in metrics:
         ax = sns.lineplot(
             x=id_var,

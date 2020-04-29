@@ -399,3 +399,4 @@ train synthesizerConfig TaskFnDataset{..} = do
     liftIO $ createDirectoryIfMissing True resultFolder
     let resultPath = resultFolder <> "/" <> ppSynCfg synthesizerConfig <> ".csv"
     liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader $ reverse eval_results
+    say $ "data written to " <> resultPath
