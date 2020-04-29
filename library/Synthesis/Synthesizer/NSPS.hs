@@ -388,7 +388,7 @@ train synthesizerConfig TaskFnDataset{..} = do
         let acc_test :: Float = accTest $ head eval_results'
         -- decay the learning rate if accuracy decreases
         -- TODO: have this use dev rather than test acc
-        lr' :: Tensor device 'D.Float '[] <- case (acc_test > prev_acc) of
+        lr' :: Tensor device 'D.Float '[] <- case (acc_test < prev_acc) of
             True -> do
                 say "accuracy decreased, decaying learning rate!"
                 return . divScalar learningDecay $ lr
