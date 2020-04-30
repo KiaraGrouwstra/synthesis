@@ -5,7 +5,7 @@ module Synthesis.Utility (module Synthesis.Utility) where
 import Control.Arrow ((***))
 import Control.Monad (filterM, join, foldM)
 import Data.Bifoldable (biList)
-import Data.List (replicate, intercalate)
+import Data.List (replicate, intercalate, maximumBy, minimumBy)
 import Data.List.Split (splitOn)
 import Data.Bifunctor (first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
@@ -164,3 +164,11 @@ replacements reps lst = foldl (\ x (from,to) -> replace from to x) lst reps
 -- | deprecated, not in use
 iff :: Bool -> (a -> a) -> (a -> a)
 iff cond fn = if cond then fn else id
+
+-- find the maximum by a mapping function to an ordinal value
+maxBy :: (Foldable t, Ord b) => (a -> b) -> t a -> a
+maxBy fn = maximumBy $ \a b -> compare (fn a) (fn b)
+
+-- find the minimum by a mapping function to an ordinal value
+minBy :: (Foldable t, Ord b) => (a -> b) -> t a -> a
+minBy fn = minimumBy $ \a b -> compare (fn a) (fn b)

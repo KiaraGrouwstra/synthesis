@@ -27,10 +27,10 @@ imports =
   ]
 
 -- | test an interpreter monad, printing errors, returning values
-interpretUnsafe :: (?loc :: CallStack, Show a) => Interpreter a -> IO a
+interpretUnsafe :: Interpreter a -> IO a
 interpretUnsafe fn = join $
   interpretSafe fn <&> \case
-    Left err_ -> error $ "interpretUnsafe failed: " <> errorString err_ <> "\n" <> prettyCallStack ?loc
+    Left err_ -> error $ "interpretUnsafe failed: " <> errorString err_
     Right x -> return x
 
 -- | run an interpreter monad with imports

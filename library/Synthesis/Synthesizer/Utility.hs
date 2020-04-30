@@ -309,16 +309,16 @@ categorical gen probs =
     where (x, _gen') = random gen
 
 -- | make an assertion thru a predicate
-assertP :: (?loc :: CallStack, Show a) => (a -> Bool) -> a -> a
+assertP :: (Show a) => (a -> Bool) -> a -> a
 assertP pred_fn x = case pred_fn x of
     True -> x
-    False -> error $ "assertP failed on input: " <> show x <> "\n" <> prettyCallStack ?loc
+    False -> error $ "assertP failed on input: " <> show x
 
 -- | assert an equality check by a mapper function
-assertEqBy :: (?loc :: CallStack, Show b, Eq b) => (a -> b) -> b -> a -> a
+assertEqBy :: (Show b, Eq b) => (a -> b) -> b -> a -> a
 assertEqBy fn gold x = let x' = fn x in case x' == gold of
     True -> x
-    False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " ):\n" <> prettyCallStack ?loc
+    False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " )"
 
 -- | assert an equality check -- yields a nicer stack trace than assertP
 assertEq :: (Show a, Eq a) => a -> a -> a
