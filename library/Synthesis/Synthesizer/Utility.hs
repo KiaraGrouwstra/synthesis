@@ -12,12 +12,15 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Utility (module Synthesis.Synthesizer.Utility) where
 
 import Prelude hiding (lookup, exp)
+import System.ProgressBar
 import GHC.Stack
+import GHC.TypeLits
 import GHC.TypeNats (Nat, KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
 import Data.Int (Int64)
@@ -33,6 +36,7 @@ import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
+import Control.Applicative (liftA3)
 import Control.Monad (void, foldM, (=<<))
 import Language.Haskell.Interpreter (Interpreter)
 import Language.Haskell.Exts.Syntax
@@ -59,7 +63,7 @@ import qualified Torch.Internal.Class                    as ATen
 import qualified Torch.Internal.Managed.Native           as ATen
 import qualified Torch.Internal.Unmanaged.Type.Context   as ATen
 
-import Synthesis.Data (Expr, Tp, SynthesizerConfig)
+import Synthesis.Data
 import Synthesis.Orphanage ()
 import Synthesis.Utility (pp, fisherYates, replacements)
 import Synthesis.Ast (genBlockVariants)
@@ -309,16 +313,16 @@ categorical gen probs =
     where (x, _gen') = random gen
 
 -- | make an assertion thru a predicate
-assertP :: (?loc :: CallStack, Show a) => (a -> Bool) -> a -> a
+assertP :: (Show a) => (a -> Bool) -> a -> a
 assertP pred_fn x = case pred_fn x of
     True -> x
-    False -> error $ "assertP failed on input: " <> show x <> "\n" <> prettyCallStack ?loc
+    False -> error $ "assertP failed on input: " <> show x
 
 -- | assert an equality check by a mapper function
-assertEqBy :: (?loc :: CallStack, Show b, Eq b) => (a -> b) -> b -> a -> a
+assertEqBy :: (Show b, Eq b) => (a -> b) -> b -> a -> a
 assertEqBy fn gold x = let x' = fn x in case x' == gold of
     True -> x
-    False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " ):\n" <> prettyCallStack ?loc
+    False -> error $ "equality check failed on input ( " <> show x' <> " ) with gold value ( " <> show gold <> " )"
 
 -- | assert an equality check -- yields a nicer stack trace than assertP
 assertEq :: (Show a, Eq a) => a -> a -> a
@@ -575,3 +579,48 @@ sampleTensor n tensor = do
 -- | pretty-print a configuration for use in file names of result files, which requires staying within a 256-character limit.
 ppSynCfg :: SynthesizerConfig -> String
 ppSynCfg cfg = replacements [("\"",""),("\\",""),("/","\\")] . show . Aeson.encode . filterWithKey (\ k _v -> k `Set.notMember` Set.fromList (Text.pack <$> ["numEpochs"])) . fromJust $ (Aeson.decode (Aeson.encode cfg) :: Maybe Aeson.Object)
+
+-- https://hackage.haskell.org/package/relude-0.6.0.0/docs/Relude-Extra-Tuple.html#v:traverseToSnd
+traverseToSnd :: Functor t => (a -> t b) -> a -> t (a, b)
+traverseToSnd f a = (a,) <$> f a
+
+-- | calculate a cartesian product, used for hyper-parameter combinations
+cartesianProduct3 :: [a] -> [b] -> [c] -> [(a, b, c)]
+cartesianProduct3 = liftA3 (,,)
+
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f ~(a, b, c) = f a b c
+
+knownNat :: forall n. KnownNat n => Integer
+knownNat = natVal $ Proxy @n
+
+knownNats :: forall n. KnownNat n => [Integer]
+knownNats = knownNat @n : knownNats @(n + 1)
+
+combineConfig :: GridSearchConfig -> HparComb -> SynthesizerConfig
+combineConfig gridCfg hparComb = cfg
+  where GridSearchConfig{..} = gridCfg
+        HparComb{..} = hparComb
+        cfg = SynthesizerConfig
+                { taskPath=taskPath
+                , seed=seed
+                , numEpochs=numEpochs
+                , bestOf=bestOf
+                , dropoutRate=dropoutRate
+                , evalFreq=evalFreq
+                , learningRate=learningRate
+                , checkWindow=checkWindow
+                , convergenceThreshold=convergenceThreshold
+                , maxHoles=maxHoles
+                , resultFolder=resultFolder
+                , learningDecay=learningDecay
+                , regularization=regularization
+                , verbosity=verbosity
+                }
+
+pgStyle = defStyle {
+              styleWidth = ConstantWidth 40
+            , stylePrefix = exact
+            , stylePostfix = Label (\ pg _ -> progressCustom pg)
+            -- , styleOnComplete = WriteNewline
+            }

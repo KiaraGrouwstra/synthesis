@@ -27,10 +27,10 @@ imports =
   ]
 
 -- | test an interpreter monad, printing errors, returning values
-interpretUnsafe :: (?loc :: CallStack, Show a) => Interpreter a -> IO a
+interpretUnsafe :: Interpreter a -> IO a
 interpretUnsafe fn = join $
   interpretSafe fn <&> \case
-    Left err_ -> error $ "interpretUnsafe failed: " <> errorString err_ <> "\n" <> prettyCallStack ?loc
+    Left err_ -> error $ "interpretUnsafe failed: " <> errorString err_
     Right x -> return x
 
 -- | run an interpreter monad with imports
@@ -45,46 +45,24 @@ logger :: String
 logger = "my_logger"
 
 -- | print in the Interpreter monad
-say :: String -> Interpreter ()
+say, debug, info, notice, warning, err, critical, alert, emergency :: String -> Interpreter ()
 say = warning
-
 -- | log: debug
-debug :: String -> Interpreter ()
-debug = liftIO . debugM logger
-
--- -- | log: info
--- -- | deprecated, not in use
--- info :: String -> Interpreter ()
--- info = liftIO . infoM logger
-
--- -- | log: notice
--- -- | deprecated, not in use
--- notice :: String -> Interpreter ()
--- notice = liftIO . noticeM logger
-
+debug     = liftIO . debugM     logger
+-- | log: info
+info      = liftIO . infoM      logger
+-- | log: notice
+notice    = liftIO . noticeM    logger
 -- | log: warning
-warning :: String -> Interpreter ()
-warning = liftIO . warningM logger
-
--- -- | log: error
--- -- | deprecated, not in use
--- err :: String -> Interpreter ()
--- err = liftIO . errorM logger
-
--- -- | log: critical
--- -- | deprecated, not in use
--- critical :: String -> Interpreter ()
--- critical = liftIO . criticalM logger
-
--- -- | log: alert
--- -- | deprecated, not in use
--- alert :: String -> Interpreter ()
--- alert = liftIO . alertM logger
-
--- -- | log: emergency
--- -- | deprecated, not in use
--- emergency :: String -> Interpreter ()
--- emergency = liftIO . emergencyM logger
+warning   = liftIO . warningM   logger
+-- | log: error
+err       = liftIO . errorM     logger
+-- | log: critical
+critical  = liftIO . criticalM  logger
+-- | log: alert
+alert     = liftIO . alertM     logger
+-- | log: emergency
+emergency = liftIO . emergencyM logger
 
 -- | run-time Language.Haskell.Interpreter compilation error
 errorString :: InterpreterError -> String

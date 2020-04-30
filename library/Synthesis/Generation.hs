@@ -39,7 +39,6 @@ import Synthesis.Types
 import Synthesis.TypeGen
 import Synthesis.Data
 import Synthesis.Utility
--- import Synthesis.Configs
 import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly generate any functions in batch, and see what types end up coming out.
@@ -124,6 +123,7 @@ fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
       -- a list of samples for parameters for types
       let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_instantiations
       -- tuples of samples by param
+      -- `sequence` acts as a cartesian product
       let param_combs :: [[[Expr]]] = sequence <$> inputs
       -- if we weren't able to generate valid parameters, return an empty hashmap
       case head param_combs of
@@ -183,15 +183,13 @@ matchesConstraints arity tp constraints = do
 dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
 dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
   where
-  -- minByMap :: (Foldable t, Ord b) => (a -> b) -> t a -> a = \fn -> 
-  minByMap fn = minimumBy $ \a b -> compare (fn a) (fn b)
   -- group functions with identical type signatures
   type_sig_fns :: HashMap Tp [Expr] = groupByVal $ toList fn_types
   -- group functions with identical type signatures + io examples, i.e. functions that are actually equivalent
   -- for each uninstantiated type signature, a map for each type instantiation to matching expressions, from a map from instantiated parameter types to a string of io-pairs
   type_sig_io_fns :: HashMap Tp (HashMap (HashMap [Tp] String) [Expr]) = (\exprs -> groupByVal $ zip exprs $ (!) fn_in_type_instance_outputs <$> exprs) <$> type_sig_fns
   -- for each uninstantiated type signature, a map for each type instantiation to the shortest matching expression, from a map from instantiated parameter types to a string of io-pairs
-  type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minByMap numAstNodes) <$> type_sig_io_fns
+  type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minBy numAstNodes) <$> type_sig_io_fns
   -- TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
   kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
 

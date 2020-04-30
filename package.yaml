@@ -47,15 +47,17 @@ dependencies:
   - directory
   - split
   - text
-
-library:
-  dependencies:
+  - terminal-progress-bar
   - hashable
   - hslogger
   - bytestring
   - prettyprinter
   - store
   - optparse-applicative
+  # - memoize
+
+library:
+  dependencies: []
   source-dirs: library
 
 executables:
@@ -74,6 +76,12 @@ executables:
 
   view-dataset:
     source-dirs: view-dataset
+    main: Main.hs
+    dependencies:
+    - synthesis
+
+  grid-search:
+    source-dirs: grid-search
     main: Main.hs
     dependencies:
     - synthesis

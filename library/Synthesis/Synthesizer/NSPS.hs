@@ -180,16 +180,17 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
     let loss :: Tensor device 'D.Float '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
-trainCpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
+trainCpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
 -- -- is... is type currying a thing?!
 -- trainCpu = train @Cpu
 trainCpu = train @Cpu @m @encoderBatch @r3nnBatch @symbols @rules @t @n_train @n_validation @n_test @maxChar
 
-trainGpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
+trainGpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
 -- trainGpu = train @Gpu
 trainGpu = train @Gpu @m @encoderBatch @r3nnBatch @symbols @rules @t @n_train @n_validation @n_test @maxChar
 
-train :: forall device m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter ()
+-- | train a NSPS model and return results
+train :: forall device m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
 train synthesizerConfig TaskFnDataset{..} = do
     let SynthesizerConfig{..} = synthesizerConfig
 
@@ -202,7 +203,7 @@ train synthesizerConfig TaskFnDataset{..} = do
 
     -- verify static parameters
     -- for copy/pasting convenience, show how the params should be
-    liftIO $ printf
+    debug $ printf
         "type Rules = %d\ntype MaxStringLength = %d\ntype N_train = %d\ntype N_validation = %d\ntype N_test = %d\ntype RhsSymbols = %d\ntype MaxChar = %d\n"
         (length exprBlocks)
         longestString
@@ -231,7 +232,7 @@ train synthesizerConfig TaskFnDataset{..} = do
             , natValI @maxChar
             )
     -- print just to force lazy evaluation to actually check these variables
-    liftIO $ printf
+    debug $ printf
         "num_rules: %d. longest_string: %d. n_train: %d. n_validation: %d. n_test: %d. symbols: %d. maxChar: %d.\n"
          num_rules      longest_string      n_train      n_validation      n_test      symbols      maxChar
 
@@ -240,7 +241,9 @@ train synthesizerConfig TaskFnDataset{..} = do
     let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
     let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
     let init_lr :: Tensor device 'D.Float '[] = UnsafeMkTensor . D.asTensor $ learningRate
-    
+    let modelFolder = resultFolder <> "/" <> ppSynCfg synthesizerConfig
+    liftIO $ createDirectoryIfMissing True modelFolder
+
     -- pre-calculate DSL stuff
     let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
             fmap (fmap fst) <$> fnInTypeInstanceOutputs
@@ -266,7 +269,7 @@ train synthesizerConfig TaskFnDataset{..} = do
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
     let init_state = (stdGen, init_model, init_optim, False, [], init_lr, 0.0)
 
-    (_, _, _, _, eval_results, _, _) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results, lr, prev_acc) epoch -> if earlyStop then pure state else do
+    (_, model, _, _, eval_results, _, _) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results, lr, prev_acc) epoch -> if earlyStop then pure state else do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
 
         -- TRAIN LOOP
@@ -282,7 +285,7 @@ train synthesizerConfig TaskFnDataset{..} = do
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
             sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                     <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes maxHoles
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -306,7 +309,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                 io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
                 sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                         <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synthMaxHoles
+                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes maxHoles
 
                 -- sample for best of 100 predictions
                 sample_matches :: [Bool] <- replicateM bestOf $ do
@@ -317,7 +320,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                             fill = \(ppt, used, filled) -> do
                                     (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt sampled_feats
                                     return (ppt', used', filled + 1)
-                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < synthMaxHoles) fill (skeleton taskType, empty, 0 :: Int)
+                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < maxHoles) fill (skeleton taskType, empty, 0 :: Int)
                     -- say $ pp program
                     if hasHoles program then pure False else do
                         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl'
@@ -363,12 +366,13 @@ train synthesizerConfig TaskFnDataset{..} = do
             let loss_test :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
 
             liftIO $ printf
-                "Epoch: %d. Train loss: %.4f. Test loss: %.4f. Test accuracy: %.4f\n"
+                "Epoch: %03d. Train loss: %.4f. Test loss: %.4f. Test accuracy: %.4f\n"
                 epoch
                 (toFloat loss_train)
                 (toFloat loss_test)
                 (toFloat acc_test)
 
+            let modelPath = modelFolder <> printf "/%04d.pt" epoch
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
             let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat acc_test)
@@ -381,7 +385,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                     prev    :: D.Tensor = F.mean . D.asTensor $ prev_losses
                     earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
                     in earlyStop
-            when earlyStop $ say "test loss has converged, stopping early!"
+            when earlyStop $ debug "test loss has converged, stopping early!"
 
             return $ (earlyStop, eval_results')
 
@@ -390,7 +394,7 @@ train synthesizerConfig TaskFnDataset{..} = do
         -- TODO: have this use dev rather than test acc
         lr' :: Tensor device 'D.Float '[] <- case (acc_test < prev_acc) of
             True -> do
-                say "accuracy decreased, decaying learning rate!"
+                info "accuracy decreased, decaying learning rate!"
                 return . divScalar learningDecay $ lr
             False -> pure lr
 
@@ -398,5 +402,7 @@ train synthesizerConfig TaskFnDataset{..} = do
 
     liftIO $ createDirectoryIfMissing True resultFolder
     let resultPath = resultFolder <> "/" <> ppSynCfg synthesizerConfig <> ".csv"
-    liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader $ reverse eval_results
-    say $ "data written to " <> resultPath
+    let eval_results' = reverse eval_results -- we want the first epoch first
+    liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results'
+    info $ "data written to " <> resultPath
+    return eval_results'

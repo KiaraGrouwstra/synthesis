@@ -55,7 +55,7 @@ program = do
     say "\ngenerating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType blockAsts
     let expr_blocks :: [(String, Expr)] = genBlockVariants maxWildcardDepth block_fn_types
-    programs :: [Expr] <- genFns genMaxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
+    programs :: [Expr] <- genFns maxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
     say "\nprograms:"
     say $ pp_ programs
     let task_fns = programs
