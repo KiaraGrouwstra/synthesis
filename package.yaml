@@ -47,15 +47,17 @@ dependencies:
   - directory
   - split
   - text
-
-library:
-  dependencies:
+  - terminal-progress-bar
   - hashable
   - hslogger
   - bytestring
   - prettyprinter
   - store
   - optparse-applicative
+  # - memoize
+
+library:
+  dependencies: []
   source-dirs: library
 
 executables:

@@ -16,11 +16,7 @@ generationConfig = GenerationConfig
         ( long "crashOnError"
         <> short 'c'
         <> help "when specified just crash on error while calculating function outputs. otherwise perform an additional typecheck (slower)." )
-    <*> option auto
-        ( long "seed"
-        <> value 123
-        <> showDefault
-        <> help "random seed" )
+    <*> seedOpt
     <*> option auto
         ( long "nestLimit"
         <> value 0
@@ -42,11 +38,7 @@ generationConfig = GenerationConfig
         <> value 2
         <> showDefault
         <> help "the maximum level of functions to imagine in a wildcard for function generation" )
-    <*> option auto
-        ( long "genMaxHoles"
-        <> value 1
-        <> showDefault
-        <> help "the maximum number of holes to allow in a generated expression" )
+    <*> maxHolesOpt
     <*> option auto
         ( long "numMin"
         <> value (-20)
@@ -95,102 +87,61 @@ parseGenerationConfig = execParser opts
 
 synthesizerConfig :: Parser SynthesizerConfig
 synthesizerConfig = SynthesizerConfig
-    <$> strOption
-        ( long "taskPath"
-        <> short 'f'
-        <> value "./results/datasets.yml"
-        <> showDefault
-        <> help "the file path from which to load generated datasets" )
-    <*> option auto
-        ( long "seed"
-        <> value 123
-        <> showDefault
-        <> help "random seed" )
-    <*> option auto
-        ( long "numEpochs"
-        <> value 1000
-        <> showDefault
-        <> help "the number of epochs to train for" )
-    <*> strOption
-        ( long "modelPath"
-        <> short 'm'
-        <> value "./results/synthesis.pt"
-        <> showDefault
-        <> help "the file path at which to store trained models" )
-    -- <*> option auto
-    --     ( long "encoderBatch"
-    --     <> value 8
-    --     <> showDefault
-    --     <> help "the encoder batch size i.e. number of samples to process in one go" )
-    -- <*> option auto
-    --     ( long "r3nnBatch"
-    --     <> value 8
-    --     <> showDefault
-    --     <> help "the R3NN batch size i.e. number of i/o samples to sample per invocation" )
-    <*> option auto
-        ( long "bestOf"
-        <> value 100
-        <> showDefault
-        <> help "Number of functions to sample from the model for each latent function and set of input/output examples that we test on, determining success based on the best from this sample." )
-    <*> option auto
-        ( long "dropoutRate"
-        <> value 0.0    -- drop-out not mentioned in NSPS
-        <> showDefault
-        <> help "drop-out rate for the encoder LSTM" )
-    <*> option auto
-        ( long "evalFreq"
-        <> value 5
-        <> showDefault
-        <> help "the number of epochs for which to run on train test before evaluating on the test set again" )
-    <*> option auto
-        ( long "learningRate"
-        <> value 0.001
-        <> showDefault
-        <> help "initial learning rate used in ML optimizer" )
-    <*> option auto
-        ( long "checkWindow"
-        <> value 1
-        <> showDefault
-        <> help "the window of evaluations to check over to verify convergence" )
-    <*> option auto
-        ( long "convergenceThreshold"
-        <> value 0.000001
-        <> showDefault
-        <> help "the minimum loss increment we consider as indicating convergence" )
-    <*> option auto
-        ( long "synthMaxHoles"
-        <> value 1
-        <> showDefault
-        <> help "the maximum number of holes to allow in a synthesized expression" )
-    <*> strOption
-        ( long "resultFolder"
-        <> short 'f'
-        <> value "results"
-        <> showDefault
-        <> help "the file path from which to load generated datasets" )
-    <*> option auto
-        ( long "learningDecay"
-        <> value 5
-        <> showDefault
-        <> help "by how much to divide the learning rate when accuracy decreases" )
-
+    <$> taskPathOpt
+    <*> seedOpt
+    <*> numEpochsOpt
+    -- <*> encoderBatchOpt
+    -- <*> r3nnBatchOpt
+    <*> bestOfOpt
+    <*> dropoutRateOpt
+    <*> evalFreqOpt
+    <*> learningRateOpt
+    <*> checkWindowOpt
+    <*> convergenceThresholdOpt
+    <*> maxHolesOpt
+    <*> resultFolderOpt
+    <*> learningDecayOpt
+    <*> regularizationOpt
+    <*> verbosityOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
   where
     opts = info (synthesizerConfig <**> helper)
       ( fullDesc
-     <> progDesc "test a synthesizer on a dataset"
+     <> progDesc "train a synthesizer on a dataset"
      <> header "program synthesizer" )
+
+gridSearchConfig :: Parser GridSearchConfig
+gridSearchConfig = GridSearchConfig
+    <$> taskPathOpt
+    <*> seedOpt
+    <*> numEpochsOpt
+    -- <*> encoderBatchOpt
+    -- <*> r3nnBatchOpt
+    <*> bestOfOpt
+    -- <*> dropoutRateOpt
+    <*> evalFreqOpt
+    <*> learningRateOpt
+    <*> checkWindowOpt
+    <*> convergenceThresholdOpt
+    -- <*> maxHolesOpt
+    <*> resultFolderOpt
+    <*> learningDecayOpt
+    -- <*> regularizationOpt
+    <*> verbosityOpt
+
+parseGridSearchConfig :: IO GridSearchConfig
+parseGridSearchConfig = execParser opts
+  where
+    opts = info (gridSearchConfig <**> helper)
+      ( fullDesc
+     <> progDesc "perform hyperparameter optimization by a naive grid search"
+     <> header "grid search" )
 
 viewDatasetConfig :: Parser ViewDatasetConfig
 viewDatasetConfig = ViewDatasetConfig
-    <$> strOption
-        ( long "taskPath"
-        <> short 'f'
-        <> value "results/datasets.yml"
-        <> showDefault
-        <> help "the file path from which to load generated datasets" )
+    <$> taskPathOpt
 
 parseViewDatasetConfig :: IO ViewDatasetConfig
 parseViewDatasetConfig = execParser opts
@@ -199,3 +150,105 @@ parseViewDatasetConfig = execParser opts
       ( fullDesc
      <> progDesc "test a synthesizer on a dataset"
      <> header "program synthesizer" )
+
+-- shared options
+
+taskPathOpt = strOption
+    ( long "taskPath"
+    <> short 'f'
+    <> value "./results/datasets.yml"
+    <> showDefault
+    <> help "the file path from which to load generated datasets" )
+
+seedOpt = option auto
+    ( long "seed"
+    <> value (123 :: Int)
+    <> showDefault
+    <> help "random seed" )
+
+maxHolesOpt = option auto
+    ( long "maxHoles"
+    <> value (1 :: Int)
+    <> showDefault
+    <> help "the maximum number of holes to allow in a generated expression" )
+
+numEpochsOpt = option auto
+    ( long "numEpochs"
+    <> value (1000 :: Int)
+    <> showDefault
+    <> help "the number of epochs to train for" )
+
+bestOfOpt = option auto
+    ( long "bestOf"
+    <> value (100 :: Int)
+    <> showDefault
+    <> help "Number of functions to sample from the model for each latent function and set of input/output examples that we test on, determining success based on the best from this sample." )
+
+encoderBatchOpt = option auto
+    ( long "encoderBatch"
+    <> value (8 :: Int)
+    <> showDefault
+    <> help "the encoder batch size i.e. number of samples to process in one go" )
+
+r3nnBatchOpt = option auto
+    ( long "r3nnBatch"
+    <> value (8 :: Int)
+    <> showDefault
+    <> help "the R3NN batch size i.e. number of i/o samples to sample per invocation" )
+
+dropoutRateOpt = option auto
+    ( long "dropoutRate"
+    <> value 0.0    -- drop-out not mentioned in NSPS
+    <> showDefault
+    <> help "drop-out rate for the encoder LSTM" )
+
+evalFreqOpt = option auto
+    ( long "evalFreq"
+    <> value (5 :: Int)
+    <> showDefault
+    <> help "the number of epochs for which to run on train test before evaluating on the test set again" )
+
+learningRateOpt = option auto
+    ( long "learningRate"
+    <> value 0.001
+    <> showDefault
+    <> help "initial learning rate used in ML optimizer" )
+
+checkWindowOpt = option auto
+    ( long "checkWindow"
+    <> value (1 :: Int)
+    <> showDefault
+    <> help "the window of evaluations to check over to verify convergence" )
+
+convergenceThresholdOpt = option auto
+    ( long "convergenceThreshold"
+    <> value 0.000001
+    <> showDefault
+    <> help "the minimum loss increment we consider as indicating convergence" )
+
+resultFolderOpt = strOption
+    ( long "resultFolder"
+    <> short 'f'
+    <> value "results"
+    <> showDefault
+    <> help "the folder in which to store result files" )
+
+learningDecayOpt = option auto
+    ( long "learningDecay"
+    <> value (5 :: Int)
+    <> showDefault
+    <> help "by how much to divide the learning rate when accuracy decreases" )
+
+regularizationOpt = option auto
+    ( long "regularization"
+    <> value 0.0
+    <> showDefault
+    <> help "L2 weight decay used in the optimizer" )
+
+verbosityOpt = strOption
+    ( long "verbosity"
+    <> short 'v'
+    <> value "warn"
+    <> showDefault
+    <> completeWith ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
+    <> help "the log level to use" )

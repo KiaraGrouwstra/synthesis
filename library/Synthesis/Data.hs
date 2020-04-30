@@ -44,15 +44,15 @@ data GenerationConfig = GenerationConfig
   -- type generation
   , nestLimit :: Int
   , maxInstances :: Int
+  -- function generation
+  , maxWildcardDepth :: Int
+  , maxHoles :: Int
   -- sample generation
   , numInputs :: Int
   , numMin :: Integer
   , numMax :: Integer
   , listMin :: Int
   , listMax :: Int
-  -- function generation
-  , maxWildcardDepth :: Int
-  , genMaxHoles :: Int
   -- dataset generation
   , training :: Double
   , validation :: Double
@@ -63,7 +63,6 @@ data SynthesizerConfig = SynthesizerConfig
   { taskPath :: String
   , seed :: Int
   , numEpochs :: Int
-  , modelPath :: String
   -- , encoderBatch :: Int
   -- , r3nnBatch :: Int
   , bestOf :: Int
@@ -72,9 +71,34 @@ data SynthesizerConfig = SynthesizerConfig
   , learningRate :: Float
   , checkWindow :: Int
   , convergenceThreshold :: Float
-  , synthMaxHoles :: Int
+  , maxHoles :: Int
   , resultFolder :: String
   , learningDecay :: Int
+  , regularization :: Float  -- TODO: use this
+  , verbosity :: String
+  } deriving (Show, Generic)
+
+data GridSearchConfig = GridSearchConfig
+  { taskPath :: String
+  , seed :: Int
+  , numEpochs :: Int
+  , bestOf :: Int
+  -- , dropoutRate :: Double
+  , evalFreq :: Int
+  , learningRate :: Float
+  , checkWindow :: Int
+  , convergenceThreshold :: Float
+  -- , maxHoles :: Int
+  , resultFolder :: String
+  , learningDecay :: Int
+  -- , regularization :: Float
+  , verbosity :: String
+  } deriving (Show, Generic)
+
+data HparComb = HparComb
+  { dropoutRate :: Double
+  , maxHoles :: Int
+  , regularization :: Float
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig
@@ -85,7 +109,7 @@ data EvalResult = EvalResult { epoch     :: !Int
                               , lossTrain :: !Float
                               , lossTest  :: !Float
                               , accTest   :: !Float
-                              }
+                              } deriving (Show, Generic)
 
 instance ToNamedRecord EvalResult where
     toNamedRecord (EvalResult epoch lossTrain lossTest accTest) =

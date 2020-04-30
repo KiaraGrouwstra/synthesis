@@ -39,7 +39,6 @@ import Synthesis.Types
 import Synthesis.TypeGen
 import Synthesis.Data
 import Synthesis.Utility
--- import Synthesis.Configs
 import Util (nTimes, fstOf3, thdOf3)
 
 -- | just directly generate any functions in batch, and see what types end up coming out.

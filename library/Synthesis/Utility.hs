@@ -18,6 +18,7 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
 import System.Random (RandomGen(..), randomR, randomRIO)
+import System.Log.Logger
 
 -- | map over both elements of a tuple
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
@@ -172,3 +173,15 @@ maxBy fn = maximumBy $ \a b -> compare (fn a) (fn b)
 -- find the minimum by a mapping function to an ordinal value
 minBy :: (Foldable t, Ord b) => (a -> b) -> t a -> a
 minBy fn = minimumBy $ \a b -> compare (fn a) (fn b)
+
+logPriority :: String -> Priority
+logPriority lvl = case lvl of
+    "debug"     -> DEBUG
+    "info"      -> INFO
+    "notice"    -> NOTICE
+    "warning"   -> WARNING
+    "error"     -> ERROR
+    "critical"  -> CRITICAL
+    "alert"     -> ALERT
+    "emergency" -> EMERGENCY
+    _ -> error $ "unknown log level: " <> lvl
