@@ -36,7 +36,7 @@ import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
-import Control.Applicative (liftA3)
+import Control.Applicative
 import Control.Monad (void, foldM, (=<<))
 import Language.Haskell.Interpreter (Interpreter)
 import Language.Haskell.Exts.Syntax
@@ -585,11 +585,11 @@ traverseToSnd :: Functor t => (a -> t b) -> a -> t (a, b)
 traverseToSnd f a = (a,) <$> f a
 
 -- | calculate a cartesian product, used for hyper-parameter combinations
-cartesianProduct3 :: [a] -> [b] -> [c] -> [(a, b, c)]
-cartesianProduct3 = liftA3 (,,)
+cartesianProduct2 :: [a] -> [b] -> [(a, b)]
+cartesianProduct2 = liftA2 (,)
 
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f ~(a, b, c) = f a b c
+uncurry2 :: (a -> b -> c) -> (a, b) -> c
+uncurry2 f ~(a, b) = f a b
 
 knownNat :: forall n. KnownNat n => Integer
 knownNat = natVal $ Proxy @n
@@ -611,7 +611,6 @@ combineConfig gridCfg hparComb = cfg
                 , learningRate=learningRate
                 , checkWindow=checkWindow
                 , convergenceThreshold=convergenceThreshold
-                , maxHoles=maxHoles
                 , resultFolder=resultFolder
                 , learningDecay=learningDecay
                 , regularization=regularization

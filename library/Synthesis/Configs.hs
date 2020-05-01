@@ -98,7 +98,6 @@ synthesizerConfig = SynthesizerConfig
     <*> learningRateOpt
     <*> checkWindowOpt
     <*> convergenceThresholdOpt
-    <*> maxHolesOpt
     <*> resultFolderOpt
     <*> learningDecayOpt
     <*> regularizationOpt
@@ -125,7 +124,6 @@ gridSearchConfig = GridSearchConfig
     <*> learningRateOpt
     <*> checkWindowOpt
     <*> convergenceThresholdOpt
-    -- <*> maxHolesOpt
     <*> resultFolderOpt
     <*> learningDecayOpt
     -- <*> regularizationOpt

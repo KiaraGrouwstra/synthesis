@@ -71,7 +71,6 @@ data SynthesizerConfig = SynthesizerConfig
   , learningRate :: Float
   , checkWindow :: Int
   , convergenceThreshold :: Float
-  , maxHoles :: Int
   , resultFolder :: String
   , learningDecay :: Int
   , regularization :: Float  -- TODO: use this
@@ -97,7 +96,6 @@ data GridSearchConfig = GridSearchConfig
 
 data HparComb = HparComb
   { dropoutRate :: Double
-  , maxHoles :: Int
   , regularization :: Float
   } deriving (Show, Generic)
 

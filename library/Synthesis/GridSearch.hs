@@ -68,13 +68,11 @@ evalHparComb taskFnDataset cfg hparComb = do
         then trainGpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg' taskFnDataset
         else trainCpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg' taskFnDataset
 
-hparCombs :: [HparComb] = uncurry3 HparComb <$> cartesianProduct3
+hparCombs :: [HparComb] = uncurry2 HparComb <$> cartesianProduct2
     -- -- performance
     -- dropoutRate :: Double
     -- [0.0, 1.0 :: Double]
     (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
-    -- maxHoles :: Int
-    [1 .. 3 :: Int]
     -- regularization :: Float
     -- [0.0, 0.05 :: Float]
     (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])

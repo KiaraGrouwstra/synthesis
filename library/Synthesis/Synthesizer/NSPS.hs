@@ -64,7 +64,7 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 import           Synthesis.Orphanage ()
-import           Synthesis.Data hiding (GenerationConfig(..))
+import           Synthesis.Data
 import           Synthesis.Utility
 import           Synthesis.Ast
 import           Synthesis.Generation
@@ -166,7 +166,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
 calcLoss :: forall m symbols rules encoderBatch r3nnBatch t maxChar device . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat t, KnownNat r3nnBatch, KnownNat maxChar) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS device m symbols rules t encoderBatch r3nnBatch maxChar -> Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tensor device 'D.Float '[])
-calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes = do
+calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
             fill = \(ppt, golds, predictions, filled) -> do
@@ -174,7 +174,7 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
                     (ppt', gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     -- putStrLn $ "ppt': " <> pp ppt'
                     return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
-            in while (\(expr, _, _, filled) -> hasHoles expr && filled < synth_max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
+            in while (\(expr, _, _, filled) -> hasHoles expr && filled < max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
     let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
     let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
     let loss :: Tensor device 'D.Float '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
@@ -258,7 +258,9 @@ train synthesizerConfig TaskFnDataset{..} = do
     let variantMap :: HashMap String Expr = fromList variants
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fnInTypeInstanceOutputs
-    -- DSL without entries equal tot their key, for constructing let-in expressions.
+    -- for synthesized programs, we apply the same maximum number of holes as used to generate this dataset. this allows our synthesizer enough power to construct the desired programs, while disallowing more complex programs than those of the maximum generated complexity. this choice is arbitrary; yet to think of a nicer solution.
+    let max_holes = maxHoles generationCfg
+    -- DSL without entries equal to their key, for constructing let-in expressions.
     -- without this, blocks identical to their keys are seen as recursive, causing non-termination
     let dsl' = filterWithKey (\k v -> k /= pp v) dsl
 
@@ -285,7 +287,7 @@ train synthesizerConfig TaskFnDataset{..} = do
             io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
             sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                     <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes maxHoles
+            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
             let model' = A.replaceParameters model newParam
@@ -309,7 +311,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                 io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
                 sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
                         <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes maxHoles
+                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes max_holes
 
                 -- sample for best of 100 predictions
                 sample_matches :: [Bool] <- replicateM bestOf $ do
@@ -320,7 +322,7 @@ train synthesizerConfig TaskFnDataset{..} = do
                             fill = \(ppt, used, filled) -> do
                                     (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt sampled_feats
                                     return (ppt', used', filled + 1)
-                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < maxHoles) fill (skeleton taskType, empty, 0 :: Int)
+                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < max_holes) fill (skeleton taskType, empty, 0 :: Int)
                     -- say $ pp program
                     if hasHoles program then pure False else do
                         let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl'
