@@ -46,7 +46,6 @@ main = do
     let TaskFnDataset{..} = taskFnDataset
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
-    -- updateProgress pb $ \(Progress _done _todo _custom) -> Progress 0 N (show hparComb :: Text)
     let eval = traverseToSnd $ evalHparComb taskFnDataset cfg
     hparResults :: [(HparComb, EvalResult)] <- forM hparCombs $ (`finally` incProgress pb 1) . eval
     -- TODO: save/plot
@@ -54,7 +53,8 @@ main = do
     let bestHparComb :: (HparComb, EvalResult) = minBy (lossTest . snd) hparResults
     putStrLn . show $ bestHparComb
     -- TODO: use validation set above, test set here
-    join $ putStrLn . show <.> eval . fst $ bestHparComb
+    res :: (HparComb, EvalResult) <- eval . fst $ bestHparComb
+    putStrLn $ "result on test set:\n" <> show res
 
 evalHparComb :: TaskFnDataset -> GridSearchConfig -> HparComb -> IO EvalResult
 evalHparComb taskFnDataset cfg hparComb = do
