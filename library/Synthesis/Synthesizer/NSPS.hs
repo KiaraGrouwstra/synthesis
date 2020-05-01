@@ -64,7 +64,7 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 import           Synthesis.Orphanage ()
-import           Synthesis.Data
+import           Synthesis.Data hiding (GridSearchConfig (..))
 import           Synthesis.Utility
 import           Synthesis.Ast
 import           Synthesis.Generation
@@ -180,94 +180,80 @@ calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs
     let loss :: Tensor device 'D.Float '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
-trainCpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
--- -- is... is type currying a thing?!
--- trainCpu = train @Cpu
-trainCpu = train @Cpu @m @encoderBatch @r3nnBatch @symbols @rules @t @n_train @n_validation @n_test @maxChar
-
-trainGpu :: forall m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
--- trainGpu = train @Gpu
-trainGpu = train @Gpu @m @encoderBatch @r3nnBatch @symbols @rules @t @n_train @n_validation @n_test @maxChar
+-- | pre-calculate DSL stuff
+prep_dsl :: TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr)
+prep_dsl TaskFnDataset{..} = tpl where
+    variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
+    variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
+    task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
+        fmap (fmap fst) <$> fnInTypeInstanceOutputs
+    -- combine i/o lists across type instances
+    task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
+        join . elems <$> fnInTypeInstanceOutputs
+    -- then take their outputs
+    task_outputs :: HashMap Expr [Either String Expr] =
+        fmap snd <$> task_io_pairs
+    symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
+    ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
+    variantMap :: HashMap String Expr = fromList variants
+    -- for synthesized programs, we apply the same maximum number of holes as used to generate this dataset. this allows our synthesizer enough power to construct the desired programs, while disallowing more complex programs than those of the maximum generated complexity. this choice is arbitrary; yet to think of a nicer solution.
+    max_holes = maxHoles generationCfg
+    -- DSL without entries equal to their key, for constructing let-in expressions.
+    -- without this, blocks identical to their keys are seen as recursive, causing non-termination
+    dsl' = filterWithKey (\k v -> k /= pp v) dsl
+    tpl = (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl')
 
 -- | train a NSPS model and return results
-train :: forall device m encoderBatch r3nnBatch symbols rules t n_train n_validation n_test maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat n_train, KnownNat n_validation, KnownNat n_test, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
-train synthesizerConfig TaskFnDataset{..} = do
+train :: forall device m encoderBatch r3nnBatch symbols rules t maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat maxChar) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
+train synthesizerConfig taskFnDataset = do
     let SynthesizerConfig{..} = synthesizerConfig
+    let TaskFnDataset{..} = taskFnDataset
 
     -- GENERAL
 
     -- datasets
-    let set_list = untuple3 datasets
-    let [train_set, validation_set, test_set] :: [[Expr]] = set_list
-    let all_sets :: [Expr] = join set_list
+    let [train_set, validation_set, test_set] :: [[Expr]] = untuple3 datasets
 
     -- verify static parameters
     -- for copy/pasting convenience, show how the params should be
     debug $ printf
-        "type Rules = %d\ntype MaxStringLength = %d\ntype N_train = %d\ntype N_validation = %d\ntype N_test = %d\ntype RhsSymbols = %d\ntype MaxChar = %d\n"
+        "type Rules = %d\ntype MaxStringLength = %d\ntype RhsSymbols = %d\ntype MaxChar = %d\n"
         (length exprBlocks)
         longestString
-        (length train_set)
-        (length validation_set)
-        (length test_set)
         (size dsl)
         (size charMap + 1)
-    let (num_rules,     longest_string,     n_train,     n_validation,     n_test,     symbols,     maxChar) ::
-            (Int, Int, Int, Int, Int, Int, Int) = assertEq
+    let (num_rules,     longest_string,     symbols,     maxChar) ::
+            (Int, Int, Int, Int) = assertEq
             ( length exprBlocks
             , longestString
-            , length train_set
-            , length validation_set
-            , length test_set
             , size dsl
             , size charMap + 1
             ) $
             ( natValI @rules
             -- TODO: longestString -> natValI @t, once the calculation works again...
             , longestString
-            , natValI @n_train
-            , natValI @n_validation
-            , natValI @n_test
             , natValI @symbols - natValI @LhsSymbols
             , natValI @maxChar
             )
     -- print just to force lazy evaluation to actually check these variables
     debug $ printf
-        "num_rules: %d. longest_string: %d. n_train: %d. n_validation: %d. n_test: %d. symbols: %d. maxChar: %d.\n"
-         num_rules      longest_string      n_train      n_validation      n_test      symbols      maxChar
+        "num_rules: %d. longest_string: %d. symbols: %d. maxChar: %d.\n"
+         num_rules      longest_string      symbols      maxChar
 
     -- misc
     let stdGen :: StdGen = mkStdGen seed
-    let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
-    let variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
     let init_lr :: Tensor device 'D.Float '[] = UnsafeMkTensor . D.asTensor $ learningRate
     let modelFolder = resultFolder <> "/" <> ppSynCfg synthesizerConfig
     liftIO $ createDirectoryIfMissing True modelFolder
 
-    -- pre-calculate DSL stuff
-    let task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
-            fmap (fmap fst) <$> fnInTypeInstanceOutputs
-    -- combine i/o lists across type instances
-    let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
-            join . elems <$> fnInTypeInstanceOutputs
-    -- then take their outputs
-    let task_outputs :: HashMap Expr [Either String Expr] =
-            fmap snd <$> task_io_pairs
-    let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
-    let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
-    let variantMap :: HashMap String Expr = fromList variants
-    let ios :: [(Expr, Either String Expr)] =
-            join . elems $ join . elems <$> fnInTypeInstanceOutputs
-    -- for synthesized programs, we apply the same maximum number of holes as used to generate this dataset. this allows our synthesizer enough power to construct the desired programs, while disallowing more complex programs than those of the maximum generated complexity. this choice is arbitrary; yet to think of a nicer solution.
-    let max_holes = maxHoles generationCfg
-    -- DSL without entries equal to their key, for constructing let-in expressions.
-    -- without this, blocks identical to their keys are seen as recursive, causing non-termination
-    let dsl' = filterWithKey (\k v -> k /= pp v) dsl
+    let prepped_dsl = prep_dsl taskFnDataset
+    let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
 
     -- MODELS
     let encoder_spec :: LstmEncoderSpec device t encoderBatch maxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec device m symbols rules t r3nnBatch = initR3nn @m @symbols @rules @t @r3nnBatch variants r3nnBatch dropoutRate
     init_model :: NSPS device m symbols rules t encoderBatch r3nnBatch maxChar <- liftIO $ A.sample $ NSPSSpec @device @m @symbols @rules encoder_spec r3nn_spec
+
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
     let init_state = (stdGen, init_model, init_optim, False, [], init_lr, 0.0)
 
@@ -299,88 +285,22 @@ train synthesizerConfig TaskFnDataset{..} = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            test_stats :: [(Bool, Tensor device 'D.Float '[])] <- forM test_set $ \task_fn -> do
-                let taskType :: Tp = fnTypes                        ! task_fn
-                let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
-                let target_io_pairs :: [(Expr, Either String Expr)] =
-                        task_io_pairs                               ! task_fn
-                let target_outputs :: [Either String Expr] =
-                        task_outputs                                ! task_fn
-
-                --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * H)]
-                io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model') charMap target_io_pairs
-                sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
-                        <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
-                loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes max_holes
-
-                -- sample for best of 100 predictions
-                sample_matches :: [Bool] <- replicateM bestOf $ do
-                    -- TODO: use these ExprTypeSig type annotations
-                    -- TODO: split io_feats and taskType based on param type instance combo 
-                    (program, used, _filled) :: (Expr, Set String, Int) <- let
-                            --  :: (Int, Expr) -> IO (Int, Expr)
-                            fill = \(ppt, used, filled) -> do
-                                    (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model') symbolIdxs ppt sampled_feats
-                                    return (ppt', used', filled + 1)
-                            in while (\(ppt, used, filled) -> hasHoles ppt && filled < max_holes) fill (skeleton taskType, empty, 0 :: Int)
-                    -- say $ pp program
-                    if hasHoles program then pure False else do
-                        let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl'
-                        let program' :: Expr = if null defs then program else letIn defs program
-                        sane :: Bool <- fitExpr program
-                        if not sane then pure False else do
-
-                            -- say $ "type_ins: " <> pp_ type_ins
-                            prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                                    compileInput :: [Tp] -> [Expr] -> Interpreter [(Expr, Either String Expr)] = \ in_instantiation ins -> let
-                                            n :: Int = length $ unTuple' $ ins !! 0
-                                            -- crash_on_error=False is slower but lets me check if it compiles.
-                                            -- fitExpr already does a type-check tho, so don't repeat that here.
-                                            in fnIoPairs True n program' in_instantiation $ list ins
-                                    in sequence $ compileInput `mapWithKey` type_ins
-                            -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
-                            let prediction_io_pairs :: [(Expr, Either String Expr)] =
-                                    join . elems $ prediction_type_ios
-                            let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
-                                    False -> False
-                                    True -> let
-                                            prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
-                                            output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
-                                            in and output_matches
-                            -- TODO: try non-boolean score:
-                            -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
-
-                            -- -- for each param type instance combo, check if the program compiles (and get outputs...)
-                            -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
-                            -- let num_in_type_instances :: Int = size type_compiles
-                            -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
-                            -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
-                            -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
-                            -- let ratio_errors :: Float = 1 - ratio_compiles
-                            -- -- TODO: actually use compilation feedback in score
-                            return outputs_match
-
-                let best_works :: Bool = or sample_matches
-                let score :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
-                return (best_works, loss)
-
-            let acc_test  :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> test_stats
-            let loss_test :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> test_stats
+            (acc_valid, loss_valid) <- evaluate @device @m @encoderBatch @r3nnBatch @symbols @rules @t @maxChar taskFnDataset prepped_dsl bestOf model' validation_set
 
             liftIO $ printf
-                "Epoch: %03d. Train loss: %.4f. Test loss: %.4f. Test accuracy: %.4f\n"
+                "Epoch: %03d. Train loss: %.4f. Validation loss: %.4f. Validation accuracy: %.4f.\n"
                 epoch
                 (toFloat loss_train)
-                (toFloat loss_test)
-                (toFloat acc_test)
+                (toFloat loss_valid)
+                (toFloat acc_valid)
 
             let modelPath = modelFolder <> printf "/%04d.pt" epoch
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_test) (toFloat acc_test)
+            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_valid) (toFloat acc_valid)
             let eval_results' = eval_result : eval_results
             let earlyStop :: Bool = whenOr False (length eval_results' >= 2 * checkWindow) $ let
-                    losses  :: [Float] = lossTest <$> eval_results'
+                    losses  :: [Float] = lossValid <$> eval_results'
                     losses' :: [Float] = take (2 * checkWindow) losses
                     (current_losses, prev_losses) = splitAt checkWindow losses'
                     current :: D.Tensor = F.mean . D.asTensor $ current_losses
@@ -391,7 +311,7 @@ train synthesizerConfig TaskFnDataset{..} = do
 
             return $ (earlyStop, eval_results')
 
-        let acc_test :: Float = accTest $ head eval_results'
+        let acc_test :: Float = accValid $ head eval_results'
         -- decay the learning rate if accuracy decreases
         -- TODO: have this use dev rather than test acc
         lr' :: Tensor device 'D.Float '[] <- case (acc_test < prev_acc) of
@@ -408,3 +328,78 @@ train synthesizerConfig TaskFnDataset{..} = do
     liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results'
     info $ "data written to " <> resultPath
     return eval_results'
+
+evaluate :: forall device m encoderBatch r3nnBatch symbols rules t maxChar
+          . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat maxChar)
+         => TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr) -> Int -> NSPS device m symbols rules t encoderBatch r3nnBatch maxChar -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
+evaluate taskFnDataset prepped_dsl bestOf model dataset = do
+    let TaskFnDataset{..} = taskFnDataset
+    let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
+    eval_stats :: [(Bool, Tensor device 'D.Float '[])] <- forM dataset $ \task_fn -> do
+        let taskType :: Tp = fnTypes                        ! task_fn
+        let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
+        let target_io_pairs :: [(Expr, Either String Expr)] =
+                task_io_pairs                               ! task_fn
+        let target_outputs :: [Either String Expr] =
+                task_outputs                                ! task_fn
+
+        --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * H)]
+        io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
+        sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * H)]
+                <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
+        loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
+
+        -- sample for best of 100 predictions
+        sample_matches :: [Bool] <- replicateM bestOf $ do
+            -- TODO: use these ExprTypeSig type annotations
+            -- TODO: split io_feats and taskType based on param type instance combo 
+            (program, used, _filled) :: (Expr, Set String, Int) <- let
+                    --  :: (Int, Expr) -> IO (Int, Expr)
+                    fill = \(ppt, used, filled) -> do
+                            (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m (r3nn model) symbolIdxs ppt sampled_feats
+                            return (ppt', used', filled + 1)
+                    in while (\(ppt, used, filled) -> hasHoles ppt && filled < max_holes) fill (skeleton taskType, empty, 0 :: Int)
+            -- say $ pp program
+            if hasHoles program then pure False else do
+                let defs :: HashMap String Expr = pickKeysSafe (Data.Set.toList used) dsl'
+                let program' :: Expr = if null defs then program else letIn defs program
+                sane :: Bool <- fitExpr program
+                if not sane then pure False else do
+
+                    -- say $ "type_ins: " <> pp_ type_ins
+                    prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
+                            compileInput :: [Tp] -> [Expr] -> Interpreter [(Expr, Either String Expr)] = \ in_instantiation ins -> let
+                                    n :: Int = length $ unTuple' $ ins !! 0
+                                    -- crash_on_error=False is slower but lets me check if it compiles.
+                                    -- fitExpr already does a type-check tho, so don't repeat that here.
+                                    in fnIoPairs True n program' in_instantiation $ list ins
+                            in sequence $ compileInput `mapWithKey` type_ins
+                    -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
+                    let prediction_io_pairs :: [(Expr, Either String Expr)] =
+                            join . elems $ prediction_type_ios
+                    let outputs_match :: Bool = case length target_outputs == length prediction_io_pairs of
+                            False -> False
+                            True -> let
+                                    prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
+                                    output_matches :: [Bool] = uncurry (==) . mapTuple pp_ <$> target_outputs `zip` prediction_outputs
+                                    in and output_matches
+                    -- TODO: try non-boolean score:
+                    -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
+
+                    -- -- for each param type instance combo, check if the program compiles (and get outputs...)
+                    -- let type_compiles :: HashMap [Tp] Boolean = not . null <$> prediction_type_ios
+                    -- let num_in_type_instances :: Int = size type_compiles
+                    -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
+                    -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
+                    -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
+                    -- let ratio_errors :: Float = 1 - ratio_compiles
+                    -- -- TODO: actually use compilation feedback in score
+                    return outputs_match
+
+        let best_works :: Bool = or sample_matches
+        let score :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
+        return (best_works, loss)
+
+    let acc  :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> eval_stats
+    let loss :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . stack' 0 $ toDynamic           . snd <$> eval_stats
+    return (acc, loss)

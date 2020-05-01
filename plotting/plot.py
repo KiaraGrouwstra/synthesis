@@ -21,7 +21,7 @@ for csv in csvs:
     var_name = 'dataset'
     id_var = 'epoch'
     value_name = 'loss'
-    value_map = {'lossTrain': 'train', 'lossTest': 'test'}
+    value_map = {'lossTrain': 'train', 'lossValid': 'validation'}
     ax = sns.lineplot(
         x=id_var,
         y=value_name,
@@ -31,7 +31,7 @@ for csv in csvs:
     fname = csv.replace('.csv', f'-{value_name}')
     save_ax(ax, fname)
 
-    metrics = ['accTest']
+    metrics = ['accValid']
     for metric in metrics:
         ax = sns.lineplot(
             x=id_var,

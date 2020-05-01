@@ -35,5 +35,5 @@ main = do
     putStrLn $ show generationCfg
     manual_seed_L $ fromIntegral seed
     void . interpretUnsafe $ if False -- hasCuda
-        then trainGpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg taskFnDataset
-        else trainCpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @N_train @N_validation @N_test @MaxChar cfg taskFnDataset
+        then train @Gpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg taskFnDataset
+        else train @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg taskFnDataset

@@ -104,17 +104,17 @@ data ViewDatasetConfig = ViewDatasetConfig
   } deriving (Show, Generic)
 
 data EvalResult = EvalResult { epoch     :: !Int
-                              , lossTrain :: !Float
-                              , lossTest  :: !Float
-                              , accTest   :: !Float
-                              } deriving (Show, Generic)
+                             , lossTrain :: !Float
+                             , lossValid :: !Float
+                             , accValid  :: !Float
+                             } deriving (Show, Generic)
 
 instance ToNamedRecord EvalResult where
-    toNamedRecord (EvalResult epoch lossTrain lossTest accTest) =
+    toNamedRecord (EvalResult epoch lossTrain lossValid accValid) =
         namedRecord [ "epoch"     .= epoch
                     , "lossTrain" .= lossTrain
-                    , "lossTest"  .= lossTest
-                    , "accTest"   .= accTest
+                    , "lossValid" .= lossValid
+                    , "accValid"  .= accValid
                     ]
 
-evalResultHeader :: Header = header ["epoch", "lossTrain", "lossTest", "accTest"]
+evalResultHeader :: Header = header ["epoch", "lossTrain", "lossValid", "accValid"]
