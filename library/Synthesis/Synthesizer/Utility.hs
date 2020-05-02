@@ -589,11 +589,11 @@ traverseToSnd :: Functor t => (a -> t b) -> a -> t (a, b)
 traverseToSnd f a = (a,) <$> f a
 
 -- | calculate a cartesian product, used for hyper-parameter combinations
-cartesianProduct2 :: [a] -> [b] -> [(a, b)]
-cartesianProduct2 = liftA2 (,)
+cartesianProduct3 :: [a] -> [b] -> [c] -> [(a, b, c)]
+cartesianProduct3 = liftA3 (,,)
 
-uncurry2 :: (a -> b -> c) -> (a, b) -> c
-uncurry2 f ~(a, b) = f a b
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f ~(a, b, c) = f a b c
 
 knownNat :: forall n. KnownNat n => Integer
 knownNat = natVal $ Proxy @n

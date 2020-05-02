@@ -99,6 +99,7 @@ data GridSearchConfig = GridSearchConfig
 data HparComb = HparComb
   { dropoutRate :: Double
   , regularization :: Float
+  , m :: Int
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig

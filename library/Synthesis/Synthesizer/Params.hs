@@ -15,8 +15,6 @@ type LhsSymbols = 1
 
 -- | number of features for R3NN expansions/symbols. must be an even number for H.
 type M = 20
-m :: Int
-m = natValI @M
 
 -- | must use a static batch size i/o making it dynamic by SynthesizerConfig...
 type EncoderBatch = 8
@@ -27,14 +25,17 @@ r3nnBatch :: Int
 r3nnBatch = natValI @R3nnBatch
 
 -- left/right MLPs
+-- hard-coded
 type Hidden0 = 20
 hidden0 :: Int
 hidden0 = natValI @Hidden0
+-- hard-coded
 type Hidden1 = 20
 hidden1 :: Int
 hidden1 = natValI @Hidden1
 
 -- Encoder
+-- hard-coded
 -- | H is the topmost LSTM hidden dimension
 type H = 30
 h :: Int
