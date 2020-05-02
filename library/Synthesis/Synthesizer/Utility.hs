@@ -34,6 +34,10 @@ import Data.Proxy
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
+import qualified Data.Csv as Csv
+import qualified Data.ByteString               as BS
+import qualified Data.ByteString.Internal      as BS
+import qualified Data.ByteString.Lazy.Internal as BL
 import System.Environment (getEnv)
 import Control.Exception (SomeException, try, assert)
 import Control.Applicative
@@ -577,8 +581,8 @@ sampleTensor n tensor = do
     return . UnsafeMkTensor $ D.indexSelect tensor (natValI @dim) sampled_idxs
 
 -- | pretty-print a configuration for use in file names of result files, which requires staying within a 256-character limit.
-ppSynCfg :: SynthesizerConfig -> String
-ppSynCfg cfg = replacements [("\"",""),("\\",""),("/","\\")] . show . Aeson.encode . filterWithKey (\ k _v -> k `Set.notMember` Set.fromList (Text.pack <$> ["numEpochs"])) . fromJust $ (Aeson.decode (Aeson.encode cfg) :: Maybe Aeson.Object)
+ppCfg :: Aeson.ToJSON a => a -> String
+ppCfg cfg = replacements [("\"",""),("\\",""),("/","\\")] . show . Aeson.encode . filterWithKey (\ k _v -> k `Set.notMember` Set.fromList (Text.pack <$> ["verbosity","resultFolder","numEpochs"])) . fromJust $ (Aeson.decode (Aeson.encode cfg) :: Maybe Aeson.Object)
 
 -- https://hackage.haskell.org/package/relude-0.6.0.0/docs/Relude-Extra-Tuple.html#v:traverseToSnd
 traverseToSnd :: Functor t => (a -> t b) -> a -> t (a, b)
@@ -623,3 +627,7 @@ pgStyle = defStyle {
             , stylePostfix = Label (\ pg _ -> progressCustom pg)
             -- , styleOnComplete = WriteNewline
             }
+
+writeCsv :: Csv.ToNamedRecord a => FilePath -> Csv.Header -> [a] -> IO ()
+writeCsv filePath header =
+    BS.writeFile filePath . BS.packChars . BL.unpackChars . Csv.encodeByName header

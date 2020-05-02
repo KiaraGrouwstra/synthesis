@@ -243,7 +243,7 @@ train synthesizerConfig taskFnDataset = do
     -- misc
     let stdGen :: StdGen = mkStdGen seed
     let init_lr :: Tensor device 'D.Float '[] = UnsafeMkTensor . D.asTensor $ learningRate
-    let modelFolder = resultFolder <> "/" <> ppSynCfg synthesizerConfig
+    let modelFolder = resultFolder <> "/" <> ppCfg synthesizerConfig
     liftIO $ createDirectoryIfMissing True modelFolder
 
     let prepped_dsl = prep_dsl taskFnDataset
@@ -322,11 +322,13 @@ train synthesizerConfig taskFnDataset = do
 
         return (gen', model', optim', earlyStop, eval_results', lr', acc_test)
 
+    -- write results to csv
     liftIO $ createDirectoryIfMissing True resultFolder
-    let resultPath = resultFolder <> "/" <> ppSynCfg synthesizerConfig <> ".csv"
+    let resultPath = resultFolder <> "/" <> ppCfg synthesizerConfig <> ".csv"
     let eval_results' = reverse eval_results -- we want the first epoch first
     liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results'
     info $ "data written to " <> resultPath
+
     return eval_results'
 
 evaluate :: forall device m encoderBatch r3nnBatch symbols rules t maxChar

@@ -60,12 +60,11 @@ main = do
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
     let eval = traverseToSnd $ evalHparComb taskFnDataset cfg
     hparResults :: [(HparComb, EvalResult)] <- forM hparCombs $ (`finally` incProgress pb 1) . eval
-    -- TODO: save/plot
     -- could show tie-breakers by `monad-loops`'s `minimaOnM`, but... just visualize.
     let (bestHparComb, bestEvalResult) :: (HparComb, EvalResult) = minBy (lossValid . snd) hparResults
     let HparComb  {..} = bestHparComb
     let EvalResult{..} = bestEvalResult
-    printf "Best hyper-parameter combination: %s. Evaluation results: %s.\n" (show bestHparComb) (show bestEvalResult)
+    printf "Best hyper-parameter combination: %s\nEvaluation results: %s\n" (show bestHparComb) (show bestEvalResult)
     -- finally re-evaluate the chosen hyperparameters on our test set
     manual_seed_L $ fromIntegral seed
     let test_set :: [Expr] = thdOf3 datasets
@@ -76,12 +75,16 @@ main = do
     let r3nn_spec :: R3NNSpec Cpu M Symbols Rules MaxStringLength R3nnBatch = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch variants r3nnBatch dropoutRate
     model :: NSPS Cpu M Symbols Rules MaxStringLength EncoderBatch R3nnBatch MaxChar <- liftIO $ A.sample $ NSPSSpec @Cpu @M @Symbols @Rules encoder_spec r3nn_spec
     let synthCfg :: SynthesizerConfig = combineConfig cfg bestHparComb
-    let modelFolder :: String = resultFolder <> "/" <> ppSynCfg synthCfg
-    let modelPath :: String = modelFolder <> printf "/%04d.pt" epoch
+    let modelPath :: String = printf "%s/%s/%04d.pt" resultFolder (ppCfg synthCfg) epoch
     params :: [D.Tensor] <- D.load modelPath
     let model' = A.replaceParameters model $ D.IndependentTensor <$> params
     (acc_test, loss_test) <- interpretUnsafe $ evaluate @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar taskFnDataset prepped_dsl bestOf model' test_set
     printf "Test loss: %.4f. Test accuracy: %.4f.\n" (toFloat loss_test) (toFloat acc_test)
+
+    -- write results to csv
+    let resultPath = printf "%s/gridsearch-%s.csv" resultFolder $ ppCfg cfg
+    liftIO $ writeCsv resultPath gridSearchHeader hparResults
+    putStrLn $ "data written to " <> resultPath
 
 evalHparComb :: TaskFnDataset -> GridSearchConfig -> HparComb -> IO EvalResult
 evalHparComb taskFnDataset cfg hparComb = do

@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | self-defined types
 module Synthesis.Data (module Synthesis.Data) where
 
-import Data.HashMap.Lazy (HashMap)
+import Data.HashMap.Lazy (HashMap, union)
 import Data.Csv
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax
@@ -118,3 +120,11 @@ instance ToNamedRecord EvalResult where
                     ]
 
 evalResultHeader :: Header = header ["epoch", "lossTrain", "lossValid", "accValid"]
+
+instance ToNamedRecord (HparComb, EvalResult) where
+    toNamedRecord (HparComb{..}, evalResult) =
+        namedRecord [ "dropoutRate"    .= dropoutRate
+                    , "regularization" .= regularization
+                    ] `union` toNamedRecord evalResult
+
+gridSearchHeader :: Header = header ["dropoutRate", "regularization"] <> evalResultHeader
