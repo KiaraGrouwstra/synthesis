@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 -- | synthesizer logic
 module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
@@ -13,6 +14,10 @@ import Data.Yaml
 import Control.Monad (void)
 import Language.Haskell.Interpreter (Interpreter, liftIO)
 import Torch.Internal.Managed.Type.Context (manual_seed_L)
+import Torch.Typed.Tensor
+import Torch.Typed.Functional
+import Torch.Typed.Factories
+import qualified Torch.DType                   as D
 import Synthesis.Data
 import Synthesis.Hint
 import Synthesis.Orphanage ()
@@ -25,7 +30,12 @@ import Synthesis.Synthesizer.Params
 
 -- | main function
 main :: IO ()
-main = do
+main = if False -- hasCuda
+        then synthesize @Gpu
+        else synthesize @Cpu
+
+synthesize :: forall device . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => IO ()
+synthesize = do
     cfg :: SynthesizerConfig <- parseSynthesizerConfig
     putStrLn $ show cfg
     let SynthesizerConfig{..} = cfg
@@ -34,6 +44,4 @@ main = do
     let TaskFnDataset{..} = taskFnDataset
     putStrLn $ show generationCfg
     manual_seed_L $ fromIntegral seed
-    void . interpretUnsafe $ if False -- hasCuda
-        then train @Gpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg taskFnDataset
-        else train @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg taskFnDataset
+    void . interpretUnsafe $ train @device @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg taskFnDataset

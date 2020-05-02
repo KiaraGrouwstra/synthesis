@@ -28,9 +28,12 @@ import           Text.Printf
 import           Language.Haskell.Interpreter (Interpreter, liftIO)
 import           Torch.Internal.Managed.Type.Context (manual_seed_L)
 import           Torch.Typed.Tensor
+import           Torch.Typed.Functional
+import           Torch.Typed.Factories
 import           Torch.Typed.NN
 import           Torch.Typed.NN.Recurrent.LSTM
 import qualified Torch.Tensor                  as D
+import qualified Torch.DType                   as D
 import qualified Torch.Autograd                as D
 import qualified Torch.Serialize               as D
 import qualified Torch.NN                      as A
@@ -49,7 +52,12 @@ import           Synthesis.Synthesizer.Params
 
 -- | main function
 main :: IO ()
-main = do
+main = if False -- hasCuda
+        then gridSearch @Gpu
+        else gridSearch @Cpu
+
+gridSearch :: forall device . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => IO ()
+gridSearch = do
     -- TODO: move all hyper-params here, handle static stuff
     -- print . take 5 $ knownNats @0   -- prints: [0,1,2,3,4]
     cfg :: GridSearchConfig <- parseGridSearchConfig
@@ -58,7 +66,7 @@ main = do
     let TaskFnDataset{..} = taskFnDataset
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
-    let eval = traverseToSnd $ evalHparComb taskFnDataset cfg
+    let eval = traverseToSnd $ evalHparComb @device taskFnDataset cfg
     hparResults :: [(HparComb, EvalResult)] <- forM hparCombs $ (`finally` incProgress pb 1) . eval
     -- could show tie-breakers by `monad-loops`'s `minimaOnM`, but... just visualize.
     let (bestHparComb, bestEvalResult) :: (HparComb, EvalResult) = minBy (lossValid . snd) hparResults
@@ -70,15 +78,14 @@ main = do
     let test_set :: [Expr] = thdOf3 datasets
     let prepped_dsl = prep_dsl taskFnDataset
     let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
-    -- hard-coding device to CPU for static typing without code duplication for now
-    let encoder_spec :: LstmEncoderSpec Cpu MaxStringLength EncoderBatch MaxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec Cpu M Symbols Rules MaxStringLength R3nnBatch = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch variants r3nnBatch dropoutRate
-    model :: NSPS Cpu M Symbols Rules MaxStringLength EncoderBatch R3nnBatch MaxChar <- liftIO $ A.sample $ NSPSSpec @Cpu @M @Symbols @Rules encoder_spec r3nn_spec
+    let encoder_spec :: LstmEncoderSpec device MaxStringLength EncoderBatch MaxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
+    let r3nn_spec :: R3NNSpec device M Symbols Rules MaxStringLength R3nnBatch = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch variants r3nnBatch dropoutRate
+    model :: NSPS device M Symbols Rules MaxStringLength EncoderBatch R3nnBatch MaxChar <- liftIO $ A.sample $ NSPSSpec @device @M @Symbols @Rules encoder_spec r3nn_spec
     let synthCfg :: SynthesizerConfig = combineConfig cfg bestHparComb
     let modelPath :: String = printf "%s/%s/%04d.pt" resultFolder (ppCfg synthCfg) epoch
     params :: [D.Tensor] <- D.load modelPath
     let model' = A.replaceParameters model $ D.IndependentTensor <$> params
-    (acc_test, loss_test) <- interpretUnsafe $ evaluate @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar taskFnDataset prepped_dsl bestOf model' test_set
+    (acc_test, loss_test) <- interpretUnsafe $ evaluate @device @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar taskFnDataset prepped_dsl bestOf model' test_set
     printf "Test loss: %.4f. Test accuracy: %.4f.\n" (toFloat loss_test) (toFloat acc_test)
 
     -- write results to csv
@@ -86,17 +93,15 @@ main = do
     liftIO $ writeCsv resultPath gridSearchHeader hparResults
     putStrLn $ "data written to " <> resultPath
 
-evalHparComb :: TaskFnDataset -> GridSearchConfig -> HparComb -> IO EvalResult
+evalHparComb :: forall device . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => TaskFnDataset -> GridSearchConfig -> HparComb -> IO EvalResult
 evalHparComb taskFnDataset cfg hparComb = do
     let cfg' :: SynthesizerConfig = combineConfig cfg hparComb
     let SynthesizerConfig{..} = cfg'
-    putStrLn ""
+    putStrLn ""  -- don't touch the progress bar line
     putStrLn . show $ hparComb
     -- putStrLn . show $ cfg'
     manual_seed_L $ fromIntegral seed
-    fmap last . interpretUnsafe $ if False -- hasCuda
-        then train @Gpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg' taskFnDataset
-        else train @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg' taskFnDataset
+    last <.> interpretUnsafe $ train @device @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg' taskFnDataset
 
 hparCombs :: [HparComb] = uncurry2 HparComb <$> cartesianProduct2
     -- dropoutRate :: Double
