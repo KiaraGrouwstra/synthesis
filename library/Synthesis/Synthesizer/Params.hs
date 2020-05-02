@@ -36,7 +36,7 @@ hidden1 = natValI @Hidden1
 
 -- Encoder
 -- | H is the topmost LSTM hidden dimension
-type H = 20  -- H=30 makes the encoder loss improvement test fail; why?
+type H = 30
 h :: Int
 h = natValI @H
 
