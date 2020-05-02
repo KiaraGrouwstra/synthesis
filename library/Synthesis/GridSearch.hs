@@ -74,7 +74,6 @@ main = do
     -- hard-coding device to CPU for static typing without code duplication for now
     let encoder_spec :: LstmEncoderSpec Cpu MaxStringLength EncoderBatch MaxChar = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec Cpu M Symbols Rules MaxStringLength R3nnBatch = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch variants r3nnBatch dropoutRate
-    -- let device = deviceVal @Cpu
     model :: NSPS Cpu M Symbols Rules MaxStringLength EncoderBatch R3nnBatch MaxChar <- liftIO $ A.sample $ NSPSSpec @Cpu @M @Symbols @Rules encoder_spec r3nn_spec
     let synthCfg :: SynthesizerConfig = combineConfig cfg bestHparComb
     let modelFolder :: String = resultFolder <> "/" <> ppSynCfg synthCfg
@@ -97,18 +96,7 @@ evalHparComb taskFnDataset cfg hparComb = do
         else train @Cpu @M @EncoderBatch @R3nnBatch @Symbols @Rules @MaxStringLength @MaxChar cfg' taskFnDataset
 
 hparCombs :: [HparComb] = uncurry2 HparComb <$> cartesianProduct2
-    -- -- performance
     -- dropoutRate :: Double
-    -- [0.0, 1.0 :: Double]
     (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
     -- regularization :: Float
-    -- [0.0, 0.05 :: Float]
     (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
-    -- -- convergence
-    -- evalFreq :: Int
-    -- checkWindow :: Int
-    -- bestOf :: Int
-    -- convergenceThreshold :: Float
-    -- learningRate :: Float
-    -- ((\x -> 10 ** (-x)) <$> [2..4])
-    -- learningDecay :: Int
