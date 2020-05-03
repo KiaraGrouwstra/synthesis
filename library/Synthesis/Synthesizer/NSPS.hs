@@ -230,8 +230,7 @@ train synthesizerConfig taskFnDataset = do
             , size charMap + 1
             ) $
             ( natValI @rules
-            -- TODO: longestString -> natValI @t, once the calculation works again...
-            , longestString
+            , natValI @t
             , natValI @symbols - natValI @LhsSymbols
             , natValI @maxChar
             )
