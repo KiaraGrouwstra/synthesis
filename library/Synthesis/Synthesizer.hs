@@ -67,10 +67,15 @@ getSymbols cfg taskFnDataset = (:)
 
 getMaxStringLength :: forall device rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => SynthesizerConfig -> TaskFnDataset -> [IO ()]
 getMaxStringLength cfg taskFnDataset = let SynthesizerConfig{..} = cfg in (:)
-        ((!! m) $ getM @device @0 @rules @maxChar @symbols @maxStringLength cfg taskFnDataset)
+        ((!! h) $ getH @device @rules @maxChar @symbols @maxStringLength @0 cfg taskFnDataset)
         $ getMaxStringLength @device @rules @maxChar @symbols @(maxStringLength + 1) cfg taskFnDataset
 
-getM :: forall device m rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => SynthesizerConfig -> TaskFnDataset -> [IO ()]
+getH :: forall device rules maxChar symbols maxStringLength h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h) => SynthesizerConfig -> TaskFnDataset -> [IO ()]
+getH cfg taskFnDataset = let SynthesizerConfig{..} = cfg in (:)
+        ((!! m) $ getM @device @0 @rules @maxChar @symbols @maxStringLength @h cfg taskFnDataset)
+        $ getH @device @rules @maxChar @symbols @maxStringLength @(h + 1) cfg taskFnDataset
+
+getM :: forall device m rules maxChar symbols maxStringLength h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h) => SynthesizerConfig -> TaskFnDataset -> [IO ()]
 getM cfg taskFnDataset = (:)
-        (void . interpretUnsafe $ train @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar cfg taskFnDataset)
-        $ getM @device @(m + 1) @rules @maxChar @symbols @maxStringLength cfg taskFnDataset
+        (void . interpretUnsafe $ train @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar @h cfg taskFnDataset)
+        $ getM @device @(m + 1) @rules @maxChar @symbols @maxStringLength @h cfg taskFnDataset

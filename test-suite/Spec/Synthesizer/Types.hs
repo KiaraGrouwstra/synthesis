@@ -69,6 +69,7 @@ type Rules = 4
 type MaxStringLength = 13
 type Symbols = LhsSymbols + RhsSymbols
 type MaxChar = 14
+type H = 30
 type EncoderBatch' = 1
 type R3nnBatch' = 1
 
@@ -78,3 +79,4 @@ maxStringLength' :: Int = natValI @MaxStringLength
 symbols      :: Int = natValI @Symbols
 encoderBatch':: Int = natValI @EncoderBatch'
 r3nnBatch'   :: Int = natValI @R3nnBatch'
+h            :: Int = natValI @H

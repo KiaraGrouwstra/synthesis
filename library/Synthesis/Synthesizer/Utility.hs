@@ -588,12 +588,15 @@ ppCfg cfg = replacements [("\"",""),("\\",""),("/","\\")] . show . Aeson.encode 
 traverseToSnd :: Functor t => (a -> t b) -> a -> t (a, b)
 traverseToSnd f a = (a,) <$> f a
 
--- | calculate a cartesian product, used for hyper-parameter combinations
-cartesianProduct3 :: [a] -> [b] -> [c] -> [(a, b, c)]
-cartesianProduct3 = liftA3 (,,)
+liftA4 :: Applicative f => (a -> b -> c -> d -> e) -> f a -> f b -> f c -> f d -> f e
+liftA4 f a b c d = liftA3 f a b c <*> d
 
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f ~(a, b, c) = f a b c
+-- | calculate a cartesian product, used for hyper-parameter combinations
+cartesianProduct4 :: [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
+cartesianProduct4 = liftA4 (,,,)
+
+uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
+uncurry4 f ~(a, b, c, d) = f a b c d
 
 knownNat :: forall n. KnownNat n => Integer
 knownNat = natVal $ Proxy @n
@@ -620,6 +623,7 @@ combineConfig gridCfg hparComb = cfg
                 , regularization=regularization
                 , verbosity=verbosity
                 , m=m
+                , h=h
                 }
 
 pgStyle = defStyle {

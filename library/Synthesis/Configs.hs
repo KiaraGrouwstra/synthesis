@@ -103,6 +103,7 @@ synthesizerConfig = SynthesizerConfig
     <*> regularizationOpt
     <*> verbosityOpt
     <*> mOpt
+    <*> hOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -257,3 +258,9 @@ mOpt = option auto
     <> value (20 :: Int)
     <> showDefault
     <> help "number of features for R3NN expansions/symbols. must be an even number for H." )
+
+hOpt = option auto
+    ( long "h"
+    <> value (30 :: Int)
+    <> showDefault
+    <> help "H is the topmost LSTM hidden dimension." )

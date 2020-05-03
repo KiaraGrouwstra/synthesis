@@ -22,6 +22,10 @@ bash <(curl https://nixos.org/nix/install)
 nix-env -iA cachix -f https://cachix.org/api/v1/install
 # nixGL for GPU thru Nix: https://github.com/guibou/nixGL
 
+# increase the solver limit in Cabal
+vim ~/.cabal/config
+# under `program-default-options` uncomment `ghc-options` and add: `-fconstraint-solver-iterations=8`
+
 # enter dev shell
 cachix use tycho01
 nix-build # | cachix push tycho01
@@ -33,7 +37,7 @@ nixGLNvidia nix-shell --arg cudaVersion 10
 hpack --force
 
 # basic commands
-cabal v1-build
+cabal v1-build --ghc-options="-fconstraint-solver-iterations=8"
 cabal v1-test
 cabal v1-repl lib:synthesis
 cabal v1-run generator   -- --help

@@ -31,13 +31,6 @@ type Hidden1 = 20
 hidden1 :: Int
 hidden1 = natValI @Hidden1
 
--- Encoder
--- hard-coded
--- | H is the topmost LSTM hidden dimension
-type H = 30
-h :: Int
-h = natValI @H
-
 -- R3NN
 -- static LSTM can't deal with dynamic number of layers, as it unrolls on compile (init/use)
 type NumLayers = 3
