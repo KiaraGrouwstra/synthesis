@@ -115,7 +115,7 @@ getMaxStringLength cfg taskFnDataset hparCombs = (:)
 
 getM :: forall device m rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [IO (HparComb, (EvalResult, IO ()))]
 getM cfg taskFnDataset hparCombs = (<>)
-        (traverseToSnd (evalHparComb @device @m @rules @maxChar @symbols @maxStringLength taskFnDataset cfg) <$> filter ((== natValI @m) . m) hparCombs)
+        (traverseToSnd (evalHparComb @device @m @rules @maxChar @symbols @maxStringLength taskFnDataset cfg) <$> filter (\HparComb{..} -> m == natValI @m) hparCombs)
         $ getM @device @(m + 1) @rules @maxChar @symbols @maxStringLength cfg taskFnDataset hparCombs
 
 -- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this

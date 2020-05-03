@@ -77,6 +77,7 @@ data SynthesizerConfig = SynthesizerConfig
   , learningDecay :: Int
   , regularization :: Float  -- TODO: use this
   , verbosity :: String
+  , m :: Int
   } deriving (Show, Generic)
 
 data GridSearchConfig = GridSearchConfig
@@ -126,6 +127,7 @@ instance ToNamedRecord (HparComb, EvalResult) where
     toNamedRecord (HparComb{..}, evalResult) =
         namedRecord [ "dropoutRate"    .= dropoutRate
                     , "regularization" .= regularization
+                    , "m"              .= m
                     ] `union` toNamedRecord evalResult
 
-gridSearchHeader :: Header = header ["dropoutRate", "regularization"] <> evalResultHeader
+gridSearchHeader :: Header = header ["dropoutRate", "regularization", "m"] <> evalResultHeader

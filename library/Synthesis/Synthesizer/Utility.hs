@@ -619,6 +619,7 @@ combineConfig gridCfg hparComb = cfg
                 , learningDecay=learningDecay
                 , regularization=regularization
                 , verbosity=verbosity
+                , m=m
                 }
 
 pgStyle = defStyle {

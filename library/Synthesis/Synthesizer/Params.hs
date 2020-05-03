@@ -13,9 +13,6 @@ import Torch.Typed.Aux
 -- | left-hand symbols: just Expression in our lambda-calculus DSL
 type LhsSymbols = 1
 
--- | number of features for R3NN expansions/symbols. must be an even number for H.
-type M = 20
-
 -- | must use a static batch size i/o making it dynamic by SynthesizerConfig...
 type EncoderBatch = 8
 encoderBatch :: Int

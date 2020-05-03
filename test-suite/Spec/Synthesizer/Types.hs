@@ -62,18 +62,19 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
 
-type NumHoles' = 1
-type RhsSymbols' = 3
-type Rules' = 4
-type MaxStringLength' = 13
-type Symbols' = LhsSymbols + RhsSymbols'
-type MaxChar' = 14
+type M = 20
+type NumHoles = 1
+type RhsSymbols = 3
+type Rules = 4
+type MaxStringLength = 13
+type Symbols = LhsSymbols + RhsSymbols
+type MaxChar = 14
 type EncoderBatch' = 1
 type R3nnBatch' = 1
 
-numHoles     :: Int = natValI @NumHoles'
-rules        :: Int = natValI @Rules'
-maxStringLength' :: Int = natValI @MaxStringLength'
-symbols      :: Int = natValI @Symbols'
+numHoles     :: Int = natValI @NumHoles
+rules        :: Int = natValI @Rules
+maxStringLength' :: Int = natValI @MaxStringLength
+symbols      :: Int = natValI @Symbols
 encoderBatch':: Int = natValI @EncoderBatch'
 r3nnBatch'   :: Int = natValI @R3nnBatch'

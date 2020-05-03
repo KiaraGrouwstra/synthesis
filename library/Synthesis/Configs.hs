@@ -102,6 +102,7 @@ synthesizerConfig = SynthesizerConfig
     <*> learningDecayOpt
     <*> regularizationOpt
     <*> verbosityOpt
+    <*> mOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -250,3 +251,9 @@ verbosityOpt = strOption
     <> showDefault
     <> completeWith ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
     <> help "the log level to use" )
+
+mOpt = option auto
+    ( long "m"
+    <> value (20 :: Int)
+    <> showDefault
+    <> help "number of features for R3NN expansions/symbols. must be an even number for H." )
