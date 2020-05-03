@@ -246,7 +246,7 @@ regularizationOpt = option auto
 verbosityOpt = strOption
     ( long "verbosity"
     <> short 'v'
-    <> value "warn"
+    <> value "warning"
     <> showDefault
     <> completeWith ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
     <> help "the log level to use" )
