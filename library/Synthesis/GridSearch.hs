@@ -53,6 +53,17 @@ import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.NSPS
 import           Synthesis.Synthesizer.Params
 
+hparCombs :: [HparComb] = uncurry3 HparComb <$> cartesianProduct3
+    -- dropoutRate :: Double
+    (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
+    -- regularization :: Float
+    (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
+    mOpts
+
+-- | skip `m=1`: must be an even number for H.
+mOpts :: [Int]
+mOpts = (2 ^) <$> [3..7]
+
 -- | main function
 main :: IO ()
 main = if False -- hasCuda
@@ -108,6 +119,19 @@ getM cfg taskFnDataset hparCombs = (<>)
         (traverseToSnd (evalHparComb @device @m @rules @maxChar @symbols @maxStringLength taskFnDataset cfg) <$> filter ((== natValI @m) . m) hparCombs)
         $ getM @device @(m + 1) @rules @maxChar @symbols @maxStringLength cfg taskFnDataset hparCombs
 
+-- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this
+evalHparComb :: forall device m rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => TaskFnDataset -> GridSearchConfig -> HparComb -> IO (EvalResult, IO ())
+evalHparComb taskFnDataset cfg hparComb = do
+    let cfg' :: SynthesizerConfig = combineConfig cfg hparComb
+    let SynthesizerConfig{..} = cfg'
+    putStrLn ""  -- don't touch the progress bar line
+    putStrLn . show $ hparComb
+    -- putStrLn . show $ cfg'
+    manual_seed_L $ fromIntegral seed
+    lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar cfg' taskFnDataset
+    let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength cfg taskFnDataset hparComb lastEvalResult
+    return (lastEvalResult, testEval)
+
 -- | after we finish grid search, do a final evaluation on our test set just in case the grid search overfitted on our validation set
 finalEval :: forall device m rules maxChar symbols maxStringLength . (KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => GridSearchConfig -> TaskFnDataset -> HparComb -> EvalResult -> IO ()
 finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
@@ -130,31 +154,3 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let model' = A.replaceParameters model $ D.IndependentTensor <$> params
     (acc_test, loss_test) <- interpretUnsafe $ evaluate @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar taskFnDataset prepped_dsl bestOf model' test_set
     printf "Test loss: %.4f. Test accuracy: %.4f.\n" (toFloat loss_test) (toFloat acc_test)
-
--- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this
-evalHparComb :: forall device m rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => TaskFnDataset -> GridSearchConfig -> HparComb -> IO (EvalResult, IO ())
-evalHparComb taskFnDataset cfg hparComb = do
-    let cfg' :: SynthesizerConfig = combineConfig cfg hparComb
-    let SynthesizerConfig{..} = cfg'
-    putStrLn ""  -- don't touch the progress bar line
-    putStrLn . show $ hparComb
-    -- putStrLn . show $ cfg'
-    manual_seed_L $ fromIntegral seed
-    lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar cfg' taskFnDataset
-    let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength cfg taskFnDataset hparComb lastEvalResult
-    return (lastEvalResult, testEval)
-
--- | get the finite part of an infinite list including any natural number in the original list
-takeAll :: Foldable t => t Int -> [a] -> [a]
-takeAll = take . maximum
-
-hparCombs :: [HparComb] = uncurry3 HparComb <$> cartesianProduct3
-    -- dropoutRate :: Double
-    (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
-    -- regularization :: Float
-    (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
-    mOpts
-
--- | skip `m=1`: must be an even number for H.
-mOpts :: [Int]
-mOpts = (2 ^) <$> [3..7]
