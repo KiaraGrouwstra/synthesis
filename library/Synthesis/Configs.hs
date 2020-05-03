@@ -104,6 +104,8 @@ synthesizerConfig = SynthesizerConfig
     <*> verbosityOpt
     <*> mOpt
     <*> hOpt
+    <*> hidden0Opt
+    <*> hidden1Opt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -264,3 +266,15 @@ hOpt = option auto
     <> value (30 :: Int)
     <> showDefault
     <> help "H is the topmost LSTM hidden dimension." )
+
+hidden0Opt = option auto
+    ( long "hidden0"
+    <> value (20 :: Int)
+    <> showDefault
+    <> help "MLP hidden layer 0" )
+
+hidden1Opt = option auto
+    ( long "hidden1"
+    <> value (20 :: Int)
+    <> showDefault
+    <> help "MLP hidden layer 1" )

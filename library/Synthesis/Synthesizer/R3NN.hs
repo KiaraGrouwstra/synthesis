@@ -143,8 +143,10 @@ initR3nn :: forall m symbols rules t batch_size h device
          => [(String, Expr)]
          -> Int
          -> Double
+         -> Int
+         -> Int
          -> (R3NNSpec device m symbols rules t batch_size h)
-initR3nn variants batch_size dropoutRate = R3NNSpec @device @m @symbols @rules @t @batch_size @h
+initR3nn variants batch_size dropoutRate hidden0 hidden1 = R3NNSpec @device @m @symbols @rules @t @batch_size @h
         variant_sizes
         -- condition
         (LSTMSpec $ DropoutSpec dropoutRate)

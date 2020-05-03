@@ -53,13 +53,15 @@ import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.NSPS
 import           Synthesis.Synthesizer.Params
 
-hparCombs :: [HparComb] = uncurry4 HparComb <$> cartesianProduct4
+hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
     -- dropoutRate :: Double
     (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
     -- regularization :: Float
     (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
     mOpts
     hOpts
+    hidden0Opts
+    hidden1Opts
 
 -- | skip `m=1`: must be an even number for H.
 mOpts :: [Int]
@@ -67,6 +69,12 @@ mOpts = (2 ^) <$> [3..7]
 
 hOpts :: [Int]
 hOpts = (2 ^) <$> [3..7]
+
+hidden0Opts :: [Int]
+hidden0Opts = (2 ^) <$> [2..6]
+
+hidden1Opts :: [Int]
+hidden1Opts = (2 ^) <$> [2..6]
 
 -- | main function
 main :: IO ()
@@ -154,7 +162,7 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let prepped_dsl = prep_dsl taskFnDataset
     let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
     let encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h = initR3nn @m @symbols @rules @maxStringLength @R3nnBatch @h variants r3nnBatch dropoutRate
+    let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h = initR3nn @m @symbols @rules @maxStringLength @R3nnBatch @h variants r3nnBatch dropoutRate hidden0 hidden1
     model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h <- liftIO $ A.sample $ NSPSSpec @device @m @symbols @rules encoder_spec r3nn_spec
     let synthCfg :: SynthesizerConfig = combineConfig cfg bestHparComb
     let modelPath :: String = printf "%s/%s/%04d.pt" resultFolder (ppCfg synthCfg) epoch

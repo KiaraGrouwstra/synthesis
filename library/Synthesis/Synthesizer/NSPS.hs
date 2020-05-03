@@ -222,7 +222,7 @@ train synthesizerConfig taskFnDataset = do
 
     -- MODELS
     let encoder_spec :: LstmEncoderSpec device t encoderBatch maxChar h = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec device m symbols rules t r3nnBatch h = initR3nn @m @symbols @rules @t @r3nnBatch @h variants r3nnBatch dropoutRate
+    let r3nn_spec :: R3NNSpec device m symbols rules t r3nnBatch h = initR3nn @m @symbols @rules @t @r3nnBatch @h variants r3nnBatch dropoutRate hidden0 hidden1
     init_model :: NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h <- liftIO $ A.sample $ NSPSSpec @device @m @symbols @rules encoder_spec r3nn_spec
 
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model

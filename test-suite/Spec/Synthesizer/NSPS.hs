@@ -71,6 +71,8 @@ type Device = Cpu
 nsps ∷ Spec
 nsps = parallel $ let
         dropOut :: Double = 0.0
+        hidden0 :: Int = 20
+        hidden1 :: Int = 20
         dsl = fmap parseExpr
                 $ insert "nil" "[]"
                 $ insert "not" "not"
@@ -107,7 +109,7 @@ nsps = parallel $ let
         io_feats :: Tensor Device 'D.Float '[R3nnBatch', 2 * Dirs * H * MaxStringLength] <- lstmEncoder enc_model charMap io_pairs
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) $ toDynamic io_feats
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] <- runR3nn @Symbols @M @MaxStringLength @H @Rules @R3nnBatch' r3nn_model symbolIdxs ppt sampled_feats
@@ -132,7 +134,7 @@ nsps = parallel $ let
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) $ toDynamic io_feats
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] <- runR3nn @Symbols @M @MaxStringLength @H @Rules @R3nnBatch' r3nn_model symbolIdxs ppt sampled_feats
         (ppt', _used') <- predictHole variants ppt (Set.singleton "not") hole_expansion_probs
@@ -159,7 +161,7 @@ nsps = parallel $ let
         io_feats <- lstmEncoder enc_model charMap io_pairs
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) $ toDynamic io_feats
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] <- runR3nn @Symbols @M @MaxStringLength @H @Rules @R3nnBatch' r3nn_model symbolIdxs ppt sampled_feats
         (task_fn', gold) :: (Expr, Tensor Device 'D.Float '[NumHoles]) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs

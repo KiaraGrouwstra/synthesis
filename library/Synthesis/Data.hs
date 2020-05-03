@@ -79,6 +79,8 @@ data SynthesizerConfig = SynthesizerConfig
   , verbosity :: String
   , m :: Int
   , h :: Int
+  , hidden0 :: Int
+  , hidden1 :: Int
   } deriving (Show, Generic)
 
 data GridSearchConfig = GridSearchConfig
@@ -103,6 +105,8 @@ data HparComb = HparComb
   , regularization :: Float
   , m :: Int
   , h :: Int
+  , hidden0 :: Int
+  , hidden1 :: Int
   } deriving (Show, Generic)
 
 data ViewDatasetConfig = ViewDatasetConfig
@@ -131,6 +135,8 @@ instance ToNamedRecord (HparComb, EvalResult) where
                     , "regularization" .= regularization
                     , "m"              .= m
                     , "h"              .= h
+                    , "hidden0"        .= hidden0
+                    , "hidden1"        .= hidden1
                     ] `union` toNamedRecord evalResult
 
-gridSearchHeader :: Header = header ["dropoutRate", "regularization", "m", "h"] <> evalResultHeader
+gridSearchHeader :: Header = header ["dropoutRate", "regularization", "m", "h", "hidden0", "hidden1"] <> evalResultHeader

@@ -21,16 +21,6 @@ type R3nnBatch = 8
 r3nnBatch :: Int
 r3nnBatch = natValI @R3nnBatch
 
--- left/right MLPs
--- hard-coded
-type Hidden0 = 20
-hidden0 :: Int
-hidden0 = natValI @Hidden0
--- hard-coded
-type Hidden1 = 20
-hidden1 :: Int
-hidden1 = natValI @Hidden1
-
 -- R3NN
 -- static LSTM can't deal with dynamic number of layers, as it unrolls on compile (init/use)
 type NumLayers = 3

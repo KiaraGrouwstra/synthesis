@@ -70,6 +70,8 @@ type Device = Cpu
 synthesizer ∷ Test
 synthesizer = let
         dropOut :: Double = 0.0
+        hidden0 :: Int = 20
+        hidden1 :: Int = 20
         dsl = fmap parseExpr
                 $ insert "nil" "[]"
                 $ insert "not" "not"
@@ -89,7 +91,7 @@ synthesizer = let
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
         let charMap :: HashMap Char Int = mkCharMap io_pairs
         let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut
+        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
         model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H <- A.sample $ NSPSSpec encoder_spec r3nn_spec
         --  :: Tensor Device 'D.Float '[n, 2 * Dirs * H * MaxStringLength]
         io_feats <- lstmEncoder (encoder model) charMap io_pairs

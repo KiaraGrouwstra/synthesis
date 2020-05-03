@@ -591,12 +591,18 @@ traverseToSnd f a = (a,) <$> f a
 liftA4 :: Applicative f => (a -> b -> c -> d -> e) -> f a -> f b -> f c -> f d -> f e
 liftA4 f a b c d = liftA3 f a b c <*> d
 
--- | calculate a cartesian product, used for hyper-parameter combinations
-cartesianProduct4 :: [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
-cartesianProduct4 = liftA4 (,,,)
+liftA5 :: Applicative f => (a -> b -> c -> d -> e -> f') -> f a -> f b -> f c -> f d -> f e -> f f'
+liftA5 f a b c d e = liftA4 f a b c d <*> e
 
-uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
-uncurry4 f ~(a, b, c, d) = f a b c d
+liftA6 :: Applicative f => (a -> b -> c -> d -> e -> f' -> g) -> f a -> f b -> f c -> f d -> f e -> f f' -> f g
+liftA6 f a b c d e f' = liftA5 f a b c d e <*> f'
+
+-- | calculate a cartesian product, used for hyper-parameter combinations
+cartesianProduct6 :: [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [(a, b, c, d, e, f)]
+cartesianProduct6 = liftA6 (,,,,,)
+
+uncurry6 :: (a -> b -> c -> d -> e -> f' -> g) -> (a, b, c, d, e, f') -> g
+uncurry6 f ~(a, b, c, d, e, f') = f a b c d e f'
 
 knownNat :: forall n. KnownNat n => Integer
 knownNat = natVal $ Proxy @n
