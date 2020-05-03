@@ -87,8 +87,7 @@ gridSearch = do
     putStrLn $ "data written to " <> resultPath
 
     -- could show tie-breakers by `monad-loops`'s `minimaOnM`, but... just visualize.
-    let (_bestEvalResult, testEval) :: (EvalResult, IO ()) = minBy (lossValid . fst) $ snd <$> hparResults
-    testEval
+    snd . minBy (lossValid . fst) $ snd <$> hparResults
 
 -- bending over backward to get the compiler to accept my dynamically calculated values as static
 
