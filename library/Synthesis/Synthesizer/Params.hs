@@ -44,11 +44,3 @@ h = natValI @H
 -- R3NN
 -- static LSTM can't deal with dynamic number of layers, as it unrolls on compile (init/use)
 type NumLayers = 3
-
--- type RhsSymbols = 36  -- Tamandu
--- type Rules = 92       -- Tamandu
-type Rules = 9
-type MaxStringLength = 11
-type RhsSymbols = 4
-type MaxChar = 19
-type Symbols = LhsSymbols + RhsSymbols

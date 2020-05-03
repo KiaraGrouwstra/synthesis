@@ -211,35 +211,7 @@ train synthesizerConfig taskFnDataset = do
 
     -- GENERAL
 
-    -- datasets
     let [train_set, validation_set, test_set] :: [[Expr]] = untuple3 datasets
-
-    -- verify static parameters
-    -- for copy/pasting convenience, show how the params should be
-    debug $ printf
-        "type Rules = %d\ntype MaxStringLength = %d\ntype RhsSymbols = %d\ntype MaxChar = %d\n"
-        (length exprBlocks)
-        longestString
-        (size dsl)
-        (size charMap + 1)
-    let (num_rules,     longest_string,     symbols,     maxChar) ::
-            (Int, Int, Int, Int) = assertEq
-            ( length exprBlocks
-            , longestString
-            , size dsl
-            , size charMap + 1
-            ) $
-            ( natValI @rules
-            , natValI @t
-            , natValI @symbols - natValI @LhsSymbols
-            , natValI @maxChar
-            )
-    -- print just to force lazy evaluation to actually check these variables
-    debug $ printf
-        "num_rules: %d. longest_string: %d. symbols: %d. maxChar: %d.\n"
-         num_rules      longest_string      symbols      maxChar
-
-    -- misc
     let stdGen :: StdGen = mkStdGen seed
     let init_lr :: Tensor device 'D.Float '[] = UnsafeMkTensor . D.asTensor $ learningRate
     let modelFolder = resultFolder <> "/" <> ppCfg synthesizerConfig

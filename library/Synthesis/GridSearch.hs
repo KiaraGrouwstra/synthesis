@@ -24,7 +24,7 @@ import           Data.Text.Internal.Lazy (Text)
 import           Data.Proxy
 import           Data.Bifunctor (second)
 import           Data.Yaml
-import Data.HashMap.Lazy (size)
+import           Data.HashMap.Lazy (size)
 import           Util (thdOf3)
 import           Text.Printf
 import           Language.Haskell.Interpreter (Interpreter, liftIO)
