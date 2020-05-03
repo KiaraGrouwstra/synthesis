@@ -84,7 +84,6 @@ main = if False -- hasCuda
 
 gridSearch :: forall device . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => IO ()
 gridSearch = do
-    -- TODO: move all hyper-params here
     cfg :: GridSearchConfig <- parseGridSearchConfig
     let GridSearchConfig{..} = cfg
     taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath

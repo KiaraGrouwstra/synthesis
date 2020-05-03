@@ -38,10 +38,10 @@ hpack --force
 
 # basic commands
 cabal v1-build --ghc-options="-fconstraint-solver-iterations=8"
-cabal v1-test
-cabal v1-repl lib:synthesis
-cabal v1-run generator   -- --help
-cabal v1-run synthesizer -- --help
+cabal v1-test  --ghc-options="-fconstraint-solver-iterations=8"
+cabal v1-repl  --ghc-options="-fconstraint-solver-iterations=8" lib:synthesis
+cabal v1-run   --ghc-options="-fconstraint-solver-iterations=8" generator   -- --help
+cabal v1-run   --ghc-options="-fconstraint-solver-iterations=8" synthesizer -- --help
 
 # command-line auto-complete
 # bash
