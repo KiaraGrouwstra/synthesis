@@ -67,7 +67,7 @@ gridSearch = do
     let TaskFnDataset{..} = taskFnDataset
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
-    hparResults :: [(HparComb, (EvalResult, IO ()))] <- mapM (`finally` incProgress pb 1) $ getM @device @1 cfg taskFnDataset hparCombs
+    hparResults :: [(HparComb, (EvalResult, IO ()))] <- mapM (`finally` incProgress pb 1) . takeAll mOpts . getM @device @0 cfg taskFnDataset $ hparCombs
 
     -- write results to csv
     let resultPath = printf "%s/gridsearch-%s.csv" resultFolder $ ppCfg cfg
@@ -115,11 +115,17 @@ evalHparComb taskFnDataset cfg hparComb = do
     let testEval :: IO () = finalEval @device @m cfg taskFnDataset hparComb lastEvalResult
     return (lastEvalResult, testEval)
 
+-- | get the finite part of an infinite list including any natural number in the original list
+takeAll :: [Int] -> [Int]
+takeAll lst = take (max lst) lst
+
 hparCombs :: [HparComb] = uncurry3 HparComb <$> cartesianProduct3
     -- dropoutRate :: Double
     (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
     -- regularization :: Float
     (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
-    -- m :: Int
-    -- skip `m=1`: must be an even number for H.
-    ((2 ^) <$> [3..7] :: [Int])
+    mOpts
+
+-- | skip `m=1`: must be an even number for H.
+mOpts :: [Int]
+mOpts = (2 ^) <$> [3..7]
