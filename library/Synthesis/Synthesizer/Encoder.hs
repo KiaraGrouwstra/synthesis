@@ -77,7 +77,7 @@ instance (KnownDevice device, RandDTypeIsValid device 'D.Float, KnownNat maxChar
             where spec :: LSTMWithInitSpec maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device = LSTMWithZerosInitSpec lstmSpec
 
 lstmBatch
-    :: forall batch_size t maxChar n n' device h
+    :: forall batch_size t maxChar r3nnBatch device h
      . (KnownNat batch_size, KnownNat t, KnownNat maxChar, KnownNat h)
     => LstmEncoder device t batch_size maxChar h
     -> Tensor device 'D.Float '[batch_size, t, maxChar]
@@ -93,13 +93,14 @@ lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
             asUntyped (D.reshape [natValI @batch_size, natValI @t * (2 * natValI @Dirs * natValI @h)]) $ cat @2 $ emb_in :. emb_out :. HNil
 
 -- | NSPS paper's Baseline LSTM encoder
+-- | to adjust their encoder to the domain of synthesizing Haskell I've made one change: sampling embedded features to guarantee a static output size
 lstmEncoder
-    :: forall batch_size t maxChar n n' device h
-     . (KnownDevice device, KnownNat batch_size, KnownNat t, KnownNat maxChar, KnownNat h)
+    :: forall batch_size t maxChar r3nnBatch device h
+     . (KnownDevice device, KnownNat batch_size, KnownNat r3nnBatch, KnownNat t, KnownNat maxChar, KnownNat h)
     => LstmEncoder device t batch_size maxChar h
     -> HashMap Char Int
     -> [(Expr, Either String Expr)]
-    -> IO (Tensor device 'D.Float '[n', t * (2 * Dirs * h)])
+    -> IO (Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)])
 lstmEncoder encoder charMap io_pairs = do
     let LstmEncoder{..} = encoder
     let t_ :: Int = natValI @t
@@ -128,10 +129,18 @@ lstmEncoder encoder charMap io_pairs = do
             uncurry (lstmBatch encoder) <$> zip in_vecs out_vecs
     -- print $ "feat_vecs"
     -- print $ "feat_vecs: " ++ show (D.shape . toDynamic <$> feat_vecs)
-    let feat_vec :: Tensor device 'D.Float '[n', t * (2 * Dirs * h)] =
-            UnsafeMkTensor $ F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
+    --  :: Tensor device 'D.Float '[n', t * (2 * Dirs * h)]
+    let feat_vec :: D.Tensor = F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
     -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
-    return feat_vec
+
+    -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
+    -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
+    -- | for my purposes, being forced to pick a fixed sample size means simpler programs with few types may potentially be learned more easily than programs with e.g. a greater number of type instances.
+    -- | there should be fancy ways to address this like giving more weight to hard programs (/ samples).
+    sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
+            <- sampleTensor @0 @r3nnBatch (length io_pairs) feat_vec
+
+    return sampled_feats
 
 -- | 5.1.2 Cross Correlation encoder
 

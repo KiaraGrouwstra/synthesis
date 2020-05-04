@@ -93,10 +93,8 @@ synthesizer = let
         let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
         let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
         model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H <- A.sample $ NSPSSpec encoder_spec r3nn_spec
-        --  :: Tensor Device 'D.Float '[n, 2 * Dirs * H * MaxStringLength]
-        io_feats <- lstmEncoder (encoder model) charMap io_pairs
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
-                <- sampleTensor @0 @R3nnBatch' (length io_pairs) $ toDynamic io_feats
+                <- lstmEncoder (encoder model) charMap io_pairs
 
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3

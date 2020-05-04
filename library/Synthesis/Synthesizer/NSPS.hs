@@ -242,9 +242,8 @@ train synthesizerConfig taskFnDataset = do
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * h)]
-            io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
             sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-                    <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
+                    <- liftIO $ lstmEncoder (encoder model) charMap target_io_pairs
             loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
             -- TODO: do once for each mini-batch / fn?
             (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
@@ -260,7 +259,7 @@ train synthesizerConfig taskFnDataset = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            (acc_valid, loss_valid) <- evaluate @device @m @encoderBatch @r3nnBatch @symbols @rules @t @maxChar @h taskFnDataset prepped_dsl bestOf model' validation_set
+            (acc_valid, loss_valid) <- evaluate taskFnDataset prepped_dsl bestOf model' validation_set
 
             liftIO $ printf
                 "Epoch: %03d. Train loss: %.4f. Validation loss: %.4f. Validation accuracy: %.4f.\n"
@@ -321,9 +320,8 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
                 task_outputs                                ! task_fn
 
         --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * h)]
-        io_feats <- liftIO $ lstmEncoder @encoderBatch @t (encoder model) charMap target_io_pairs
         sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-                <- liftIO $ sampleTensor @0 @r3nnBatch (length target_io_pairs) $ toDynamic io_feats
+                <- liftIO $ lstmEncoder (encoder model) charMap target_io_pairs
         loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
 
         -- sample for best of 100 predictions

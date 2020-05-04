@@ -167,5 +167,5 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let modelPath :: String = printf "%s/%s/%04d.pt" resultFolder (ppCfg synthCfg) epoch
     params :: [D.Tensor] <- D.load modelPath
     let model' = A.replaceParameters model $ D.IndependentTensor <$> params
-    (acc_test, loss_test) <- interpretUnsafe $ evaluate @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar @h taskFnDataset prepped_dsl bestOf model' test_set
+    (acc_test, loss_test) <- interpretUnsafe $ evaluate taskFnDataset prepped_dsl bestOf model' test_set
     printf "Test loss: %.4f. Test accuracy: %.4f.\n" (toFloat loss_test) (toFloat acc_test)
