@@ -19,6 +19,7 @@ module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
 import           System.Random                 (StdGen, mkStdGen)
 import           System.Timeout                (timeout)
 import           System.Directory              (createDirectoryIfMissing)
+import           System.CPUTime
 import           Data.Foldable                 (foldrM)
 import           Data.Maybe                    (fromMaybe)
 import           Data.Set                      (Set, empty, insert)
@@ -230,7 +231,7 @@ train synthesizerConfig taskFnDataset = do
 
     (_, model, _, _, eval_results, _, _) <- foldLoop init_state numEpochs $ \ state@(gen, model_, optim_, earlyStop, eval_results, lr, prev_acc) epoch -> if earlyStop then pure state else do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
-
+        start <- liftIO $ getCPUTime
         -- TRAIN LOOP
         let foldrM_ x xs f = foldrM f x xs
         (train_losses, model', optim') :: ([D.Tensor], NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
@@ -253,6 +254,9 @@ train synthesizerConfig taskFnDataset = do
         -- aggregating over task fns, which in turn had separately aggregated over any holes encountered across the different synthesis steps (so multiple times for a hole encountered across various PPTs along the way). this is fair, right?
         let loss_train :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . stack' 0 $ train_losses
 
+        end <- liftIO $ getCPUTime
+        let epochSeconds :: Double = (fromIntegral (end - start)) / (10^12)
+
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
@@ -268,7 +272,7 @@ train synthesizerConfig taskFnDataset = do
             let modelPath = modelFolder <> printf "/%04d.pt" epoch
             liftIO $ D.save (D.toDependent <$> A.flattenParameters model') modelPath
 
-            let eval_result = EvalResult epoch (toFloat loss_train) (toFloat loss_valid) (toFloat acc_valid)
+            let eval_result = EvalResult epoch epochSeconds (toFloat loss_train) (toFloat loss_valid) (toFloat acc_valid)
             let eval_results' = eval_result : eval_results
             let earlyStop :: Bool = whenOr False (length eval_results' >= 2 * checkWindow) $ let
                     losses  :: [Float] = lossValid <$> eval_results'

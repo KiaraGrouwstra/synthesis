@@ -610,28 +610,6 @@ knownNat = natVal $ Proxy @n
 knownNats :: forall n. KnownNat n => [Integer]
 knownNats = knownNat @n : knownNats @(n + 1)
 
-combineConfig :: GridSearchConfig -> HparComb -> SynthesizerConfig
-combineConfig gridCfg hparComb = cfg
-  where GridSearchConfig{..} = gridCfg
-        HparComb{..} = hparComb
-        cfg = SynthesizerConfig
-                { taskPath=taskPath
-                , seed=seed
-                , numEpochs=numEpochs
-                , bestOf=bestOf
-                , dropoutRate=dropoutRate
-                , evalFreq=evalFreq
-                , learningRate=learningRate
-                , checkWindow=checkWindow
-                , convergenceThreshold=convergenceThreshold
-                , resultFolder=resultFolder
-                , learningDecay=learningDecay
-                , regularization=regularization
-                , verbosity=verbosity
-                , m=m
-                , h=h
-                }
-
 pgStyle = defStyle {
               styleWidth = ConstantWidth 40
             , stylePrefix = exact

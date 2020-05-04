@@ -113,21 +113,23 @@ data ViewDatasetConfig = ViewDatasetConfig
   { taskPath :: String
   } deriving (Show, Generic)
 
-data EvalResult = EvalResult { epoch     :: !Int
-                             , lossTrain :: !Float
-                             , lossValid :: !Float
-                             , accValid  :: !Float
+data EvalResult = EvalResult { epoch        :: !Int
+                             , epochSeconds :: !Double
+                             , lossTrain    :: !Float
+                             , lossValid    :: !Float
+                             , accValid     :: !Float
                              } deriving (Show, Generic)
 
 instance ToNamedRecord EvalResult where
-    toNamedRecord (EvalResult epoch lossTrain lossValid accValid) =
-        namedRecord [ "epoch"     .= epoch
-                    , "lossTrain" .= lossTrain
-                    , "lossValid" .= lossValid
-                    , "accValid"  .= accValid
+    toNamedRecord (EvalResult epoch epochSeconds lossTrain lossValid accValid) =
+        namedRecord [ "epoch"        .= epoch
+                    , "epochSeconds" .= epochSeconds
+                    , "lossTrain"    .= lossTrain
+                    , "lossValid"    .= lossValid
+                    , "accValid"     .= accValid
                     ]
 
-evalResultHeader :: Header = header ["epoch", "lossTrain", "lossValid", "accValid"]
+evalResultHeader :: Header = header ["epoch", "epochSeconds", "lossTrain", "lossValid", "accValid"]
 
 instance ToNamedRecord (HparComb, EvalResult) where
     toNamedRecord (HparComb{..}, evalResult) =
@@ -140,3 +142,25 @@ instance ToNamedRecord (HparComb, EvalResult) where
                     ] `union` toNamedRecord evalResult
 
 gridSearchHeader :: Header = header ["dropoutRate", "regularization", "m", "h", "hidden0", "hidden1"] <> evalResultHeader
+
+combineConfig :: GridSearchConfig -> HparComb -> SynthesizerConfig
+combineConfig gridCfg hparComb = cfg
+  where GridSearchConfig{..} = gridCfg
+        HparComb{..} = hparComb
+        cfg = SynthesizerConfig
+                { taskPath=taskPath
+                , seed=seed
+                , numEpochs=numEpochs
+                , bestOf=bestOf
+                , dropoutRate=dropoutRate
+                , evalFreq=evalFreq
+                , learningRate=learningRate
+                , checkWindow=checkWindow
+                , convergenceThreshold=convergenceThreshold
+                , resultFolder=resultFolder
+                , learningDecay=learningDecay
+                , regularization=regularization
+                , verbosity=verbosity
+                , m=m
+                , h=h
+                }
