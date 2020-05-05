@@ -279,7 +279,7 @@ train synthesizerConfig taskFnDataset = do
                     (current_losses, prev_losses) = splitAt checkWindow losses'
                     current :: D.Tensor = F.mean . D.asTensor $ current_losses
                     prev    :: D.Tensor = F.mean . D.asTensor $ prev_losses
-                    earlyStop :: Bool = D.asValue $ F.sub prev current `I.ltScalar` convergenceThreshold
+                    earlyStop :: Bool = D.asValue $ F.sub current prev `I.gtScalar` convergenceThreshold
                     in earlyStop
             when earlyStop $ debug "test loss has converged, stopping early!"
 
@@ -372,7 +372,7 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
                     return outputs_match
 
         let best_works :: Bool = or sample_matches
-        let score :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
+        -- let score :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . D.asTensor $ (fromBool :: (Bool -> Float)) <$> sample_matches
         return (best_works, loss)
 
     let acc  :: Tensor device 'D.Float '[] = UnsafeMkTensor . F.mean . F.toDType D.Float . D.asTensor $ fst <$> eval_stats
