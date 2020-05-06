@@ -15,7 +15,7 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Synthesis.Synthesizer.Synthesizer (module Synthesis.Synthesizer.Synthesizer) where
+module Synthesis.Synthesizer.Random (module Synthesis.Synthesizer.Random) where
 
 import           System.Random                 (StdGen, mkStdGen)
 import           System.Timeout                (timeout)
@@ -77,26 +77,19 @@ import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.Params
+import           Synthesis.Synthesizer.Synthesizer
 
-class (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, A.Parameterized synthesizer) => Synthesizer device shape rules synthesizer where
-    encode    :: synthesizer
-                -> [(Expr, Either String Expr)]
-                -> IO (Tensor device 'D.Float shape)
-    predict   :: forall num_holes
-                 . synthesizer
-                -> HashMap String Int
-                -> Expr
-                -> Tensor device 'D.Float shape
-                -> Tensor device 'D.Float '[num_holes, rules]
-    patchLoss ::   synthesizer
-                -> HashMap String Int
-                -> Tensor device 'D.Float '[]
-                -> Tensor device 'D.Float '[]
-    patchLoss _model _variant_sizes = id
-    doStep    :: forall optimizer . (D.Optimizer optimizer)
-                => synthesizer
-                -> optimizer
-                -> Tensor device 'D.Float '[]
-                -> Tensor device 'D.Float '[]
-                -> IO ([A.Parameter], optimizer)
-    doStep model optim loss lr = D.runStep model optim (toDynamic loss) $ toDynamic lr
+data RandomSynthesizerSpec = RandomSynthesizerSpec
+ deriving (Show)
+data RandomSynthesizer     = RandomSynthesizer
+ deriving (Show, Generic)
+
+instance (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules) => Synthesizer device '[] rules RandomSynthesizer where
+    encode _model _io_pairs = pure zeros
+    predict _model _symbolIdxs ppt _feats = UnsafeMkTensor $ D.ones [length (findHolesExpr ppt), natValI @rules] D.float_opts
+    doStep model optim _loss _lr = pure (A.flattenParameters model, optim)
+
+instance A.Randomizable RandomSynthesizerSpec RandomSynthesizer where
+    sample RandomSynthesizerSpec = pure RandomSynthesizer
+
+instance A.Parameterized RandomSynthesizer

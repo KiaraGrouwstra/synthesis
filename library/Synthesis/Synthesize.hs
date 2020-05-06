@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 -- | synthesizer logic
-module Synthesis.Synthesizer (module Synthesis.Synthesizer) where
+module Synthesis.Synthesize (module Synthesis.Synthesize) where
 
 import System.Log.Logger
 import GHC.TypeNats (type (+))
@@ -37,6 +37,8 @@ import Synthesis.Synthesizer.Encoder
 import Synthesis.Synthesizer.R3NN
 import Synthesis.Synthesizer.NSPS
 import Synthesis.Synthesizer.Params
+import Synthesis.Synthesizer.Random
+import Synthesis.Synthesizer.Train
 
 -- | main function
 main :: IO ()

@@ -10,7 +10,7 @@ module Synthesis.Synthesis (
     , module Synthesis.FindHoles
     , module Synthesis.Hint
     , module Synthesis.Generation
-    , module Synthesis.Synthesizer.Synthesizer
+    , module Synthesis.Synthesizer.Exports
     , module Synthesis.Blocks
     -- -- executables
     -- , module Synthesis.Generator
@@ -28,7 +28,7 @@ import Synthesis.Ast
 import Synthesis.FindHoles
 import Synthesis.Hint
 import Synthesis.Generation
-import Synthesis.Synthesizer.Synthesizer
+import Synthesis.Synthesizer.Exports
 import Synthesis.Blocks
 -- -- executables
 -- import Synthesis.Generator

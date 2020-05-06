@@ -53,7 +53,9 @@ import           Synthesis.Hint
 import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
+import           Synthesis.Synthesizer.Synthesizer
 import           Synthesis.Synthesizer.NSPS
+import           Synthesis.Synthesizer.Train
 import           Synthesis.Synthesizer.Params
 
 hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
