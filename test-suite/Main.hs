@@ -75,7 +75,7 @@ main ∷ IO ()
 main = do
     -- unlike Tasty, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synthesizer]
+    void $ runTestTT $ TestList [hint, gen, synth]
 
     -- Tasty HSpec
     util_ <- testSpec "Utility" util

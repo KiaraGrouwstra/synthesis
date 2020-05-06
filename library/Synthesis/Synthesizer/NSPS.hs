@@ -12,6 +12,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.NSPS (module Synthesis.Synthesizer.NSPS) where
@@ -28,7 +29,7 @@ import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Internal      as BS
 import qualified Data.ByteString.Lazy.Internal as BL
 import           Data.HashMap.Lazy             (HashMap, (!), elems, keys, size, mapWithKey, filterWithKey)
-import           Data.Csv
+import qualified Data.Csv as Csv
 import           Data.Text.Prettyprint.Doc (pretty)
 import           Text.Printf
 import           Foreign.Marshal.Utils         (fromBool)
@@ -76,6 +77,65 @@ import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.Params
+
+class (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, A.Parameterized synthesizer) => Synthesizer device shape rules synthesizer where
+    encode    :: synthesizer
+                -> [(Expr, Either String Expr)]
+                -> IO (Tensor device 'D.Float shape)
+    predict   :: forall num_holes
+                 . synthesizer
+                -> HashMap String Int
+                -> Expr
+                -> Tensor device 'D.Float shape
+                -> Tensor device 'D.Float '[num_holes, rules]
+    patchLoss ::   synthesizer
+                -> HashMap String Int
+                -> Tensor device 'D.Float '[]
+                -> Tensor device 'D.Float '[]
+    doStep    :: forall optimizer . (D.Optimizer optimizer)
+                => synthesizer
+                -> optimizer
+                -> Tensor device 'D.Float '[]
+                -> Tensor device 'D.Float '[]
+                -> IO ([A.Parameter], optimizer)
+
+data RandomSynthesizerSpec = RandomSynthesizerSpec
+ deriving (Show)
+data RandomSynthesizer     = RandomSynthesizer
+ deriving (Show, Generic)
+
+instance (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules) => Synthesizer device '[] rules RandomSynthesizer where
+    encode _model _io_pairs = pure zeros
+    predict _model _symbolIdxs ppt _feats = UnsafeMkTensor $ D.ones [length (findHolesExpr ppt), natValI @rules] D.float_opts
+    patchLoss _model _variant_sizes = id
+    doStep model optim _loss _lr = pure (A.flattenParameters model, optim)
+
+instance A.Randomizable RandomSynthesizerSpec RandomSynthesizer where
+    sample RandomSynthesizerSpec = pure RandomSynthesizer
+
+instance A.Parameterized RandomSynthesizer
+
+-- instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, shape ~ '[r3nnBatch, t * (2 * Dirs * h)], synthesizer ~ NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h ) => Synthesizer device shape rules synthesizer where
+instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, shape ~ '[r3nnBatch, t * (2 * Dirs * h)] ) => Synthesizer device shape rules (NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h) where
+    -- | sampling embedded features to guarantee a static output size
+    -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
+    -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
+    -- | for my purposes, being forced to pick a fixed sample size means simpler programs with few types may potentially be learned more easily than programs with e.g. a greater number of type instances.
+    -- | there should be fancy ways to address this like giving more weight to hard programs (/ samples).
+    -- sampled_feats :: Tensor device 'D.Float '[r3nnBatch, maxStringLength * (2 * Dirs * h)]
+    encode mdl io_pairs = sampleTensor @0 @r3nnBatch (length io_pairs) . toDynamic $ lstmEncoder @encoderBatch @t @maxChar @r3nnBatch @device @h (encoder mdl) io_pairs
+    predict mdl = runR3nn @symbols @m @t @h @rules @r3nnBatch $ r3nn (mdl :: NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h)
+    patchLoss = patchR3nnLoss . r3nn
+    doStep model optim loss lr = D.runStep model optim (toDynamic loss) $ toDynamic lr
+
+nspsSpec :: forall device m symbols t encoderBatch r3nnBatch maxChar h rules shape synthesizer . (KnownNat rules, A.Parameterized synthesizer, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, Synthesizer device shape rules synthesizer) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules t encoderBatch r3nnBatch maxChar h
+nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate hidden0 hidden1 = spec where
+    encoder_spec :: LstmEncoderSpec device t encoderBatch maxChar h =
+        LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
+    r3nn_spec :: R3NNSpec device m symbols rules t r3nnBatch h =
+        initR3nn variants r3nnBatch dropoutRate hidden0 hidden1
+    spec :: NSPSSpec device m symbols rules t encoderBatch r3nnBatch maxChar h =
+        NSPSSpec encoder_spec r3nn_spec
 
 data NSPSSpec (device :: (D.DeviceType, Nat)) (m :: Nat) (symbols :: Nat) (rules :: Nat) (t :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) (maxChar :: Nat) (h :: Nat) where
   NSPSSpec :: forall device m symbols rules t encoderBatch r3nnBatch maxChar h
@@ -166,19 +226,20 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall m symbols rules encoderBatch r3nnBatch t maxChar h device . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h -> Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)] -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tensor device 'D.Float '[])
-calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes = do
+calcLoss :: forall rules device shape synthesizer num_holes . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, Synthesizer device shape rules synthesizer) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> synthesizer -> Tensor device 'D.Float shape -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> IO (Tensor device 'D.Float '[])
+calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
             fill = \(ppt, golds, predictions, filled) -> do
-                    predicted <- runR3nn @symbols @m @t @h @rules @r3nnBatch (r3nn model) symbolIdxs ppt sampled_feats
+                    --  :: Tensor device 'D.Float '[num_holes, rules]
+                    let predicted = predict @device @shape @rules @synthesizer model symbolIdxs ppt io_feats
                     (ppt', gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
                     -- putStrLn $ "ppt': " <> pp ppt'
                     return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
             in while (\(expr, _, _, filled) -> hasHoles expr && filled < max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
     let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
     let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
-    let loss :: Tensor device 'D.Float '[] = patchLoss @m variant_sizes (r3nn model) $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+    let loss :: Tensor device 'D.Float '[] = patchLoss @device @shape @rules model variant_sizes $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
 -- | pre-calculate DSL stuff
@@ -205,8 +266,8 @@ prep_dsl TaskFnDataset{..} = tpl where
     tpl = (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl')
 
 -- | train a NSPS model and return results
-train :: forall device m encoderBatch r3nnBatch symbols rules t maxChar h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat maxChar, KnownNat h) => SynthesizerConfig -> TaskFnDataset -> Interpreter [EvalResult]
-train synthesizerConfig taskFnDataset = do
+train :: forall device rules shape synthesizer . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownShape shape, Synthesizer device shape rules synthesizer) => SynthesizerConfig -> TaskFnDataset -> synthesizer -> Interpreter [EvalResult]
+train synthesizerConfig taskFnDataset init_model = do
     let SynthesizerConfig{..} = synthesizerConfig
     let TaskFnDataset{..} = taskFnDataset
 
@@ -222,10 +283,6 @@ train synthesizerConfig taskFnDataset = do
     let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
 
     -- MODELS
-    let encoder_spec :: LstmEncoderSpec device t encoderBatch maxChar h = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec device m symbols rules t r3nnBatch h = initR3nn @m @symbols @rules @t @r3nnBatch @h variants r3nnBatch dropoutRate hidden0 hidden1
-    init_model :: NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h <- liftIO $ A.sample $ NSPSSpec @device @m @symbols @rules encoder_spec r3nn_spec
-
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
     let init_state = (stdGen, init_model, init_optim, False, [], init_lr, 0.0)
 
@@ -234,7 +291,7 @@ train synthesizerConfig taskFnDataset = do
         start <- liftIO $ getCPUTime
         -- TRAIN LOOP
         let foldrM_ x xs f = foldrM f x xs
-        (train_losses, model', optim') :: ([D.Tensor], NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
+        (train_losses, model', optim') :: ([D.Tensor], synthesizer, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             -- putStrLn $ "task_fn: \n" <> pp task_fn
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
@@ -242,12 +299,13 @@ train synthesizerConfig taskFnDataset = do
                     task_io_pairs ! task_fn
             -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * h)]
-            sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-                    <- liftIO $ lstmEncoder (encoder model) charMap target_io_pairs
-            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
+            -- sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
+            io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules model target_io_pairs
+            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss @rules dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes
             -- TODO: do once for each mini-batch / fn?
-            (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
-            let model' = A.replaceParameters model newParam
+            -- (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
+            (newParam, optim') <- doStep @device @shape @rules model optim loss lr
+            let model' :: synthesizer = A.replaceParameters model newParam
             return (toDynamic loss : train_losses, model', optim')
 
         -- aggregating over task fns, which in turn had separately aggregated over any holes encountered across the different synthesis steps (so multiple times for a hole encountered across various PPTs along the way). this is fair, right?
@@ -259,7 +317,7 @@ train synthesizerConfig taskFnDataset = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            (acc_valid, loss_valid) <- evaluate taskFnDataset prepped_dsl bestOf model' validation_set
+            (acc_valid, loss_valid) <- evaluate @device @rules @shape taskFnDataset prepped_dsl bestOf model' validation_set
 
             liftIO $ printf
                 "Epoch: %03d. Train loss: %.4f. Validation loss: %.4f. Validation accuracy: %.4f.\n"
@@ -300,14 +358,14 @@ train synthesizerConfig taskFnDataset = do
     liftIO $ createDirectoryIfMissing True resultFolder
     let resultPath = resultFolder <> "/" <> ppCfg synthesizerConfig <> ".csv"
     let eval_results' = reverse eval_results -- we want the first epoch first
-    liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ encodeByName evalResultHeader eval_results'
+    liftIO $ BS.writeFile resultPath $ BS.packChars $ BL.unpackChars $ Csv.encodeByName evalResultHeader eval_results'
     info $ "data written to " <> resultPath
 
     return eval_results'
 
-evaluate :: forall device m encoderBatch r3nnBatch symbols rules t maxChar h
-          . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat symbols, KnownNat rules, KnownNat t, KnownNat maxChar, KnownNat h)
-         => TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr) -> Int -> NSPS device m symbols rules t encoderBatch r3nnBatch maxChar h -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
+evaluate :: forall device rules shape synthesizer num_holes
+          . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownShape shape, Synthesizer device shape rules synthesizer)
+         => TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr) -> Int -> synthesizer -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
 evaluate taskFnDataset prepped_dsl bestOf model dataset = do
     let TaskFnDataset{..} = taskFnDataset
     let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
@@ -319,10 +377,8 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
         let target_outputs :: [Either String Expr] =
                 task_outputs                                ! task_fn
 
-        --  :: Tensor device 'D.Float '[n'2, t * (2 * Dirs * h)]
-        sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-                <- liftIO $ lstmEncoder (encoder model) charMap target_io_pairs
-        loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss dsl' task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes max_holes
+        io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules model target_io_pairs
+        loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss @rules dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes
 
         -- sample for best of 100 predictions
         sample_matches :: [Bool] <- replicateM bestOf $ do
@@ -331,7 +387,9 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
             (program, used, _filled) :: (Expr, Set String, Int) <- let
                     --  :: (Int, Expr) -> IO (Int, Expr)
                     fill = \(ppt, used, filled) -> do
-                            (ppt', used') <- liftIO $ join $ predictHole variants ppt used <$> runR3nn @symbols @m @t @h @rules @r3nnBatch (r3nn model) symbolIdxs ppt sampled_feats
+                            --  :: Tensor device 'D.Float '[num_holes, rules]
+                            let predicted = predict @device @shape @rules @synthesizer model symbolIdxs ppt io_feats
+                            (ppt', used') <- liftIO $ predictHole variants ppt used predicted
                             return (ppt', used', filled + 1)
                     in while (\(ppt, used, filled) -> hasHoles ppt && filled < max_holes) fill (skeleton taskType, empty, 0 :: Int)
             -- say $ pp program

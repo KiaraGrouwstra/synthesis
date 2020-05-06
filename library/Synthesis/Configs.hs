@@ -106,6 +106,7 @@ synthesizerConfig = SynthesizerConfig
     <*> hOpt
     <*> hidden0Opt
     <*> hidden1Opt
+    <*> synthesizerOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -278,3 +279,10 @@ hidden1Opt = option auto
     <> value (20 :: Int)
     <> showDefault
     <> help "MLP hidden layer 1" )
+
+synthesizerOpt = strOption
+    ( long "synthesizer"
+    <> value "nsps"
+    <> showDefault
+    <> completeWith ["random", "nsps"]
+    <> help "the synthesizer to use" )

@@ -5,9 +5,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 -- | grid-search logic
@@ -103,8 +106,8 @@ gridSearch = do
 -- bending over backward to get the compiler to accept my dynamically calculated values as static
 
 getRules :: forall device rules . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
-getRules cfg taskFnDataset hparCombs = (:)
-        ((!! (size (charMap taskFnDataset) + 1)) $ getMaxChar @device @rules @0 cfg taskFnDataset hparCombs)
+getRules cfg taskFnDataset hparCombs = let TaskFnDataset{..} = taskFnDataset in (:)
+        ((!! (size charMap + 1)) $ getMaxChar @device @rules @0 cfg taskFnDataset hparCombs)
         $ getRules @device @(rules + 1) cfg taskFnDataset hparCombs
 
 getMaxChar :: forall device rules maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
@@ -135,20 +138,23 @@ getM cfg taskFnDataset hparCombs = (<>)
         $ getM @device @rules @maxChar @symbols @maxStringLength @h @(m + 1) cfg taskFnDataset hparCombs
 
 -- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this
-evalHparComb :: forall device m rules maxChar symbols maxStringLength h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h) => TaskFnDataset -> GridSearchConfig -> HparComb -> IO (EvalResult, IO ())
+evalHparComb :: forall device m rules maxChar symbols maxStringLength h shape synthesizer . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownShape shape, shape ~ '[R3nnBatch, maxStringLength * (2 * Dirs * h)], synthesizer ~ NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h, Synthesizer device shape rules synthesizer) => TaskFnDataset -> GridSearchConfig -> HparComb -> IO (EvalResult, IO ())
 evalHparComb taskFnDataset cfg hparComb = do
     let cfg' :: SynthesizerConfig = combineConfig cfg hparComb
     let SynthesizerConfig{..} = cfg'
+    let TaskFnDataset{..} = taskFnDataset
+    let variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
     putStrLn ""  -- don't touch the progress bar line
     putStrLn . show $ hparComb
     -- putStrLn . show $ cfg'
     manual_seed_L $ fromIntegral seed
-    lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @m @EncoderBatch @R3nnBatch @symbols @rules @maxStringLength @maxChar @h cfg' taskFnDataset
-    let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h cfg taskFnDataset hparComb lastEvalResult
+    model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h <- A.sample $ nspsSpec @device @m @symbols @maxStringLength @EncoderBatch @R3nnBatch @maxChar @h @rules @shape @synthesizer taskFnDataset variants r3nnBatch dropoutRate hidden0 hidden1
+    lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @rules @shape cfg' taskFnDataset model
+    let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h @shape cfg taskFnDataset hparComb lastEvalResult
     return (lastEvalResult, testEval)
 
 -- | after we finish grid search, do a final evaluation on our test set just in case the grid search overfitted on our validation set
-finalEval :: forall device m rules maxChar symbols maxStringLength h . (KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => GridSearchConfig -> TaskFnDataset -> HparComb -> EvalResult -> IO ()
+finalEval :: forall device m rules maxChar symbols maxStringLength h shape . (KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownShape shape, shape ~ '[R3nnBatch, maxStringLength * (2 * Dirs * h)], KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => GridSearchConfig -> TaskFnDataset -> HparComb -> EvalResult -> IO ()
 finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let GridSearchConfig{..} = cfg
     let TaskFnDataset{..} = taskFnDataset
@@ -160,12 +166,12 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let test_set :: [Expr] = thdOf3 datasets
     let prepped_dsl = prep_dsl taskFnDataset
     let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
-    let encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropoutRate
-    let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h = initR3nn @m @symbols @rules @maxStringLength @R3nnBatch @h variants r3nnBatch dropoutRate hidden0 hidden1
-    model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h <- liftIO $ A.sample $ NSPSSpec @device @m @symbols @rules encoder_spec r3nn_spec
+    let encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h = LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
+    let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h = initR3nn variants r3nnBatch dropoutRate hidden0 hidden1
+    model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h <- liftIO $ A.sample $ NSPSSpec encoder_spec r3nn_spec
     let synthCfg :: SynthesizerConfig = combineConfig cfg bestHparComb
     let modelPath :: String = printf "%s/%s/%04d.pt" resultFolder (ppCfg synthCfg) epoch
     params :: [D.Tensor] <- D.load modelPath
     let model' = A.replaceParameters model $ D.IndependentTensor <$> params
-    (acc_test, loss_test) <- interpretUnsafe $ evaluate taskFnDataset prepped_dsl bestOf model' test_set
+    (acc_test, loss_test) <- interpretUnsafe $ evaluate @device @rules @shape taskFnDataset prepped_dsl bestOf model' test_set
     printf "Test loss: %.4f. Test accuracy: %.4f.\n" (toFloat loss_test) (toFloat acc_test)

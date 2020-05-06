@@ -81,6 +81,7 @@ data SynthesizerConfig = SynthesizerConfig
   , h :: Int
   , hidden0 :: Int
   , hidden1 :: Int
+  , synthesizer :: String
   } deriving (Show, Generic)
 
 data GridSearchConfig = GridSearchConfig

@@ -67,8 +67,8 @@ import           Spec.Synthesizer.Types
 
 type Device = Cpu
 
-synthesizer ∷ Test
-synthesizer = let
+synth ∷ Test
+synth = let
         dropOut :: Double = 0.0
         hidden0 :: Int = 20
         hidden1 :: Int = 20
@@ -90,22 +90,22 @@ synthesizer = let
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
         let charMap :: HashMap Char Int = mkCharMap io_pairs
-        let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn @M @Symbols @Rules @MaxStringLength @R3nnBatch' @H variants r3nnBatch' dropOut hidden0 hidden1
+        let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
+        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn variants r3nnBatch' dropOut hidden0 hidden1
         model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H <- A.sample $ NSPSSpec encoder_spec r3nn_spec
-        sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
-                <- lstmEncoder (encoder model) charMap io_pairs
+        sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
+                <- encode @Device @'[R3nnBatch', MaxStringLength * (2 * Dirs * H)] @Rules model io_pairs
 
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 
-        loss :: Tensor Device 'D.Float '[] <- calcLoss dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss :: Tensor Device 'D.Float '[] <- calcLoss @Rules dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
         let model' :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H = A.replaceParameters model newParam
-        loss' :: Tensor Device 'D.Float '[] <- calcLoss dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss' :: Tensor Device 'D.Float '[] <- calcLoss @Rules dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
         toBool (loss' <. loss) `shouldBe` True
 
     ]

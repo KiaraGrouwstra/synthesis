@@ -8,6 +8,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Synthesis.Synthesizer.Encoder (module Synthesis.Synthesizer.Encoder) where
@@ -29,12 +31,14 @@ import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import           Torch.Autograd
 import           Torch.HList
+import           Torch.Scalar
 import qualified Torch.NN                      as A
 import qualified Torch.Functional              as F
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Tensor                  as D
 import qualified Torch.Device                  as D
 import qualified Torch.DType                   as D
+import           Torch.Typed.NN
 import           Torch.Typed.NN.Recurrent.LSTM
 
 import Synthesis.Orphanage ()
@@ -45,102 +49,103 @@ import Synthesis.Synthesizer.Params
 
 data LstmEncoderSpec
     (device :: (D.DeviceType, Nat))
-    (t :: Nat)
+    (maxStringLength :: Nat)
     (batch_size :: Nat)
     (maxChar :: Nat)
     (h :: Nat)
  where LstmEncoderSpec :: {
+        charMap :: HashMap Char Int,
         lstmSpec :: LSTMSpec maxChar h NumLayers Dir 'D.Float device
-    } -> LstmEncoderSpec device t batch_size maxChar h
+    } -> LstmEncoderSpec device maxStringLength batch_size maxChar h
  deriving (Show)
 
 data LstmEncoder
     (device :: (D.DeviceType, Nat))
-    (t :: Nat)
+    (maxStringLength :: Nat)
     (batch_size :: Nat)
     (maxChar :: Nat)
     (h :: Nat)
  where LstmEncoder :: {
+    charMap :: HashMap Char Int,
     inModel  :: LSTMWithInit maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device,
     outModel :: LSTMWithInit maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device
-    } -> LstmEncoder device t batch_size maxChar h
+    } -> LstmEncoder device maxStringLength batch_size maxChar h
  deriving (Show, Generic)
 
-instance A.Parameterized (LstmEncoder device t batch_size maxChar h)
+-- instance (Scalar a) => A.Parameterized a where
+instance A.Parameterized Int where
+  flattenParameters _ = []
+  replaceOwnParameters = return
 
-instance (KnownDevice device, RandDTypeIsValid device 'D.Float, KnownNat maxChar, KnownNat h) => A.Randomizable (LstmEncoderSpec device t batch_size maxChar h) (LstmEncoder device t batch_size maxChar h) where
+instance A.Parameterized (LstmEncoder device maxStringLength batch_size maxChar h)
+
+instance (KnownDevice device, RandDTypeIsValid device 'D.Float, KnownNat maxChar, KnownNat h) => A.Randomizable (LstmEncoderSpec device maxStringLength batch_size maxChar h) (LstmEncoder device maxStringLength batch_size maxChar h) where
     sample LstmEncoderSpec {..} = do
         in_model  :: LSTMWithInit maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device <- A.sample spec
         out_model :: LSTMWithInit maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device <- A.sample spec
-        return $ LstmEncoder in_model out_model
+        return $ LstmEncoder charMap in_model out_model
             -- TODO: consider LearnedInitialization
             where spec :: LSTMWithInitSpec maxChar h NumLayers Dir 'ConstantInitialization 'D.Float device = LSTMWithZerosInitSpec lstmSpec
 
+-- instance (KnownDevice device, KnownNat batch_size, KnownNat n', KnownNat maxStringLength, KnownNat maxChar, KnownNat h, shape ~ '[n', maxStringLength * (2 * Dirs * h)])
+--     => HasForward (LstmEncoder device maxStringLength batch_size maxChar h) [(Expr, Either String Expr)] (Tensor device 'D.Float shape) where
+--         forward      = lstmEncoder
+--         -- forwardStoch = lstmEncoder
+
 lstmBatch
-    :: forall batch_size t maxChar r3nnBatch device h
-     . (KnownNat batch_size, KnownNat t, KnownNat maxChar, KnownNat h)
-    => LstmEncoder device t batch_size maxChar h
-    -> Tensor device 'D.Float '[batch_size, t, maxChar]
-    -> Tensor device 'D.Float '[batch_size, t, maxChar]
-    -> Tensor device 'D.Float '[batch_size, t * (2 * Dirs * h)]
+    :: forall batch_size maxStringLength maxChar device h
+     . (KnownNat batch_size, KnownNat maxStringLength, KnownNat maxChar, KnownNat h)
+    => LstmEncoder device maxStringLength batch_size maxChar h
+    -> Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]
+    -> Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]
+    -> Tensor device 'D.Float '[batch_size, maxStringLength * (2 * Dirs * h)]
 lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
     lstm' = \model -> fstOf3 . lstmWithDropout @'BatchFirst model
-    emb_in  :: Tensor device 'D.Float '[batch_size, t, h * Dirs] = lstm'  inModel  in_vec
-    emb_out :: Tensor device 'D.Float '[batch_size, t, h * Dirs] = lstm' outModel out_vec
+    emb_in  :: Tensor device 'D.Float '[batch_size, maxStringLength, h * Dirs] = lstm'  inModel  in_vec
+    emb_out :: Tensor device 'D.Float '[batch_size, maxStringLength, h * Dirs] = lstm' outModel out_vec
     -- | For each pair, it then concatenates the topmost hidden representation at every time step to produce a 4HT-dimensional feature vector per I/O pair
-    feat_vec :: Tensor device 'D.Float '[batch_size, t * (2 * Dirs * h)] =
+    feat_vec :: Tensor device 'D.Float '[batch_size, maxStringLength * (2 * Dirs * h)] =
             -- reshape $ cat @2 $ emb_in :. emb_out :. HNil
-            asUntyped (D.reshape [natValI @batch_size, natValI @t * (2 * natValI @Dirs * natValI @h)]) $ cat @2 $ emb_in :. emb_out :. HNil
+            asUntyped (D.reshape [natValI @batch_size, natValI @maxStringLength * (2 * natValI @Dirs * natValI @h)]) $ cat @2 $ emb_in :. emb_out :. HNil
 
 -- | NSPS paper's Baseline LSTM encoder
--- | to adjust their encoder to the domain of synthesizing Haskell I've made one change: sampling embedded features to guarantee a static output size
 lstmEncoder
-    :: forall batch_size t maxChar r3nnBatch device h
-     . (KnownDevice device, KnownNat batch_size, KnownNat r3nnBatch, KnownNat t, KnownNat maxChar, KnownNat h)
-    => LstmEncoder device t batch_size maxChar h
-    -> HashMap Char Int
+    :: forall batch_size maxStringLength maxChar n' device h
+     . (KnownDevice device, KnownNat batch_size, KnownNat maxStringLength, KnownNat maxChar, KnownNat h)
+    => LstmEncoder device maxStringLength batch_size maxChar h
     -> [(Expr, Either String Expr)]
-    -> IO (Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)])
-lstmEncoder encoder charMap io_pairs = do
-    let LstmEncoder{..} = encoder
-    let t_ :: Int = natValI @t
-    let batch_size_ :: Int = natValI @batch_size
-    let max_char :: Int = natValI @maxChar
+    -> Tensor device 'D.Float '[n', maxStringLength * (2 * Dirs * h)]
+lstmEncoder encoder io_pairs = UnsafeMkTensor feat_vec where
+    LstmEncoder{..} = encoder
+    t_ :: Int = natValI @maxStringLength
+    batch_size_ :: Int = natValI @batch_size
+    max_char :: Int = natValI @maxChar
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
-    let str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
+    str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    let str2tensor :: Int -> String -> Tensor device 'D.Float '[1, t, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
-    let vec_pairs :: [(Tensor device 'D.Float '[1, t, maxChar], Tensor device 'D.Float '[1, t, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
+    str2tensor :: Int -> String -> Tensor device 'D.Float '[1, maxStringLength, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
+    vec_pairs :: [(Tensor device 'D.Float '[1, maxStringLength, maxChar], Tensor device 'D.Float '[1, maxStringLength, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size
-    let stackPad :: [D.Tensor] -> [Tensor device 'D.Float '[batch_size, t, maxChar]] =
+    stackPad :: [D.Tensor] -> [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
             fmap UnsafeMkTensor . batchTensor batch_size_ . stack' 0
             -- batchTensor' @0 . UnsafeMkTensor . stack' 0  -- ambiguous shape
-    let  in_vecs :: [Tensor device 'D.Float '[batch_size, t, maxChar]] =
+    in_vecs  :: [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
             stackPad $ toDynamic . fst <$> vec_pairs
-    let out_vecs :: [Tensor device 'D.Float '[batch_size, t, maxChar]] =
+    out_vecs :: [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
             stackPad $ toDynamic . snd <$> vec_pairs
     -- print $ "out_vecs"
     -- print $ "out_vecs: " ++ show (D.shape . toDynamic <$> out_vecs)
 
-    let feat_vecs :: [Tensor device 'D.Float '[batch_size, t * (2 * Dirs * h)]] =
+    feat_vecs :: [Tensor device 'D.Float '[batch_size, maxStringLength * (2 * Dirs * h)]] =
             uncurry (lstmBatch encoder) <$> zip in_vecs out_vecs
     -- print $ "feat_vecs"
     -- print $ "feat_vecs: " ++ show (D.shape . toDynamic <$> feat_vecs)
-    --  :: Tensor device 'D.Float '[n', t * (2 * Dirs * h)]
-    let feat_vec :: D.Tensor = F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
+    --  :: Tensor device 'D.Float '[n', maxStringLength * (2 * Dirs * h)]
+    feat_vec :: D.Tensor = F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
     -- print $ "feat_vec: " ++ show (D.shape $ toDynamic feat_vec)
-
-    -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
-    -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
-    -- | for my purposes, being forced to pick a fixed sample size means simpler programs with few types may potentially be learned more easily than programs with e.g. a greater number of type instances.
-    -- | there should be fancy ways to address this like giving more weight to hard programs (/ samples).
-    sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-            <- sampleTensor @0 @r3nnBatch (length io_pairs) feat_vec
-
-    return sampled_feats
 
 -- | 5.1.2 Cross Correlation encoder
 
