@@ -18,6 +18,7 @@ module Synthesis.GridSearch (module Synthesis.GridSearch) where
 
 import           System.Log.Logger
 import           System.ProgressBar
+import           System.Random (StdGen, mkStdGen)
 import           Control.Applicative
 import           Control.Exception (finally)
 import           Control.Monad (mapM, join)
@@ -95,7 +96,9 @@ gridSearch = do
     let TaskFnDataset{..} = taskFnDataset
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
-    hparResults :: [(HparComb, (EvalResult, IO ()))] <- mapM (`finally` incProgress pb 1) $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
+    let stdGen :: StdGen = mkStdGen seed
+    let (hparCombs', _gen') = fisherYates stdGen hparCombs    -- shuffle
+    hparResults :: [(HparComb, (EvalResult, IO ()))] <- mapM (`finally` incProgress pb 1) $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs'
 
     -- write results to csv
     let resultPath = printf "%s/gridsearch-%s.csv" resultFolder $ ppCfg cfg
