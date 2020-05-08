@@ -133,6 +133,11 @@ evaluate SingleObjective io = do
 
 data BOModel = GPModel
 
+-- TODO: figure out more about how the heck to do predictions (+ w/ gradients) for arbitrary x
+-- see: https://github.com/SheffieldML/GPy/blob/devel/GPy/core/gp.py
+-- info: https://distill.pub/2019/visual-exploration-gaussian-processes/
+-- SO: https://stats.stackexchange.com/questions/373446/computing-gradients-via-gaussian-process-regression
+
 updateModel :: D.Tensor -> D.Tensor -> IO (D.Tensor, D.Tensor)
 updateModel GPModel x y = do
     -- TODO: am I using input_dim right?
