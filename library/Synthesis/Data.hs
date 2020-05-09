@@ -99,6 +99,7 @@ data GridSearchConfig = GridSearchConfig
   , learningDecay :: Int
   -- , regularization :: Float
   , verbosity :: String
+  , evalRounds :: Int
   } deriving (Show, Generic)
 
 data HparComb = HparComb
