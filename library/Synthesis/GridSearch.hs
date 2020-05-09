@@ -97,8 +97,9 @@ gridSearch = do
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
     let stdGen :: StdGen = mkStdGen seed
-    let (hparCombs', _gen') = fisherYates stdGen hparCombs    -- shuffle
-    hparResults :: [(HparComb, (EvalResult, IO ()))] <- mapM (`finally` incProgress pb 1) $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs'
+    let hparCombs' :: [IO (HparComb, (EvalResult, IO ()))] = fmap (`finally` incProgress pb 1) $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
+    let (hparCombs'', _gen') = fisherYates stdGen hparCombs'    -- shuffle
+    hparResults :: [(HparComb, (EvalResult, IO ()))] <- sequence $ take evalRounds hparCombs''
 
     -- write results to csv
     let resultPath = printf "%s/gridsearch-%s.csv" resultFolder $ ppCfg cfg

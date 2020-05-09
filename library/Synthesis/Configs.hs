@@ -133,6 +133,7 @@ gridSearchConfig = GridSearchConfig
     <*> learningDecayOpt
     -- <*> regularizationOpt
     <*> verbosityOpt
+    <*> evalRoundsOpt
 
 parseGridSearchConfig :: IO GridSearchConfig
 parseGridSearchConfig = execParser opts
@@ -286,3 +287,9 @@ synthesizerOpt = strOption
     <> showDefault
     <> completeWith ["random", "nsps"]
     <> help "the synthesizer to use" )
+
+evalRoundsOpt = option auto
+    ( long "evalRounds"
+    <> value (maxBound :: Int)
+    <> showDefault
+    <> help "the maximum number of rounds to evaluate for. by default all configurations are evaluated." )
