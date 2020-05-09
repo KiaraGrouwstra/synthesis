@@ -162,7 +162,7 @@ evolutionary = do
     let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
     let hparMap :: HashMap HparComb (IO (EvalResult, IO ())) = fromList hparCombs'
     hparMap'    :: HashMap HparComb (IO (EvalResult, IO ())) <- once `mapM` hparMap
-    -- let getIO :: HparComb -> IO (EvalResult, IO ()) = memo (hparMap !)
+    let getIO :: HparComb -> IO (EvalResult, IO ()) = (hparMap' !)
     let gaCfg = GAConfig 
             (ceiling . sqrt        . fromIntegral $ len) -- population size
             (ceiling . sqrt . sqrt . fromIntegral $ len) -- archive size (best entities to keep track of)
