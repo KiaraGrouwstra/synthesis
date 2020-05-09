@@ -8,7 +8,7 @@
 module Synthesis.Data (module Synthesis.Data) where
 
 import Data.HashMap.Lazy (HashMap, union)
-import Data.Csv
+import Data.Csv (Header, ToNamedRecord(..), header, namedRecord, (.=))
 import GHC.Generics (Generic)
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.SrcLoc (SrcSpanInfo)
@@ -109,7 +109,7 @@ data HparComb = HparComb
   , h :: Int
   , hidden0 :: Int
   , hidden1 :: Int
-  } deriving (Show, Generic)
+  } deriving (Eq, Show, Generic, Ord, Read)
 
 data ViewDatasetConfig = ViewDatasetConfig
   { taskPath :: String

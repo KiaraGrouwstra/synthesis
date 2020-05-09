@@ -81,12 +81,12 @@ typeGen = parallel $ let
         pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
 
     it "randomType" $ do
-        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
+        GenerationConfig{..} <- liftIO parseGenerationConfig
         tp <- randomType types_by_arity False False nestLimit empty 0
         [tyCon "Bool", tyCon "Int"] `shouldContain` [tp]
 
     it "randomFnType" $ do
-        GenerationConfig { nestLimit = nestLimit } :: GenerationConfig <- liftIO parseGenerationConfig
+        GenerationConfig{..} <- liftIO parseGenerationConfig
         tp <- randomFnType types_by_arity False False nestLimit empty 0
         [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
 

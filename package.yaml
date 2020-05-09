@@ -54,7 +54,8 @@ dependencies:
   - prettyprinter
   - store
   - optparse-applicative
-  # - memoize
+  - io-memoize
+  - GA
 
 library:
   dependencies: []

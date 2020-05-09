@@ -28,6 +28,8 @@ instance Hashable (Exp l) where
 instance Hashable (Type l) where
   hashWithSalt salt = hashWithSalt salt . pack . prettyPrint
 
+instance Hashable HparComb
+
 instance Pretty (Module l) where pretty = unsafeViaShow . prettyPrint
 
 instance Pretty (ModuleHead l) where pretty = unsafeViaShow . prettyPrint
