@@ -87,6 +87,12 @@ executables:
     dependencies:
     - synthesis
 
+  evolutionary:
+    source-dirs: evolutionary
+    main: Main.hs
+    dependencies:
+    - synthesis
+
 benchmarks:
   synthesis-benchmarks:
     source-dirs: benchmark
