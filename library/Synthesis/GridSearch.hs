@@ -70,23 +70,23 @@ hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
     hidden1Opts
 
 dropoutRateOpts :: [Double]
-dropoutRateOpts = [0.0] -- 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
+dropoutRateOpts = 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
 
 regularizationOpts :: [Float]
 regularizationOpts = [0.0] -- 0 : reverse ((\x -> 10 ** (-x)) <$> [1..4])
 
 -- | skip `m=1`: must be an even number for H.
 mOpts :: [Int]
-mOpts = [16,32] -- (2 ^) <$> [3..7]
+mOpts = (2 ^) <$> [3..7]
 
 hOpts :: [Int]
-hOpts = [20] -- (2 ^) <$> [3..7]
+hOpts = (2 ^) <$> [3..7]
 
 hidden0Opts :: [Int]
-hidden0Opts = [8] -- (2 ^) <$> [2..6]
+hidden0Opts = (2 ^) <$> [2..6]
 
 hidden1Opts :: [Int]
-hidden1Opts = [8] -- (2 ^) <$> [2..6]
+hidden1Opts = (2 ^) <$> [2..6]
 
 -- | main function
 main :: IO ()
