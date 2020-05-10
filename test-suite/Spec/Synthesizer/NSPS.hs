@@ -89,15 +89,15 @@ nsps = parallel $ let
         let charMap :: HashMap Char Int = mkCharMap io_pairs
         -- putStrLn $ show (size charMap + 1)
         enc_model :: LstmEncoder Device MaxStringLength EncoderBatch' MaxChar H <- A.sample $ LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
-        io_feats :: Tensor Device 'D.Float '[EncoderBatch', 2 * Dirs * H * MaxStringLength] <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model io_pairs
-        D.shape (toDynamic io_feats) `shouldBe` [length io_pairs, 2 * dirs * natValI @H * maxStringLength']
+        io_feats :: Tensor Device 'D.Float '[R3nnBatch', 2 * Dirs * H * MaxStringLength] <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model io_pairs
+        D.shape (toDynamic io_feats) `shouldBe` [natValI @R3nnBatch', natValI @(2 * Dirs * H * MaxStringLength)]
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters enc_model
         let loss :: Tensor Device 'D.Float '[] = sumAll io_feats  -- dummy op for loss with gradient
         (newParam, optim') <- D.runStep enc_model optim (toDynamic loss) lr
         let enc_model' :: LstmEncoder Device MaxStringLength EncoderBatch' MaxChar H = A.replaceParameters enc_model newParam
 
-        io_feats' :: Tensor Device 'D.Float '[EncoderBatch', 2 * Dirs * H * MaxStringLength] <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model' io_pairs
+        io_feats' :: Tensor Device 'D.Float '[R3nnBatch', 2 * Dirs * H * MaxStringLength] <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model' io_pairs
         let loss' :: Tensor Device 'D.Float '[] = sumAll io_feats'
         toBool (loss' <. loss) `shouldBe` True
 
@@ -156,7 +156,6 @@ nsps = parallel $ let
         let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
         let charMap :: HashMap Char Int = mkCharMap io_pairs
         enc_model :: LstmEncoder Device MaxStringLength EncoderBatch' MaxChar H <- A.sample $ LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
-        --  :: Tensor Device 'D.Float '[n, 2 * Dirs * H * MaxStringLength]
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model io_pairs
         r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1

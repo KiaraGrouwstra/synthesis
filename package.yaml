@@ -54,7 +54,8 @@ dependencies:
   - prettyprinter
   - store
   - optparse-applicative
-  # - memoize
+  - io-memoize
+  - GA
 
 library:
   dependencies: []
@@ -82,6 +83,12 @@ executables:
 
   grid-search:
     source-dirs: grid-search
+    main: Main.hs
+    dependencies:
+    - synthesis
+
+  evolutionary:
+    source-dirs: evolutionary
     main: Main.hs
     dependencies:
     - synthesis

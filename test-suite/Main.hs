@@ -70,6 +70,7 @@ import           Spec.Utility
 import           Spec.Synthesizer.NSPS
 import           Spec.Synthesizer.Synthesizer
 import           Spec.Synthesizer.Utility
+import           Spec.Synthesizer.Optimization
 
 main ∷ IO ()
 main = do
@@ -85,5 +86,6 @@ main = do
     ast_ <- testSpec "Ast" ast
     synth_util_ <- testSpec "Synthesizer: Utility" synth_util
     nsps_ <- testSpec "NSPS" nsps
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_]
+    optim_ <- testSpec "optim" optim
+    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_, optim_]
     defaultMain tree

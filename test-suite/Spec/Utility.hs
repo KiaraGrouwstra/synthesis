@@ -103,8 +103,21 @@ util = parallel $ do
         pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
 
     it "randomSplit" $ do
-        GenerationConfig {..} :: GenerationConfig <- liftIO parseGenerationConfig
+        GenerationConfig{..} <- parseGenerationConfig
         let stdGen :: StdGen = mkStdGen seed
         let (nums_train, _nums_validation, _nums_test) =
                 randomSplit stdGen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
         length nums_train `shouldBe` 5
+
+    it "combineConfig" $ do
+        synthCfg <- parseSynthesizerConfig
+        gridCfg <- parseGridSearchConfig
+        let hparComb = HparComb
+                { dropoutRate = 0.0
+                , regularization = 0.0
+                , m = 20
+                , h = 30
+                , hidden0 = 20
+                , hidden1 = 20
+                }
+        combineConfig gridCfg hparComb `shouldBe` synthCfg

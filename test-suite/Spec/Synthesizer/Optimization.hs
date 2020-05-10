@@ -5,7 +5,7 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Spec.TypeGen (module Spec.TypeGen) where
+module Spec.Synthesizer.Optimization (module Spec.Synthesizer.Optimization) where
 
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
@@ -15,13 +15,15 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Prelude                      hiding (abs, all)
 import           Control.Exception            (SomeException, try, evaluate)
+import           Control.Monad (mapM, join)
 import           Data.Int                     (Int64)
 import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.Bifunctor               (first, second)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
-import qualified Data.Set
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList, size)
+import qualified Data.Set as Set
+import           Data.Yaml
 import           System.Random                (StdGen, mkStdGen)
 import           System.Timeout               (timeout)
 import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks, typeChecksWithDetails)
@@ -32,7 +34,9 @@ import           GHC.TypeNats
 import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
+import qualified Torch.DType                   as D
 import qualified Torch.Optim                   as D
+import qualified Torch.Autograd                as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
@@ -58,49 +62,28 @@ import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.NSPS
+import           Synthesis.Synthesizer.Train
 import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
+import           Synthesis.GridSearch
+import           Spec.Synthesizer.Types
 
-typeGen ∷ Spec
-typeGen = parallel $ let
-        bl = tyCon "Bool"
-        int_ = tyCon "Int"
-        str = tyCon "String"
-        types_by_arity = insert 1 ["[]"] (singleton 0 ["Bool", "Int"])
-    in do
+type Device = Cpu
 
-    it "findTypeVars" $ do
-        -- Num a => a -> Set b
-        let a = tyVar "a"
-        let tp = tyForall Nothing (Just $ cxTuple [typeA "Num" a]) $ tyFun a $ tyApp (tyCon "Set") $ tyVar "b"
-        findTypeVars tp `shouldBe` insert "a" (0, [tyCon "Num"]) (singleton "b" (0, []))
-        -- Ord a => [a] -> [a]
-        findTypeVars (tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a) `shouldBe` singleton "a" (0, [tyCon "Ord"])
-        -- Foldable t => t a -> Bool
-        pp_ (findTypeVars (parseType "Foldable t => t a -> Bool")) `shouldBe` pp_ (insert "t" (1 :: Int, [tyCon "Foldable"]) (singleton "a" (0 :: Int, [])))
+optim ∷ Spec
+optim = parallel $ do
 
-    it "randomType" $ do
-        GenerationConfig{..} <- liftIO parseGenerationConfig
-        tp <- randomType types_by_arity False False nestLimit empty 0
-        [tyCon "Bool", tyCon "Int"] `shouldContain` [tp]
-
-    it "randomFnType" $ do
-        GenerationConfig{..} <- liftIO parseGenerationConfig
-        tp <- randomFnType types_by_arity False False nestLimit empty 0
-        [tyFun bl bl, tyFun bl int_, tyFun int_ bl, tyFun int_ int_] `shouldContain` [tp]
-
-    it "genTypes" $ do
-        hm <- genTypes types_by_arity 0 10
-        hm ! 0 `shouldContain` [bl]
-
-    it "fillTypeVars" $ do
-        let a = tyVar "a"
-        -- int_ -> a: a => Bool
-        pp (fillTypeVars (tyFun int_ a) (singleton "a" bl)) `shouldBe` pp (tyFun int_ bl)
-        -- Ord a => [a] -> [a]
-        let tp = tyForall Nothing (Just $ cxTuple [typeA "Ord" a]) $ tyFun (tyList a) $ tyList a
-        pp (fillTypeVars tp (singleton "a" bl)) `shouldBe` pp (tyFun (tyList bl) (tyList bl))
-
-    it "mergeTyVars" $
-        mergeTyVars (singleton "a" [bl, str]) (singleton "a" [int_, bl]) `shouldBe` singleton "a" [bl, str, int_]
+    it "static parameter combinations" $ do
+        cfg :: GridSearchConfig <- parseGridSearchConfig
+        let GridSearchConfig{..} = cfg
+        taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
+        let TaskFnDataset{..} = taskFnDataset
+        (length $ (flip (!!) $ head mOpts) $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` (length hparCombs `div` length mOpts)
+        (length . join        $ pickIdxs mOpts $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs
+        (length . join . join $ pickIdxs hOpts $ getH @Device @0 @0 @0 @0 @0    cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts
+        -- putStrLn . show $ length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! longestString) $ getMaxStringLength @Device @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! (size dsl + natValI @LhsSymbols)) $ getSymbols @Device @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! (size charMap + 1)) $ getMaxChar @Device @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! length exprBlocks) $ getRules @Device @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts

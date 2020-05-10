@@ -17,7 +17,7 @@ import Data.Maybe (fromJust, isJust)
 import qualified Data.Text.Prettyprint.Doc as PP
 import GHC.Exts (groupWith)
 import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
-import System.Random (RandomGen(..), randomR, randomRIO)
+import System.Random (RandomGen(..), mkStdGen, randomR, randomRIO)
 import System.Log.Logger
 
 -- | map over both elements of a tuple
@@ -51,6 +51,12 @@ data NestedTuple a = SingleTuple (a, a) | DeepTuple (a, NestedTuple a)
 -- | randomly pick an item from a list
 pick :: [a] -> IO a
 pick xs = (xs !!) <$> randomRIO (0, length xs - 1)
+
+-- | randomly pick an item from a list given a seed
+pickG :: Int -> [a] -> a
+pickG seed xs = xs !! i where
+    g = mkStdGen seed
+    (i, _g') = randomR (0, length xs - 1) g
 
 -- | group a list of k/v pairs by values, essentially inverting the original HashMap
 groupByVal :: (Hashable v, Ord v) => [(k, v)] -> HashMap v [k]
@@ -185,3 +191,11 @@ logPriority lvl = case lvl of
     "alert"     -> ALERT
     "emergency" -> EMERGENCY
     _ -> error $ "unknown log level: " <> lvl
+
+mapToSnd :: (a -> b) -> a -> (a, b)
+mapToSnd f a = (a, f a)
+
+traverseSnd :: Monad m => (a, m b) -> m (a, b)
+traverseSnd (a, m) = do
+    b <- m
+    return (a, b)

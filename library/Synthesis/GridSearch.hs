@@ -28,10 +28,11 @@ import           Data.Text.Internal.Lazy (Text)
 import           Data.Proxy
 import           Data.Bifunctor (second)
 import           Data.Yaml
-import           Data.HashMap.Lazy (size)
+import           Data.HashMap.Lazy (HashMap, size, fromList)
 import           Util (thdOf3)
 import           Text.Printf
 import           Language.Haskell.Interpreter (Interpreter, liftIO)
+
 import           Torch.Internal.Managed.Type.Context (manual_seed_L)
 import           Torch.Typed.Tensor
 import           Torch.Typed.Functional
@@ -44,6 +45,7 @@ import qualified Torch.DType                   as D
 import qualified Torch.Autograd                as D
 import qualified Torch.Serialize               as D
 import qualified Torch.NN                      as A
+
 import           Synthesis.Data
 import           Synthesis.Hint
 import           Synthesis.Orphanage ()
@@ -60,14 +62,18 @@ import           Synthesis.Synthesizer.Train
 import           Synthesis.Synthesizer.Params
 
 hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
-    -- dropoutRate :: Double
-    (0 : reverse ((\x -> 2 ** (-x)) <$> [1..5]) :: [Double])
-    -- regularization :: Float
-    (0 : reverse ((\x -> 10 ** (-x)) <$> [1..4]) :: [Float])
+    dropoutRateOpts
+    regularizationOpts
     mOpts
     hOpts
     hidden0Opts
     hidden1Opts
+
+dropoutRateOpts :: [Double]
+dropoutRateOpts = 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
+
+regularizationOpts :: [Float]
+regularizationOpts = [0.0] -- 0 : reverse ((\x -> 10 ** (-x)) <$> [1..4])
 
 -- | skip `m=1`: must be an even number for H.
 mOpts :: [Int]
@@ -97,9 +103,9 @@ gridSearch = do
     putStrLn . show $ generationCfg
     pb <- newProgressBar pgStyle 1 (Progress 0 (length hparCombs) ("grid-search" :: Text))
     let stdGen :: StdGen = mkStdGen seed
-    let hparCombs' :: [IO (HparComb, (EvalResult, IO ()))] = fmap (`finally` incProgress pb 1) $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
+    let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = fmap (second (`finally` incProgress pb 1)) $ join . join $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
     let (hparCombs'', _gen') = fisherYates stdGen hparCombs'    -- shuffle
-    hparResults :: [(HparComb, (EvalResult, IO ()))] <- sequence $ take evalRounds hparCombs''
+    hparResults :: [(HparComb, (EvalResult, IO ()))] <- sequence $ traverseSnd <$> take evalRounds hparCombs''
 
     -- write results to csv
     let resultPath = printf "%s/gridsearch-%s.csv" resultFolder $ ppCfg cfg
@@ -111,36 +117,36 @@ gridSearch = do
 
 -- bending over backward to get the compiler to accept my dynamically calculated values as static
 
-getRules :: forall device rules . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
+getRules :: forall device rules . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[[[(HparComb, IO (EvalResult, IO ()))]]]]
 getRules cfg taskFnDataset hparCombs = let TaskFnDataset{..} = taskFnDataset in (:)
         ((!! (size charMap + 1)) $ getMaxChar @device @rules @0 cfg taskFnDataset hparCombs)
         $ getRules @device @(rules + 1) cfg taskFnDataset hparCombs
 
-getMaxChar :: forall device rules maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
+getMaxChar :: forall device rules maxChar . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[[[(HparComb, IO (EvalResult, IO ()))]]]]
 getMaxChar cfg taskFnDataset hparCombs = (:)
         ((!! (size (dsl taskFnDataset) + natValI @LhsSymbols)) $ getSymbols @device @rules @maxChar @0 cfg taskFnDataset hparCombs)
         $ getMaxChar @device @rules @(maxChar + 1) cfg taskFnDataset hparCombs
 
-getSymbols :: forall device rules maxChar symbols . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
+getSymbols :: forall device rules maxChar symbols . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[[[(HparComb, IO (EvalResult, IO ()))]]]]
 getSymbols cfg taskFnDataset hparCombs = (:)
         ((!! longestString taskFnDataset) $ getMaxStringLength @device @rules @maxChar @symbols @0 cfg taskFnDataset hparCombs)
         $ getSymbols @device @rules @maxChar @(symbols + 1) cfg taskFnDataset hparCombs
 
-getMaxStringLength :: forall device rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[IO (HparComb, (EvalResult, IO ()))]]
+getMaxStringLength :: forall device rules maxChar symbols maxStringLength . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[[[(HparComb, IO (EvalResult, IO ()))]]]]
 getMaxStringLength cfg taskFnDataset hparCombs = (:)
-        (takeAll hOpts $ getH @device @rules @maxChar @symbols @maxStringLength @0 cfg taskFnDataset hparCombs)
+        (pickIdxs hOpts $ getH @device @rules @maxChar @symbols @maxStringLength @0 cfg taskFnDataset hparCombs)
         $ getMaxStringLength @device @rules @maxChar @symbols @(maxStringLength + 1) cfg taskFnDataset hparCombs
 
 -- then actually dynamically iterate over hyperparameter values, again to trick the compiler into considering them as static
 
-getH :: forall device rules maxChar symbols maxStringLength h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [IO (HparComb, (EvalResult, IO ()))]
-getH cfg taskFnDataset hparCombs = (<>)
-        (takeAll mOpts $ getM @device @rules @maxChar @symbols @maxStringLength @h @0 cfg taskFnDataset hparCombs)
+getH :: forall device rules maxChar symbols maxStringLength h . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[[(HparComb, IO (EvalResult, IO ()))]]]
+getH cfg taskFnDataset hparCombs = (:)
+        (pickIdxs mOpts $ getM @device @rules @maxChar @symbols @maxStringLength @h @0 cfg taskFnDataset hparCombs)
         $ getH @device @rules @maxChar @symbols @maxStringLength @(h + 1) cfg taskFnDataset hparCombs
 
-getM :: forall device rules maxChar symbols maxStringLength h m . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownNat m) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [IO (HparComb, (EvalResult, IO ()))]
-getM cfg taskFnDataset hparCombs = (<>)
-        (traverseToSnd (evalHparComb @device @m @rules @maxChar @symbols @maxStringLength @h taskFnDataset cfg) <$> filter (\HparComb{..} -> m == natValI @m) hparCombs)
+getM :: forall device rules maxChar symbols maxStringLength h m . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownNat m) => GridSearchConfig -> TaskFnDataset -> [HparComb] -> [[(HparComb, IO (EvalResult, IO ()))]]
+getM cfg taskFnDataset hparCombs = (:)
+        (mapToSnd (evalHparComb @device @m @rules @maxChar @symbols @maxStringLength @h taskFnDataset cfg) <$> filter (\HparComb{..} -> m == natValI @m) hparCombs)
         $ getM @device @rules @maxChar @symbols @maxStringLength @h @(m + 1) cfg taskFnDataset hparCombs
 
 -- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this

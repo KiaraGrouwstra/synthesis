@@ -83,12 +83,7 @@ ast = parallel $ let
         pp (genUncurry 2) `shouldBe` "\\ fn (a, b) -> fn a b"
 
     it "genInputs" $ do
-        GenerationConfig { seed = seed
-                , numMin = numMin
-                , numMax = numMax
-                , listMin = listMin
-                , listMax = listMax
-                } :: GenerationConfig <- liftIO parseGenerationConfig
+        GenerationConfig{..} <- liftIO parseGenerationConfig
         let stdGen :: StdGen = mkStdGen seed
         let intRange = (numMin, numMax)
         let listLengths = (listMin, listMax)
