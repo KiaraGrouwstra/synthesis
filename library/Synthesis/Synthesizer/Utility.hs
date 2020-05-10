@@ -618,6 +618,6 @@ writeCsv :: Csv.ToNamedRecord a => FilePath -> Csv.Header -> [a] -> IO ()
 writeCsv filePath header =
     BS.writeFile filePath . BS.packChars . BL.unpackChars . Csv.encodeByName header
 
--- | get the finite part of an infinite list including any natural number in the original list
-takeAll :: Foldable t => t Int -> [a] -> [a]
-takeAll = take . maximum
+-- | take any given indices of a list
+pickIdxs :: [Int] -> [a] -> [a]
+pickIdxs idxs lst = (lst !!) <$> idxs

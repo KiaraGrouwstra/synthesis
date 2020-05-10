@@ -5,7 +5,7 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Spec.Utility (module Spec.Utility) where
+module Spec.Synthesizer.Optimization (module Spec.Synthesizer.Optimization) where
 
 import           Test.Tasty                   (TestTree, defaultMain, testGroup)
 import           Test.HUnit.Base              (Test (..))
@@ -15,13 +15,15 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Prelude                      hiding (abs, all)
 import           Control.Exception            (SomeException, try, evaluate)
+import           Control.Monad (mapM, join)
 import           Data.Int                     (Int64)
 import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.Bifunctor               (first, second)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList)
-import qualified Data.Set
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList, size)
+import qualified Data.Set as Set
+import           Data.Yaml
 import           System.Random                (StdGen, mkStdGen)
 import           System.Timeout               (timeout)
 import           Language.Haskell.Interpreter (as, interpret, liftIO, typeChecks, typeChecksWithDetails)
@@ -32,7 +34,9 @@ import           GHC.TypeNats
 import           Torch.Typed.Functional
 import qualified Torch.Tensor                  as D
 import qualified Torch.TensorFactories         as D
+import qualified Torch.DType                   as D
 import qualified Torch.Optim                   as D
+import qualified Torch.Autograd                as D
 import qualified Torch.Functional.Internal     as I
 import qualified Torch.Functional              as F
 import qualified Torch.NN                      as A
@@ -58,66 +62,28 @@ import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.NSPS
+import           Synthesis.Synthesizer.Train
 import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical  as Categorical
 import           Synthesis.Synthesizer.Params
+import           Synthesis.GridSearch
+import           Spec.Synthesizer.Types
 
-util ∷ Spec
-util = parallel $ do
+type Device = Cpu
 
-    it "mapTuple" $
-        mapTuple show (1 :: Int, 2) `shouldBe` ("1", "2")
+optim ∷ Spec
+optim = parallel $ do
 
-    it "mapTuple3" $
-        mapTuple3 show (1 :: Int, 2, 3) `shouldBe` ("1", "2", "3")
-
-    it "tuplify3" $
-        tuplify3 [1 :: Int, 2, 3] `shouldBe` (1 :: Int, 2, 3)
-
-    it "untuple3" $
-        untuple3 (1 :: Int, 2, 3) `shouldBe` [1 :: Int, 2, 3]
-
-    it "flatten" $
-        flatten (Many [One [1], One [2]]) `shouldBe` [1 :: Int, 2]
-
-    it "pick" $ do
-        x <- pick [1 :: Int, 2, 3]
-        x < 5 `shouldBe` True
-
-    it "groupByVal" $
-        groupByVal [(1 :: Int, "odd"), (2, "even"), (3, "odd")] `shouldBe` (insert "odd" [1, 3] (singleton "even" [2]) :: HashMap String [Int])
-
-    it "fromKeys" $
-        fromKeys show [1 :: Int, 2] `shouldBe` insert 1 "1" (singleton 2 "2")
-
-    it "fromKeysM" $ do
-        x <- fromKeysM (pure . show) [1 :: Int, 2]
-        x `shouldBe` insert 1 "1" (singleton 2 "2")
-
-    it "fromValsM" $ do
-        x <- fromValsM (pure . show) [1 :: Int, 2]
-        x `shouldBe` insert "1" 1 (singleton "2" 2)
-
-    it "pickKeys" $ do
-        let b = singleton "b" "B"
-        pickKeys ["b"] (insert "a" "A" b) `shouldBe` b
-
-    it "randomSplit" $ do
-        GenerationConfig{..} <- parseGenerationConfig
-        let stdGen :: StdGen = mkStdGen seed
-        let (nums_train, _nums_validation, _nums_test) =
-                randomSplit stdGen (0.5, 0.3, 0.2) [0 .. 9 :: Int]
-        length nums_train `shouldBe` 5
-
-    it "combineConfig" $ do
-        synthCfg <- parseSynthesizerConfig
-        gridCfg <- parseGridSearchConfig
-        let hparComb = HparComb
-                { dropoutRate = 0.0
-                , regularization = 0.0
-                , m = 20
-                , h = 30
-                , hidden0 = 20
-                , hidden1 = 20
-                }
-        combineConfig gridCfg hparComb `shouldBe` synthCfg
+    it "static parameter combinations" $ do
+        cfg :: GridSearchConfig <- parseGridSearchConfig
+        let GridSearchConfig{..} = cfg
+        taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
+        let TaskFnDataset{..} = taskFnDataset
+        (length $ (flip (!!) $ head mOpts) $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` (length hparCombs `div` length mOpts)
+        (length . join        $ pickIdxs mOpts $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs
+        (length . join . join $ pickIdxs hOpts $ getH @Device @0 @0 @0 @0 @0    cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts
+        -- putStrLn . show $ length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! longestString) $ getMaxStringLength @Device @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! (size dsl + natValI @LhsSymbols)) $ getSymbols @Device @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! (size charMap + 1)) $ getMaxChar @Device @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        -- (length . join . join $ (!! length exprBlocks) $ getRules @Device @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts

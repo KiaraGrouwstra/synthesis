@@ -23,12 +23,13 @@ import           System.IO.Memoize
 import           GA (Entity(..), GAConfig(..), evolveVerbose, randomSearch)
 -- import Control.Lens
 import           Data.Text.Internal.Lazy (Text)
-import           Data.HashMap.Lazy (HashMap, fromList, (!))
+import           Data.HashMap.Lazy (HashMap, fromList, (!), size, keys)
 import           Data.Bifunctor (second)
 import           Data.Hashable (Hashable (..))
 import           Data.Yaml
 import           Text.Printf
 import           Control.Exception (finally)
+import           Control.Monad (join)
 
 import           Torch.Internal.Managed.Type.Context (manual_seed_L)
 import           Torch.Typed.Tensor
@@ -60,7 +61,7 @@ instance Variable (Categorical a) a where
     genRand seed (Categorical opts) = pickG seed opts
     mutate seed (Categorical opts) _v = pickG seed opts
 
--- a list of options presumed to be ordinal and sorted, so mutate only one step at a time
+-- a list of options presumed to be ordinal, unique and sorted, so mutate only one step at a time
 data Ordinal a where
     Ordinal :: (Eq a, Hashable a) => [a] -> Ordinal a
 instance Variable (Ordinal a) a where
@@ -78,6 +79,9 @@ data Discrete a where
     Discrete :: (Ord a, Random a, Num a, Real a, Integral a) => (a, a) -> a -> Discrete a
 instance (Num a) => Variable (Discrete a) a where
     genRand seed (Discrete rng _base) = fst . randomR rng $ mkStdGen seed
+    -- discrete/continuous are more granular; my simple approach here fixes how strongly to mutate this variable, but a better approach involges simultaneously evolving this, see e.g. http://hackage.haskell.org/package/cmaes
+    -- under expensive evaluation this seems better for bayesian optimization than for evolutionary algorithms
+    -- note that an additional limitation in my approach for discrete/continuous mutation is they cannot currently flip sign
     mutate  seed (Discrete (lo, hi) base) v = v' where
         g = mkStdGen seed
         (pw :: Float, g') = randomR (-1.0, 1.0) g
@@ -96,13 +100,13 @@ instance (Fractional a) => Variable (Continuous a) a where
 -- now apply this variable logic to our HparComb parameters
 -- nope, I ain't using discrete/continuous, much too expensive!
 
-dropoutRateVar    :: Ordinal Double = Ordinal $ 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
-regularizationVar :: Ordinal Float  = Ordinal $ 0 : reverse ((\x -> 10 ** (-x)) <$> [1..4])
+dropoutRateVar    :: Ordinal Double = Ordinal dropoutRateOpts
+regularizationVar :: Ordinal Float  = Ordinal regularizationOpts
 -- | skip `m=1`: must be an even number for H.
-mVar              :: Ordinal Int    = Ordinal $ (2 ^) <$> [3..7]
-hVar              :: Ordinal Int    = Ordinal $ (2 ^) <$> [3..7]
-hidden0Var        :: Ordinal Int    = Ordinal $ (2 ^) <$> [2..6]
-hidden1Var        :: Ordinal Int    = Ordinal $ (2 ^) <$> [2..6]
+mVar              :: Ordinal Int    = Ordinal mOpts
+hVar              :: Ordinal Int    = Ordinal hOpts
+hidden0Var        :: Ordinal Int    = Ordinal hidden0Opts
+hidden1Var        :: Ordinal Int    = Ordinal hidden1Opts
 
 instance Entity HparComb Float (HparComb -> IO (EvalResult, IO ())) () IO where
 
@@ -159,7 +163,7 @@ evolutionary = do
     putStrLn . show $ generationCfg
     let len = length hparCombs
     let g = mkStdGen seed
-    let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
+    let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = join . fmap join $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
     let hparMap :: HashMap HparComb (IO (EvalResult, IO ())) = fromList hparCombs'
     hparMap'    :: HashMap HparComb (IO (EvalResult, IO ())) <- once `mapM` hparMap
     let getIO :: HparComb -> IO (EvalResult, IO ()) = (hparMap' !)

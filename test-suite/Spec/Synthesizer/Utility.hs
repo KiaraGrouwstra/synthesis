@@ -112,3 +112,6 @@ synth_util = parallel $ do
     --     let t = D.toCUDA $ D.asTensor $ [1,2,3::Int]
     --     putStrLn $ "t: " <> show t
     --     False `shouldBe` True
+
+    it "pickIdxs" $ do
+        pickIdxs [0,3,7] [0..10] `shouldBe` [0,3,7::Int]

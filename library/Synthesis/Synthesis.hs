@@ -16,6 +16,8 @@ module Synthesis.Synthesis (
     -- , module Synthesis.Generator
     -- , module Synthesis.Synthesizer
     -- , module Synthesis.ViewDataset
+    -- , module Synthesis.GridSearch
+    -- , module Synthesis.Evolutionary
 ) where
 
 import Synthesis.Data
@@ -34,3 +36,5 @@ import Synthesis.Blocks
 -- import Synthesis.Generator
 -- import Synthesis.Synthesizer
 -- import Synthesis.ViewDataset
+-- import Synthesis.GridSearch
+-- import Synthesis.Evolutionary
