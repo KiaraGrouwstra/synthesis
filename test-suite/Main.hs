@@ -76,7 +76,7 @@ main ∷ IO ()
 main = do
     -- unlike Tasty, HUnit's default printer is illegible,
     -- but helps ensure the Interpreter is run only once...
-    void $ runTestTT $ TestList [hint, gen, synth]
+    -- void $ runTestTT $ TestList [hint, gen, synth]
 
     -- Tasty HSpec
     util_ <- testSpec "Utility" util
@@ -87,5 +87,6 @@ main = do
     synth_util_ <- testSpec "Synthesizer: Utility" synth_util
     nsps_ <- testSpec "NSPS" nsps
     optim_ <- testSpec "optim" optim
-    let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_, optim_]
+    -- let tree :: TestTree = testGroup "synthesis" [util_, types_, typeGen_, find_, ast_, synth_util_, nsps_, optim_]
+    let tree :: TestTree = testGroup "synthesis" [optim_]
     defaultMain tree

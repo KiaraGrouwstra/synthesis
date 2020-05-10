@@ -82,8 +82,8 @@ optim = parallel $ do
         (length $ (flip (!!) $ head mOpts) $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` (length hparCombs `div` length mOpts)
         (length . join        $ pickIdxs mOpts $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs
         (length . join . join $ pickIdxs hOpts $ getH @Device @0 @0 @0 @0 @0    cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts
-        -- putStrLn . show $ length hparCombs * length mOpts * length hOpts
-        -- (length . join . join $ (!! longestString) $ getMaxStringLength @Device @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
-        -- (length . join . join $ (!! (size dsl + natValI @LhsSymbols)) $ getSymbols @Device @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
-        -- (length . join . join $ (!! (size charMap + 1)) $ getMaxChar @Device @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
-        -- (length . join . join $ (!! length exprBlocks) $ getRules @Device @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        putStrLn . show $ length hparCombs * length mOpts * length hOpts
+        (length . join . join $ (!! longestString) $ getMaxStringLength @Device @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        (length . join . join $ (!! (size dsl + natValI @LhsSymbols)) $ getSymbols @Device @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        (length . join . join $ (!! (size charMap + 1)) $ getMaxChar @Device @0 @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
+        (length . join . join $ (!! length exprBlocks) $ getRules @Device @0 cfg taskFnDataset hparCombs) `shouldBe` length hparCombs * length mOpts * length hOpts
