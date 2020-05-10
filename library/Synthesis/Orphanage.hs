@@ -223,3 +223,11 @@ instance ToJSON SynthesizerConfig where
 instance FromJSON GridSearchConfig
 instance ToJSON GridSearchConfig where
     toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON EvolutionaryConfig
+instance ToJSON EvolutionaryConfig where
+    toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON OptimizationConfig
+instance ToJSON OptimizationConfig where
+    toEncoding = genericToEncoding defaultOptions

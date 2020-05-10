@@ -102,6 +102,45 @@ data GridSearchConfig = GridSearchConfig
     , evalRounds :: Int
     } deriving (Eq, Show, Generic)
 
+-- I should probably include the actual GA config here,
+-- but without a refactor I can't make their defaults
+-- in evolutionaryConfig depend on hparCombs...
+data EvolutionaryConfig = EvolutionaryConfig
+    { taskPath :: String
+    , seed :: Int
+    , numEpochs :: Int
+    , bestOf :: Int
+    -- , dropoutRate :: Double
+    , evalFreq :: Int
+    , learningRate :: Float
+    , checkWindow :: Int
+    , convergenceThreshold :: Float
+    -- , maxHoles :: Int
+    , resultFolder :: String
+    , learningDecay :: Int
+    -- , regularization :: Float
+    , verbosity :: String
+    -- , evalRounds :: Int
+    } deriving (Eq, Show, Generic)
+
+data OptimizationConfig = OptimizationConfig
+    { taskPath :: String
+    , seed :: Int
+    , numEpochs :: Int
+    , bestOf :: Int
+    -- , dropoutRate :: Double
+    , evalFreq :: Int
+    , learningRate :: Float
+    , checkWindow :: Int
+    , convergenceThreshold :: Float
+    -- , maxHoles :: Int
+    , resultFolder :: String
+    , learningDecay :: Int
+    -- , regularization :: Float
+    , verbosity :: String
+    -- , evalRounds :: Int
+    } deriving (Eq, Show, Generic)
+
 data HparComb = HparComb
     { dropoutRate :: Double
     , regularization :: Float
@@ -147,9 +186,9 @@ instance ToNamedRecord (HparComb, EvalResult) where
 
 gridSearchHeader :: Header = header ["dropoutRate", "regularization", "m", "h", "hidden0", "hidden1"] <> evalResultHeader
 
-combineConfig :: GridSearchConfig -> HparComb -> SynthesizerConfig
-combineConfig gridCfg hparComb = cfg
-  where GridSearchConfig{..} = gridCfg
+combineConfig :: OptimizationConfig -> HparComb -> SynthesizerConfig
+combineConfig optCfg hparComb = cfg
+  where OptimizationConfig{..} = optCfg
         HparComb{..} = hparComb
         cfg = SynthesizerConfig
                 { taskPath             = taskPath

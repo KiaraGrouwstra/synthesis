@@ -156,8 +156,8 @@ main = if False -- hasCuda
 
 evolutionary :: forall device . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64) => IO ()
 evolutionary = do
-    cfg :: GridSearchConfig <- parseGridSearchConfig
-    let GridSearchConfig{..} = cfg
+    EvolutionaryConfig{..} <- parseEvolutionaryConfig
+    let cfg = OptimizationConfig{..}
     taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
     let TaskFnDataset{..} = taskFnDataset
     putStrLn . show $ generationCfg

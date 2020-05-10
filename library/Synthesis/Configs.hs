@@ -143,6 +143,33 @@ parseGridSearchConfig = execParser opts
      <> progDesc "perform hyperparameter optimization by a naive grid search"
      <> header "grid search" )
 
+evolutionaryConfig :: Parser EvolutionaryConfig
+evolutionaryConfig = EvolutionaryConfig
+    <$> taskPathOpt
+    <*> seedOpt
+    <*> numEpochsOpt
+    -- <*> encoderBatchOpt
+    -- <*> r3nnBatchOpt
+    <*> bestOfOpt
+    -- <*> dropoutRateOpt
+    <*> evalFreqOpt
+    <*> learningRateOpt
+    <*> checkWindowOpt
+    <*> convergenceThresholdOpt
+    <*> resultFolderOpt
+    <*> learningDecayOpt
+    -- <*> regularizationOpt
+    <*> verbosityOpt
+    -- <*> evalRoundsOpt
+
+parseEvolutionaryConfig :: IO EvolutionaryConfig
+parseEvolutionaryConfig = execParser opts
+  where
+    opts = info (evolutionaryConfig <**> helper)
+      ( fullDesc
+     <> progDesc "perform hyperparameter optimization by a genetic algorithm"
+     <> header "evolutionary" )
+
 viewDatasetConfig :: Parser ViewDatasetConfig
 viewDatasetConfig = ViewDatasetConfig
     <$> taskPathOpt

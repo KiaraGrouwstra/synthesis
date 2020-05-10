@@ -66,7 +66,7 @@ import qualified Synthesis.Synthesizer.Distribution as Distribution
 import qualified Synthesis.Synthesizer.Categorical as Categorical
 
 import           Synthesis.Orphanage ()
-import           Synthesis.Data hiding (GridSearchConfig (..))
+import           Synthesis.Data hiding (GridSearchConfig(..), EvolutionaryConfig(..))
 import           Synthesis.Utility
 import           Synthesis.Ast
 import           Synthesis.Generation

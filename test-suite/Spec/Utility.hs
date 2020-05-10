@@ -111,7 +111,8 @@ util = parallel $ do
 
     it "combineConfig" $ do
         synthCfg <- parseSynthesizerConfig
-        gridCfg <- parseGridSearchConfig
+        GridSearchConfig{..} <- parseGridSearchConfig
+        let optCfg = OptimizationConfig{..}
         let hparComb = HparComb
                 { dropoutRate = 0.0
                 , regularization = 0.0
@@ -120,4 +121,4 @@ util = parallel $ do
                 , hidden0 = 20
                 , hidden1 = 20
                 }
-        combineConfig gridCfg hparComb `shouldBe` synthCfg
+        combineConfig optCfg hparComb `shouldBe` synthCfg

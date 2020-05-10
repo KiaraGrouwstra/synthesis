@@ -75,8 +75,8 @@ optim ∷ Spec
 optim = parallel $ do
 
     it "static parameter combinations" $ do
-        cfg :: GridSearchConfig <- parseGridSearchConfig
-        let GridSearchConfig{..} = cfg
+        EvolutionaryConfig{..} <- parseEvolutionaryConfig
+        let cfg = OptimizationConfig{..}
         taskFnDataset :: TaskFnDataset <- decodeFileThrow taskPath
         let TaskFnDataset{..} = taskFnDataset
         (length $ (flip (!!) $ head mOpts) $ getM @Device @0 @0 @0 @0 @0 @0 cfg taskFnDataset hparCombs) `shouldBe` (length hparCombs `div` length mOpts)
