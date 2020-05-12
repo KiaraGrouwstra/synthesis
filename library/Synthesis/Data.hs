@@ -25,13 +25,15 @@ type Tp = Type L
 -- | Expression node, where my branches consist of function application, my leaves of typed holes or variables.
 type Expr = Exp L
 
+type Tpl2 a = (a,a)
+
 -- | things I wanna transfer between generation and synthesis sessions
 data TaskFnDataset = TaskFnDataset
     { generationCfg :: GenerationConfig
     , dsl :: HashMap String Expr
     , generatedTypes :: HashMap Int [String]  -- i.e. typesByArity
     , fnTypes :: HashMap Expr Tp
-    , fnInTypeInstanceOutputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
+    , fnTypeIOs :: HashMap Expr (HashMap (Tp, Tp) [(Expr, Either String Expr)])
     , restInstantiationInputs :: HashMap Tp [Expr]
     , datasets :: ([Expr], [Expr], [Expr])
     , exprBlocks :: [(String, Expr)]

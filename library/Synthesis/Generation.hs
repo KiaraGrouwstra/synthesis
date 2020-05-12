@@ -4,7 +4,7 @@
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation (module Synthesis.Generation) where
 
-import Control.Monad (filterM)
+import Control.Monad (join, filterM)
 import Data.Bifunctor (second)
 import Data.Either (isLeft)
 import Data.HashMap.Lazy
@@ -20,6 +20,7 @@ import Data.HashMap.Lazy
 import Data.List (minimumBy, partition)
 import Data.Ord (Ordering (..))
 import Data.Set (Set, insert)
+import Data.Bifunctor (first)
 import qualified Data.Set as Set
 import Language.Haskell.Exts.Parser (ParseResult, parse)
 import Language.Haskell.Exts.Syntax (Type (..))
@@ -113,15 +114,18 @@ fnOutputs
   :: Bool
   -> HashMap Tp [Expr]
   -> Expr
-  -> [[Tp]]
+  -> [([Tp], Tp)]
   -- | for each type instantiation, for each param, the input type as string
-  -> Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
-fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
-  case in_instantiations of
+  -> Interpreter (HashMap (Tp, Tp) [(Expr, Either String Expr)])
+fnOutputs crash_on_error instantiation_inputs fn_ast tp_instantiations =
+  case tp_instantiations of
     [] -> return empty
     _ -> do
+      let tp_pairs :: [(Tp, Tp)] = first tplIfMultiple <$> tp_instantiations
+      let in_instantiations :: [Tp] = fst <$> tp_pairs
+      let in_par_instantiations :: [[Tp]] = fst <$> tp_instantiations
       -- a list of samples for parameters for types
-      let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_instantiations
+      let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_par_instantiations
       -- tuples of samples by param
       -- `sequence` acts as a cartesian product
       let param_combs :: [[[Expr]]] = sequence <$> inputs
@@ -131,7 +135,7 @@ fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
         _ -> do
           let n = length . head . head $ param_combs
           let ins :: [Expr] = list . fmap tuple <$> param_combs
-          fmap (fromList . zip in_instantiations) $ mapM (uncurry $ fnIoPairs crash_on_error n fn_ast) $ zip in_instantiations ins
+          fmap (fromList . zip tp_pairs) $ mapM (uncurry $ fnIoPairs crash_on_error n fn_ast) $ zip in_instantiations ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 
@@ -194,5 +198,8 @@ dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
   kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
 
 -- find the characters occurring in an i/o dataset and hash them to unique contiguous numbers
-mkCharMap :: [(Expr, Either String Expr)] -> HashMap Char Int
-mkCharMap ios = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> ios
+mkCharMap :: [HashMap (Tp, Tp) [(Expr, Either String Expr)]] -> HashMap Char Int
+mkCharMap tps_ios = charIndex where
+    charIndex = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . join $ exprStrs <> tpStrs
+    exprStrs :: [String] = (\(i,o) -> pp i <> pp_ o) <$> (join . join $ elems <$> tps_ios)
+    tpStrs :: [String] = (\(i,o) -> pp i <> pp o) <$> (join $ keys <$> tps_ios)

@@ -115,3 +115,9 @@ synth_util = parallel $ do
 
     it "pickIdxs" $ do
         pickIdxs [0,3,7] [0..10] `shouldBe` [0,3,7::Int]
+
+    it "d_repeat" $ do
+        D.asValue (d_repeat [2,1] (D.asTensor [[1,2],[3,4::Int]])) `shouldBe` [[1,2],[3,4],[1,2],[3,4::Int]]
+
+    it "repeatDim" $ do
+        D.asValue (repeatDim 1 2 (D.asTensor [[1,2],[3,4::Int]])) `shouldBe` [[[1,2],[1,2]],[[3,4],[3,4::Int]]]

@@ -7,7 +7,7 @@ import Control.Monad (filterM, join, foldM)
 import Data.Bifoldable (biList)
 import Data.List (replicate, intercalate, maximumBy, minimumBy)
 import Data.List.Split (splitOn)
-import Data.Bifunctor (first)
+import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.HashMap.Lazy ((!), HashMap, fromList, toList)
 import qualified Data.HashMap.Lazy as HM
 import Data.Map (Map)
@@ -20,9 +20,9 @@ import Language.Haskell.Exts.Pretty (Pretty, prettyPrint)
 import System.Random (RandomGen(..), mkStdGen, randomR, randomRIO)
 import System.Log.Logger
 
--- | map over both elements of a tuple
-mapTuple :: (a -> b) -> (a, a) -> (b, b)
-mapTuple = join (***)
+-- | map over both elements of a bifunctor
+mapBoth :: Bifunctor p => (a -> b) -> p a a -> p b b
+mapBoth f = bimap f f
 
 -- | map over of a 3-element tuple
 mapTuple3 :: (a -> b) -> (a, a, a) -> (b, b, b)
@@ -199,3 +199,7 @@ traverseSnd :: Monad m => (a, m b) -> m (a, b)
 traverseSnd (a, m) = do
     b <- m
     return (a, b)
+
+-- map a HashMap as pairs
+asPairs :: (Eq k2, Hashable k2) => ((k1, v1) -> (k2, v2)) -> HashMap k1 v1 -> HashMap k2 v2
+asPairs f = fromList . fmap f . toList

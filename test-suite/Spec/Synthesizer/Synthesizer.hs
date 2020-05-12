@@ -15,12 +15,13 @@ import           Test.Tasty.HUnit             ((@?=))
 
 import           Prelude                      hiding (abs, all)
 import           Control.Exception            (SomeException, try, evaluate)
+import           Control.Monad                (join)
 import           Data.Int                     (Int64)
 import           Data.Maybe                   (isNothing)
 import           Data.Either                  (fromRight, isRight)
 import           Data.Functor                 (void, (<&>))
 import           Data.Bifunctor               (first, second)
-import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, fromList, toList)
+import           Data.HashMap.Lazy            (HashMap, empty, insert, singleton, (!), keys, elems, fromList, toList)
 import qualified Data.Set as Set
 import           System.Random                (StdGen, mkStdGen)
 import           System.Timeout               (timeout)
@@ -71,6 +72,8 @@ type Device = Cpu
 
 synth ∷ Test
 synth = let
+        int_ = tyCon "Int"
+        str = tyCon "String"
         dropOut :: Double = 0.0
         hidden0 :: Int = 20
         hidden1 :: Int = 20
@@ -90,13 +93,14 @@ synth = let
         let task_fn :: Expr = letIn (pickKeysSafe ["true"] dsl) $ parseExpr "not (not true)"
         taskType :: Tp <- interpretUnsafe $ exprType task_fn
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
-        let io_pairs :: [(Expr, Either String Expr)] = [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
-        let charMap :: HashMap Char Int = mkCharMap io_pairs
+        let tp_io_pairs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = singleton (int_, str) [(parseExpr "0", Right (parseExpr "\"0\"")), (parseExpr "1", Right (parseExpr "\"1\"")), (parseExpr "2", Right (parseExpr "\"2\""))]
+        let io_pairs :: [(Expr, Either String Expr)] = join . elems $ tp_io_pairs
+        let charMap :: HashMap Char Int = mkCharMap [tp_io_pairs]
         let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
         let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn variants r3nnBatch' dropOut hidden0 hidden1
         model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H <- A.sample $ NSPSSpec encoder_spec r3nn_spec
-        sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength * (2 * Dirs * H)]
-                <- encode @Device @'[R3nnBatch', MaxStringLength * (2 * Dirs * H)] @Rules model io_pairs
+        sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength * (4 * Dirs * H)]
+                <- encode @Device @'[R3nnBatch', MaxStringLength * (4 * Dirs * H)] @Rules model tp_io_pairs
 
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3

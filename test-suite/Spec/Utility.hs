@@ -65,8 +65,8 @@ import           Synthesis.Synthesizer.Params
 util ∷ Spec
 util = parallel $ do
 
-    it "mapTuple" $
-        mapTuple show (1 :: Int, 2) `shouldBe` ("1", "2")
+    it "mapBoth" $
+        mapBoth show (1 :: Int, 2) `shouldBe` ("1", "2")
 
     it "mapTuple3" $
         mapTuple3 show (1 :: Int, 2, 3) `shouldBe` ("1", "2", "3")

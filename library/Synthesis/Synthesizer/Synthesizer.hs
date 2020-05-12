@@ -80,7 +80,7 @@ import           Synthesis.Synthesizer.Params
 
 class (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, A.Parameterized synthesizer) => Synthesizer device shape rules synthesizer where
     encode    :: synthesizer
-                -> [(Expr, Either String Expr)]
+                -> HashMap (Tp, Tp) [(Expr, Either String Expr)]
                 -> IO (Tensor device 'D.Float shape)
     predict   :: forall num_holes
                  . synthesizer

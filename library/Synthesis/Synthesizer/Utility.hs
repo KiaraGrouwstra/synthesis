@@ -23,6 +23,7 @@ import GHC.Stack
 import GHC.TypeLits
 import GHC.TypeNats (Nat, KnownNat, type (+), type (*))
 import System.Random (RandomGen, Random, random)
+import Debug.Trace (trace)
 import Data.Int (Int64)
 import Data.Maybe (fromJust)
 import Data.List (findIndex)
@@ -48,7 +49,7 @@ import Language.Haskell.Exts.Syntax
 import           Torch.Typed.Aux
 import           Torch.Typed.Tensor hiding (dim)
 import qualified Torch.Typed.Tensor
-import           Torch.Typed.Functional
+import           Torch.Typed.Functional hiding (trace)
 import           Torch.Typed.Parameter
 import qualified Torch.Typed.Parameter
 import           Torch.Typed.NN
@@ -75,6 +76,18 @@ import Synthesis.Hint (exprType)
 
 import System.IO.Unsafe (unsafePerformIO)
 import Torch.Internal.Cast
+
+import System.IO.Unsafe
+import qualified Torch.Internal.Managed.Native as ATen
+import qualified Torch.Internal.Managed.Type.Tensor as ATen
+import qualified Torch.Internal.Managed.Cast
+import Torch.Internal.Cast
+
+d_repeat :: [Int] -> D.Tensor -> D.Tensor
+d_repeat ns t = unsafePerformIO $ (cast2 ATen.tensor_repeat_l) t ns
+
+repeatDim :: Int -> Int -> D.Tensor -> D.Tensor
+repeatDim dim n t = d_repeat (replicate dim 1 <> [n] <> replicate (D.dim t - dim) 1) $ I.unsqueeze t dim
 
 type Dir = 'Bidirectional
 type Dirs = NumberOfDirections Dir
@@ -621,3 +634,12 @@ writeCsv filePath header =
 -- | take any given indices of a list
 pickIdxs :: [Int] -> [a] -> [a]
 pickIdxs idxs lst = (lst !!) <$> idxs
+
+-- | print info about an item
+-- | not referentially transparent, see https://hackage.haskell.org/package/base-4.14.0.0/docs/Debug-Trace.html#v:trace
+showTrace :: Show a => a -> a
+showTrace a = trace (show a) a
+
+-- | print info about an item with a description
+showTraceOf :: Show a => String -> a -> a
+showTraceOf str a = trace (str <> ": " <> show a) a

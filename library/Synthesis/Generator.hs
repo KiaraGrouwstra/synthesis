@@ -88,16 +88,16 @@ program = do
     let type_fn_instantiations :: HashMap Tp [Tp] = fromList $ zip task_types task_instantiations
     say "\ntype_fn_instantiations:"
     say $ pp_ type_fn_instantiations
-    let type_in_type_instantiations :: HashMap Tp [[Tp]] = fmap fnInputTypes <$> type_fn_instantiations
-    say "\ntype_in_type_instantiations:"
-    say $ pp_ type_in_type_instantiations
-    let in_type_instantiations :: [Tp] = nubPp . concat . concat . elems $ type_in_type_instantiations
+    let type_instantiations :: HashMap Tp [([Tp], Tp)] = fmap fnTypeIO <$> type_fn_instantiations
+    say "\ntype_instantiations:"
+    say $ pp_ type_instantiations
+    let in_type_instantiations :: [Tp] = nubPp . concat . fmap fst . concat . elems $ type_instantiations
     say "\nin_type_instantiations:"
     say $ pp_ in_type_instantiations
     -- for each function, for each type instantiation, for each param, the input type as string
-    let fn_in_type_instantiations :: HashMap Expr [[Tp]] = (type_in_type_instantiations !) <$> fn_types
-    say "\nfn_in_type_instantiations:"
-    say $ pp_ fn_in_type_instantiations
+    let fn_type_instantiations :: HashMap Expr [([Tp], Tp)] = (type_instantiations !) <$> fn_types
+    say "\nfn_type_instantiations:"
+    say $ pp_ fn_type_instantiations
     -- do sample generation not for each function but for each function input type
     -- for each non-function parameter combo type instantiation, a list of sample expressions
     let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (listMin, listMax) numInputs) rest_type_instantiations
@@ -113,24 +113,28 @@ program = do
     let both_instantiation_inputs :: HashMap Tp [Expr] = rest_instantiation_inputs `union` instantiated_fn_options
     say "\nboth_instantiation_inputs:"
     say $ pp_ both_instantiation_inputs
-    fn_in_type_instance_outputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
-    say "\nfn_in_type_instance_outputs:"
-    say $ pp_ fn_in_type_instance_outputs
+    fn_type_ios :: HashMap Expr (HashMap (Tp, Tp) [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_type_instantiations
+    say "\nfn_type_ios:"
+    say $ pp_ fn_type_ios
     -- combine i/o lists across type instances
     let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
-            join . elems <$> fn_in_type_instance_outputs
+            join . elems <$> fn_type_ios
 
     -- TODO: ensure sets contains no fns w/ behavior identical to any in other sets to prevent cheating
-    -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_in_type_instance_outputs
+    -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_type_ios
     -- filter out programs without i/o samples
     let kept_fns :: [Expr] = (not . null . (task_io_pairs !)) `filter` programs
     say "\nkept_fns:"
     say $ pp_ kept_fns
 
+    let tp_pairs :: [(Tp, Tp)] = join . elems $ keys <$> fn_type_ios
+    let longest_tp_string :: Int =
+            maximum $ length <$> fmap (pp . fst) tp_pairs <> fmap (pp . snd) tp_pairs
     let ios :: [(Expr, Either String Expr)] =
-            join . elems $ join . elems <$> fn_in_type_instance_outputs
-    let longest_string :: Int = maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
-    let charMap :: HashMap Char Int = mkCharMap ios
+            join . elems $ join . elems <$> fn_type_ios
+    let longest_string :: Int = max longest_tp_string $
+            maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
+    let charMap :: HashMap Char Int = mkCharMap $ elems fn_type_ios
 
     -- it's kinda weird this splitting is non-monadic, cuz it should be random
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
@@ -141,7 +145,7 @@ program = do
         blockAsts
         typesByArity
         fn_types
-        fn_in_type_instance_outputs
+        fn_type_ios
         rest_instantiation_inputs
         datasets
         expr_blocks
@@ -153,7 +157,7 @@ program = do
         let fn_type :: Tp = fn_types ! ast
         say "================================================"
         say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-        let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_in_type_instance_outputs ! ast
+        let in_type_instance_outputs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fn_type_ios ! ast
         say $ pp_ in_type_instance_outputs
 
     let set_list = untuple3 datasets

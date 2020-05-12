@@ -371,7 +371,6 @@ fnIOTypes :: Tp -> [Tp]
 fnIOTypes = (\tpl -> fst tpl ++ [snd tpl]) . fnTypeIO
 
 -- | extract the input and output types from a function type
--- TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
   TyForall _l maybeTyVarBinds maybeContext tp -> case tp of
@@ -382,6 +381,12 @@ fnTypeIO = \case
   TyFun _l a b -> first (a :) $ fnTypeIO b
   TyParen _l a -> fnTypeIO a
   tp -> ([], tp)
+
+tplIfMultiple :: [Tp] -> Tp
+tplIfMultiple = \case
+    [] -> error "in types expected!"
+    [tp] -> tp
+    tps -> tyTuple tps
 
 -- | extract the input types from a function type
 fnInputTypes :: Tp -> [Tp]

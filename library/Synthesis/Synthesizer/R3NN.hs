@@ -62,7 +62,7 @@ data R3NNSpec
         -- symbolIdxs :: HashMap String Int
         -- ppt :: Expr
       . { variant_sizes :: HashMap String Int
-        , conditionSpec :: LSTMSpec (m + batch_size * maxStringLength * (2 * Dirs * h)) (Div m Dirs) NumLayers Dir 'D.Float device
+        , conditionSpec :: LSTMSpec (m + batch_size * maxStringLength * (4 * Dirs * h)) (Div m Dirs) NumLayers Dir 'D.Float device
         , scoreSpec     :: LSTMSpec  m                                    (Div m Dirs) NumLayers Dir 'D.Float device
         , leftH0  :: Int
         , leftH1  :: Int
@@ -83,7 +83,7 @@ data R3NN
     -- I imagine NSPS fixed their batch to the sample size, but I have those for each type instantiation, making this harder for me to fix. as a work-around, I'm sampling instead.
  where
     R3NN :: forall m symbols rules maxStringLength batch_size device h
-      . { condition_model :: LSTMWithInit (m + batch_size * maxStringLength * (2 * Dirs * h)) (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float device
+      . { condition_model :: LSTMWithInit (m + batch_size * maxStringLength * (4 * Dirs * h)) (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float device
         , score_model     :: LSTMWithInit  m                                    (Div m Dirs) NumLayers Dir 'ConstantInitialization 'D.Float device
         -- NSPS: for each production rule r∈R, a nnet f_r from x∈R^(Q⋅M) to y∈R^M,
         -- with Q as the number of symbols on the RHS of the production rule r.
@@ -140,7 +140,7 @@ instance ( KnownDevice device
                 symbols = natValI @symbols
                 rules = natValI @rules
 
--- instance ( KnownNat symbols, KnownNat m, KnownNat maxStringLength, KnownNat h, KnownNat rules, KnownNat batch_size, KnownDevice device, MatMulDTypeIsValid device 'D.Float, shape ~ '[batch_size, maxStringLength * (2 * Dirs * h)] )
+-- instance ( KnownNat symbols, KnownNat m, KnownNat maxStringLength, KnownNat h, KnownNat rules, KnownNat batch_size, KnownDevice device, MatMulDTypeIsValid device 'D.Float, shape ~ '[batch_size, maxStringLength * (4 * Dirs * h)] )
 --     => HasForward (R3NN device m symbols rules maxStringLength batch_size h) (Tensor device 'D.Float shape) (Tensor device 'D.Float '[num_holes, rules]) where
 --         forward      = runR3nn
 --         -- forwardStoch = runR3nn
@@ -171,7 +171,7 @@ initR3nn variants batch_size dropoutRate hidden0 hidden1 = R3NNSpec @device @m @
         m :: Int = natValI @m
         h :: Int = natValI @h
         -- TODO: can I really cram all that back into just M?
-        conditionIn = m + batch_size * 2 * dirs * h * maxStringLength
+        conditionIn = m + batch_size * 4 * dirs * h * maxStringLength
         variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
 
 -- | Recursive Reverse-Recursive Neural Network (R3NN) (Parisotto et al.)
@@ -181,7 +181,7 @@ runR3nn
     => R3NN device m symbols rules maxStringLength batch_size h
     -> HashMap String Int
     -> Expr
-    -> Tensor device 'D.Float '[batch_size, maxStringLength * (2 * Dirs * h)]
+    -> Tensor device 'D.Float '[batch_size, maxStringLength * (4 * Dirs * h)]
     -- -> IO (Tensor device 'D.Float '[num_holes, rules])
     -> Tensor device 'D.Float '[num_holes, rules]
 -- runR3nn r3nn symbolIdxs ppt io_feats = do
@@ -189,12 +189,12 @@ runR3nn r3nn symbolIdxs ppt io_feats = scores where
     R3NN{..} = r3nn
     device = deviceVal @device
     -- | Pre-conditioning: example encodings are concatenated to the encoding of each tree leaf
-    io_feats' :: Tensor device 'D.Float '[batch_size * (maxStringLength * (2 * Dirs * h))] =
+    io_feats' :: Tensor device 'D.Float '[batch_size * (maxStringLength * (4 * Dirs * h))] =
             -- reshape io_feats
-            asUntyped (D.reshape [natValI @batch_size * (natValI @maxStringLength * (2 * natValI @Dirs * natValI @h))]) io_feats
-    conditioned :: Tensor device 'D.Float '[symbols, m + batch_size * maxStringLength * (2 * Dirs * h)] =
+            asUntyped (D.reshape [natValI @batch_size * (natValI @maxStringLength * (4 * natValI @Dirs * natValI @h))]) io_feats
+    conditioned :: Tensor device 'D.Float '[symbols, m + batch_size * maxStringLength * (4 * Dirs * h)] =
             UnsafeMkTensor $ F.cat (F.Dim 1) [(D.toDevice device . toDynamic . Torch.Typed.Parameter.toDependent $ symbol_emb), stacked_io]
-            where stacked_io = stack' 0 $ replicate (natValI @symbols) $ toDynamic io_feats'
+            where stacked_io = repeatDim 0 (natValI @symbols) $ toDynamic io_feats'
     -- conditioning can use an MLP or (bidir) LSTM; LSTM learns more about the relative position of each leaf node in the tree.
     conditioned' :: Tensor device 'D.Float '[symbols, m] = 
             -- asUntyped to type-check m*2/2

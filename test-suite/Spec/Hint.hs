@@ -91,16 +91,16 @@ hint = let
     , TestLabel "fnIoPairs" $ TestCase $ do
         let crashOnError = False
         -- n=1
-        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "not") [bl] $ parseExpr "[True, False]"
+        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "not") (tplIfMultiple [bl]) $ parseExpr "[True, False]"
         pp_ x @?= pp_ ([(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))] :: [(Expr, Either String Expr)])
         -- n=2
-        q <- interpretUnsafe $ fnIoPairs crashOnError 2 (parseExpr "(+)") [int_,int_] $ parseExpr "[(1,2),(3,4)]"
+        q <- interpretUnsafe $ fnIoPairs crashOnError 2 (parseExpr "(+)") (tplIfMultiple [int_,int_]) $ parseExpr "[(1,2),(3,4)]"
         pp_ q @?= pp_ ([(parseExpr "(1, 2)", Right (parseExpr "3")), (parseExpr "(3, 4)", Right (parseExpr "7"))] :: [(Expr, Either String Expr)])
         -- run-time error
-        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "succ") [bl] $ parseExpr "[False, True]"
+        x <- interpretUnsafe $ fnIoPairs crashOnError 1 (var "succ") (tplIfMultiple [bl]) $ parseExpr "[False, True]"
         pp_ x @?= pp_ ([(parseExpr "False", Right (parseExpr "True")), (parseExpr "True", Left "\"Prelude.Enum.Bool.succ: bad argument\"")] :: [(Expr, Either String Expr)])
         -- bad type
-        errored <- isNothing <.> timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") [bl] $ list []
+        errored <- isNothing <.> timeout 10000 . interpretUnsafe . fnIoPairs crashOnError 1 (parseExpr "div (const const) div") (tplIfMultiple [bl]) $ list []
         errored `shouldBe` True
 
     , TestLabel "exprType" $ TestCase $ do
@@ -135,7 +135,7 @@ hint = let
         -- fnIoPairs + type check
         let n = 1
         let crash_on_error = False
-        errored <- null <.> interpretUnsafe . fnIoPairs crash_on_error n (parseExpr infTp) [bl] $ list []
+        errored <- null <.> interpretUnsafe . fnIoPairs crash_on_error n (parseExpr infTp) (tplIfMultiple [bl]) $ list []
         errored `shouldBe` True
 
     ]
