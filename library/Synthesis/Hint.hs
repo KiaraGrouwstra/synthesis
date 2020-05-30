@@ -98,8 +98,8 @@ interpretIO crash_on_error cmd =
     return either
 
 -- | get input-output pairs for a function given the inputs (for one concrete input type instantiation).
--- | function application is run trough try-evaluate so as to Either-wrap potential run-time errors for partial functions.
--- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST/strings,
+-- | function application is run through try-evaluate so as to Either-wrap potential run-time errors for partial functions.
+-- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST,
 -- | meaning I also only know the types at run-time (which is when my programs are constructed).
 fnIoPairs :: Bool -> Int -> Expr -> Tp -> Expr -> Interpreter [(Expr, Either String Expr)]
 fnIoPairs crash_on_error n fn_ast in_tp ins = do

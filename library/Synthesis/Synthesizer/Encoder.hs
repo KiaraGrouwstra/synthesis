@@ -117,7 +117,7 @@ lstmEncoder
     -> Tensor device 'D.Float '[n', maxStringLength * (4 * Dirs * h)]
 lstmEncoder encoder tp_io_pairs = UnsafeMkTensor feat_vec where
     LstmEncoder{..} = encoder
-    t_ :: Int = natValI @maxStringLength
+    maxStringLength_ :: Int = natValI @maxStringLength
     batch_size_ :: Int = natValI @batch_size
     max_char :: Int = natValI @maxChar
 
@@ -128,7 +128,7 @@ lstmEncoder encoder tp_io_pairs = UnsafeMkTensor feat_vec where
     str2tensor :: Int -> String -> featTnsr =
             \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . (`I.one_hot` max_char) . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
 
-    both2t :: Tpl2 String -> Tpl2 featTnsr = mapBoth $ str2tensor t_
+    both2t :: Tpl2 String -> Tpl2 featTnsr = mapBoth $ str2tensor maxStringLength_
     addTypes :: (featTnsr, [featTnsr]) -> D.Tensor =
         \(tp, vecs) -> F.cat (F.Dim 1) [stack' 0 (toDynamic <$> vecs), repeatDim 0 (length vecs) (toDynamic tp)]
     tp_ios :: [(Tpl2 featTnsr, [Tpl2 featTnsr])] = (bimap both2t $ fmap both2t) <$> toList str_map

@@ -85,6 +85,7 @@ while praed funktion x
   | otherwise = return x
 
 -- | shorthand for pretty-printing AST nodes, used for comparisons
+-- | sorry for the short-hand name, taken from Ruby. I use this a *lot* tho.
 pp :: Pretty a => a -> String
 pp = prettyPrint
 

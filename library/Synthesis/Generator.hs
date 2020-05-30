@@ -35,13 +35,9 @@ import Synthesis.Configs
 import Synthesis.Utility
 import Util (secondM)
 
--- | main function, run program in our interpreter monad
+-- | generate dataset
 main :: IO ()
-main = interpretUnsafe program
-
--- | run our program in the interpreter
-program :: Interpreter ()
-program = do
+main = interpretUnsafe $ do
     cfg :: GenerationConfig <- liftIO parseGenerationConfig
     say $ show cfg
     let GenerationConfig {..} = cfg
@@ -54,11 +50,13 @@ program = do
 
     say "\ngenerating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType blockAsts
-    let expr_blocks :: [(String, Expr)] = genBlockVariants maxWildcardDepth block_fn_types
+    let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types
     programs :: [Expr] <- genFns maxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
     say "\nprograms:"
     say $ pp_ programs
-    let task_fns = programs
+    -- sample task functions from all programs
+    let (task_fns', _gen) = fisherYates gen programs
+    let task_fns = take maxDataset task_fns'
     fn_types :: HashMap Expr Tp <- fromKeysM exprType task_fns
     say "\nfn_types:"
     say $ pp_ fn_types
@@ -103,9 +101,9 @@ program = do
     let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (listMin, listMax) numInputs) rest_type_instantiations
     say "\nrest_instantiation_inputs:"
     say $ pp_ rest_instantiation_inputs
-    -- map each parameter function to a filtered map of generated programs matching its type
+    -- map each instantiated function parameter type combination to a filtered map of generated programs matching its type
     let functionMatches :: Tp -> Expr -> Interpreter Bool = \fn_type program_ast -> matchesType (fn_types ! program_ast) fn_type
-    let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) programs
+    let filterFns :: Tp -> Interpreter [Expr] = \fn_type -> filterM (functionMatches fn_type) task_fns
     instantiated_fn_options :: HashMap Tp [Expr] <- fromKeysM filterFns in_type_instantiations
     say "\ninstantiated_fn_options:"
     say $ pp_ instantiated_fn_options
@@ -120,23 +118,25 @@ program = do
     let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
             join . elems <$> fn_type_ios
 
-    -- TODO: ensure sets contains no fns w/ behavior identical to any in other sets to prevent cheating
-    -- let kept_fns :: [Expr] = dedupeFunctions fn_types fn_type_ios
     -- filter out programs without i/o samples
-    let kept_fns :: [Expr] = (not . null . (task_io_pairs !)) `filter` programs
+    let kept_fns_ :: [Expr] = (not . null . (task_io_pairs !)) `filter` task_fns
+    say "\nkept_fns_:"
+    say $ pp_ kept_fns_
+    -- ensure sets contain no fns w/ behavior identical to any in other sets to prevent cheating
+    let kept_fns :: [Expr] = dedupeFunctions kept_fns_ fn_type_ios
     say "\nkept_fns:"
     say $ pp_ kept_fns
+    let fn_types_ = pickKeys kept_fns fn_types
+    let fn_type_ios_ = pickKeys kept_fns fn_type_ios
 
     let tp_pairs :: [(Tp, Tp)] = join . elems $ keys <$> fn_type_ios
     let longest_tp_string :: Int =
             maximum $ length <$> fmap (pp . fst) tp_pairs <> fmap (pp . snd) tp_pairs
     let ios :: [(Expr, Either String Expr)] =
-            join . elems $ join . elems <$> fn_type_ios
+            join . elems $ join . elems <$> fn_type_ios_
     let longest_string :: Int = max longest_tp_string $
             maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
     let charMap :: HashMap Char Int = mkCharMap $ elems fn_type_ios
-
-    -- it's kinda weird this splitting is non-monadic, cuz it should be random
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
 
     -- save task function data
@@ -144,8 +144,8 @@ program = do
         cfg
         blockAsts
         typesByArity
-        fn_types
-        fn_type_ios
+        fn_types_
+        fn_type_ios_
         rest_instantiation_inputs
         datasets
         expr_blocks
@@ -154,10 +154,10 @@ program = do
 
     say "\n\nenumerating function i/o examples:"
     forM_ kept_fns $ \ast -> do
-        let fn_type :: Tp = fn_types ! ast
+        let fn_type :: Tp = fn_types_ ! ast
         say "================================================"
         say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-        let in_type_instance_outputs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fn_type_ios ! ast
+        let in_type_instance_outputs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fn_type_ios_ ! ast
         say $ pp_ in_type_instance_outputs
 
     let set_list = untuple3 datasets

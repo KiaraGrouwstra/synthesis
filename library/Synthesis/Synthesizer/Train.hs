@@ -110,7 +110,7 @@ argmaxExpansion hole_expansion_probs = (hole_idx, rule_idx) where
 predictHole :: forall num_holes rules device . [(String, Expr)] -> Expr -> Set String -> Tensor device 'D.Float '[num_holes, rules] -> IO (Expr, Set String)
 predictHole variants ppt used hole_expansion_probs = do
     [hole_idx, rule_idx] :: [Int] <- sampleIdxs . softmaxAll . toDynamic $ hole_expansion_probs
-    -- order rules: comes from rule_emb, which is just randomly assigned,
+    -- order of rules: comes from `rule_emb`, which is just randomly assigned,
     -- so we can just arbitrarily associate this with any deterministic order e.g. that of `variants`
     let (_rule_str, rule_expr) :: (String, Expr) = variants !! rule_idx
     let block_name :: String = pp . head . fnAppNodes $ rule_expr
@@ -141,7 +141,7 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     let [num_holes, _rules] :: [Int] = shape' hole_expansion_probs
     ppt' :: Expr <- superviseHole @device variantMap num_holes task_fn ppt
-    -- iterate over holes to get the loss for each
+    -- iterate over holes to get their intended expansion 'probabilities', used in calculating the loss
     let gold_rule_probs :: Tensor device 'D.Float '[num_holes] = UnsafeMkTensor . D.toDevice (deviceVal @device) . D.asTensor $ getGold . fst <$> findHolesExpr ppt
             where getGold = \gtr -> (ruleIdxs !) . nodeRule . gtr $ task_fn
     return (ppt', gold_rule_probs)
@@ -257,20 +257,19 @@ train synthesizerConfig taskFnDataset init_model = do
                     prev    :: D.Tensor = F.mean . D.asTensor $ prev_losses
                     earlyStop :: Bool = D.asValue $ F.sub current prev `I.gtScalar` convergenceThreshold
                     in earlyStop
-            when earlyStop $ debug "test loss has converged, stopping early!"
+            when earlyStop $ debug "validation loss has converged, stopping early!"
 
             return $ (earlyStop, eval_results')
 
-        let acc_test :: Float = accValid $ head eval_results'
+        let acc_valid :: Float = accValid $ head eval_results'
         -- decay the learning rate if accuracy decreases
-        -- TODO: have this use dev rather than test acc
-        lr' :: Tensor device 'D.Float '[] <- case (acc_test < prev_acc) of
+        lr' :: Tensor device 'D.Float '[] <- case (acc_valid < prev_acc) of
             True -> do
                 info "accuracy decreased, decaying learning rate!"
                 return . divScalar learningDecay $ lr
             False -> pure lr
 
-        return (gen', model', optim', earlyStop, eval_results', lr', acc_test)
+        return (gen', model', optim', earlyStop, eval_results', lr', acc_valid)
 
     -- write results to csv
     liftIO $ createDirectoryIfMissing True resultFolder
@@ -297,6 +296,8 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
         loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss @rules dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes
 
         -- sample for best of 100 predictions
+        -- TODO: dedupe samples before eval to save evals?
+        -- TODO: consider A* / branch-and-bound / beam search instead
         sample_matches :: [Bool] <- replicateM bestOf $ do
             -- TODO: use these ExprTypeSig type annotations
             -- TODO: split io_feats and taskType based on param type instance combo 
@@ -332,17 +333,6 @@ evaluate taskFnDataset prepped_dsl bestOf model dataset = do
                                     prediction_outputs :: [Either String Expr] = snd <$> prediction_io_pairs
                                     output_matches :: [Bool] = uncurry (==) . mapBoth pp_ <$> target_outputs `zip` prediction_outputs
                                     in and output_matches
-                    -- TODO: try non-boolean score:
-                    -- let outputs_match :: Float = length (filter id output_matches) / length output_matches
-
-                    -- -- for each param type instance combo, check if the program compiles (and get outputs...)
-                    -- let type_compiles :: HashMap (Tp, Tp) Boolean = not . null <$> prediction_type_ios
-                    -- let num_in_type_instances :: Int = size type_compiles
-                    -- let num_in_type_instances_compile :: Int = size . filter id $ type_compiles
-                    -- let num_errors :: Int = num_in_type_instances - num_in_type_instances_compile
-                    -- let ratio_compiles :: Float = num_in_type_instances_compile / num_in_type_instances
-                    -- let ratio_errors :: Float = 1 - ratio_compiles
-                    -- -- TODO: actually use compilation feedback in score
                     return outputs_match
 
         let best_works :: Bool = or sample_matches

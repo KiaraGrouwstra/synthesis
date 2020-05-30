@@ -49,7 +49,6 @@ data GenerationConfig = GenerationConfig
     , nestLimit :: Int
     , maxInstances :: Int
     -- function generation
-    , maxWildcardDepth :: Int
     , maxHoles :: Int
     -- sample generation
     , numInputs :: Int
@@ -61,6 +60,7 @@ data GenerationConfig = GenerationConfig
     , training :: Double
     , validation :: Double
     , test :: Double
+    , maxDataset :: Int
     } deriving (Eq, Show, Generic)
 
 data SynthesizerConfig = SynthesizerConfig

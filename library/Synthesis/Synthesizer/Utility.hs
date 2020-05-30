@@ -184,6 +184,7 @@ select'' dim idx tensor = select' tensor dim idx
 unDim :: Int -> D.Tensor -> [D.Tensor]
 unDim dim tensor = select' tensor dim <$> [0 .. (D.shape tensor !! dim) - 1]
 
+-- | intended as a PoC for NSPS's cross-correlation encoder logic. unused.
 rotate :: [Float] -> [[Float]]
 rotate r = res
     where
@@ -239,8 +240,7 @@ lookupRule hm k = case (lookup k hm) of
 dslVariants :: HashMap String Expr -> Interpreter [(String, Expr)]
 dslVariants dsl = do
     fn_types :: HashMap String Tp <- exprType `mapM` dsl
-    return $ genBlockVariants maxWildcardDepth fn_types
-            where maxWildcardDepth = 0  -- no * here
+    return $ genBlockVariants fn_types
 
 -- | split a (batch-first) tensor into batches (zero-padded for the last one)
 batchTensor :: Int -> D.Tensor -> [D.Tensor]
