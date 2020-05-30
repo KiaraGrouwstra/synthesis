@@ -4,7 +4,7 @@
 -- | generate task functions and sample input/output pairs
 module Synthesis.Generation (module Synthesis.Generation) where
 
-import Control.Monad (filterM)
+import Control.Monad (join, filterM)
 import Data.Bifunctor (second)
 import Data.Either (isLeft)
 import Data.HashMap.Lazy
@@ -16,10 +16,12 @@ import Data.HashMap.Lazy
     elems,
     lookupDefault,
     toList,
+    singleton,
   )
-import Data.List (minimumBy, partition)
+import Data.List (minimumBy, partition, nubBy)
 import Data.Ord (Ordering (..))
-import Data.Set (Set, insert)
+import Data.Set (Set, insert, delete, notMember, isProperSubsetOf)
+import Data.Bifunctor (first)
 import qualified Data.Set as Set
 import Language.Haskell.Exts.Parser (ParseResult, parse)
 import Language.Haskell.Exts.Syntax (Type (..))
@@ -58,6 +60,7 @@ fillHoles maxHoles block_asts used_blocks expr_blocks expr = do
 
 -- | filter building blocks to those matching a hole in the (let-in) expression, and get the results Exprs
 -- | cf. NSPS: uniformly sample programs from the DSL
+-- | TODO: also switch to a sampling approach?
 fillHole :: HashMap String Expr -> Set String -> [(String, Expr)] -> Expr -> Interpreter ([(Expr, Set String, Expr)], [(Expr, Set String, Expr)])
 fillHole block_asts used_blocks expr_blocks expr = do
   -- TODO: save duplicate effort of finding holes: findHolesExpr, hasHoles
@@ -94,7 +97,6 @@ fitExpr expr = do
   --     Left errors -> show $ showError <$> errors
   -- if isLeft checks then return False else
   if isLeft checks
-    -- TODO: add explicit type signature for this i/o so programs won't fail type check over uninferred types
     then return False
     else do
       -- for currying, not for lambdas: use type to filter out non-function programs
@@ -178,20 +180,48 @@ matchesConstraints arity tp constraints = do
   let forAll :: Tp = tyForall Nothing (Just $ cxTuple $ (\(TyCon _l qname) -> typeA (unQName qname) a) <$> constraints) a_
   if null constraints then return True else matchesType tp_ forAll
 
--- | deduplicate functions by identical types + io, keeping the shortest
--- | not in use
-dedupeFunctions :: HashMap Expr Tp -> HashMap Expr (HashMap [Tp] String) -> [Expr]
-dedupeFunctions fn_types fn_in_type_instance_outputs = kept_fns
+-- | deduplicate functions by matching i/o examples
+-- | TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
+dedupeFunctions :: [Expr] -> HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) -> [Expr]
+dedupeFunctions task_fns fn_type_ios = kept_fns
   where
-  -- group functions with identical type signatures
-  type_sig_fns :: HashMap Tp [Expr] = groupByVal $ toList fn_types
-  -- group functions with identical type signatures + io examples, i.e. functions that are actually equivalent
-  -- for each uninstantiated type signature, a map for each type instantiation to matching expressions, from a map from instantiated parameter types to a string of io-pairs
-  type_sig_io_fns :: HashMap Tp (HashMap (HashMap [Tp] String) [Expr]) = (\exprs -> groupByVal $ zip exprs $ (!) fn_in_type_instance_outputs <$> exprs) <$> type_sig_fns
-  -- for each uninstantiated type signature, a map for each type instantiation to the shortest matching expression, from a map from instantiated parameter types to a string of io-pairs
-  type_sig_io_fns_filtered :: HashMap Tp (HashMap (HashMap [Tp] String) Expr) = fmap (minBy numAstNodes) <$> type_sig_io_fns
-  -- TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
-  kept_fns :: [Expr] = concat $ elems <$> elems type_sig_io_fns_filtered
+  -- programs by types and i/o
+  programsByTypeIOs :: HashMap (HashMap [Tp] String) [Expr] =
+      groupByVal $ toList $ fmap pp_ <$> fn_type_ios
+  -- programs that overlap in i/o for any concrete parameter combo instantiation
+  programsByBehavior :: HashMap [Tp] (HashMap String [Expr]) =
+      fromList $ (\(tpStrMap, exprs) -> second (`singleton` exprs) <.> toList $ tpStrMap) =<< toList programsByTypeIOs
+  -- generate any ('ascending') (Expr, Expr) pairs contained in any of those [Expr]; dedupe pairs
+  behaviorOverlapping :: [(Expr, Expr)] = nubBy (equating pp_) . join . elems $ ((=<<) createGroups . elems <$> programsByBehavior)
+  -- ditch removed expr for any remaining pairs, then continue going over the rest
+  kept_fns :: [Expr] = Set.toList . flip (foldr checkExprPair) behaviorOverlapping . Set.fromList $ task_fns
+  -- for each pair: ditch the least general or longest or just either
+  checkExprPair :: (Expr, Expr) -> Set Expr -> Set Expr =
+      \ (e1,e2) exprSet -> if notMember e1 exprSet || notMember e1 exprSet then exprSet else
+          let
+              hm1 = fn_type_ios ! e1
+              hm2 = fn_type_ios ! e2
+              ks1 = Set.fromList . keys $ hm1
+              ks2 = Set.fromList . keys $ hm2
+          in
+          -- least general
+               if isProperSubsetOf ks1 ks2 then
+              if equating pp_ hm1 (pickKeys (keys hm1) hm2)
+              then delete e1 exprSet else exprSet
+          else if isProperSubsetOf ks2 ks1 then
+              if equating pp_ hm2 (pickKeys (keys hm2) hm1)
+              then delete e2 exprSet else exprSet
+          -- longest
+          else case compare (numAstNodes e1) (numAstNodes e2) of
+              LT -> delete e2 exprSet
+              GT -> delete e1 exprSet
+              -- tiebreaker: drop whichever
+              -- random should be better but deterministic works without monad
+              EQ -> delete e2 exprSet
+
+createGroups :: [a] -> [(a, a)]
+createGroups [] = []
+createGroups (x:xs) = map ((,) x) xs ++ createGroups xs
 
 -- find the characters occurring in an i/o dataset and hash them to unique contiguous numbers
 mkCharMap :: [(Expr, Either String Expr)] -> HashMap Char Int

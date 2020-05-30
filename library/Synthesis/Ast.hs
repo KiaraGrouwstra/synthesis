@@ -9,33 +9,39 @@ import System.Random (RandomGen, randoms, randomRs)
 import Synthesis.FindHoles
 import Synthesis.Types
 import Synthesis.TypeGen
-import Synthesis.Data hiding (maxWildcardDepth, nestLimit)
+import Synthesis.Data hiding (nestLimit)
 import Synthesis.Utility
 import Util (nTimes)
 
 -- | generate applied variants of a function, e.g. [`id`, `id _`]
-genBlockVariants :: Int -> HashMap String Tp -> [(String, Expr)]
-genBlockVariants maxWildcardDepth block_types =
-  let generated :: HashMap String [Expr] = mapWithKey (genHoledVariants maxWildcardDepth) block_types
+genBlockVariants :: HashMap String Tp -> [(String, Expr)]
+genBlockVariants block_types =
+  let generated :: HashMap String [Expr] = mapWithKey genHoledVariants block_types
    in
       -- under currying we will allow any level of application
       concat $ (\k vs -> (\v -> (k, v)) <$> vs) `mapWithKey` generated
 
 -- | as any block/parameter may be a (nested) function, generate variants with holes curried in to get all potential return types
-genHoledVariants :: Int -> String -> Tp -> [Expr]
+genHoledVariants :: String -> Tp -> [Expr]
 genHoledVariants = let
-    genHoledVariants' :: Int -> Tp -> Expr -> [Expr] = \ maxDepth tp expr ->
-      let holed = app expr . skeleton
+    genHoledVariants' :: Tp -> Expr -> [Expr] = \ tp expr ->
+      let holed :: Tp -> Expr = app expr . skeleton
       in expr : case tp of
-            TyForall _l _maybeTyVarBinds _maybeContext typ -> case typ of
-              TyFun _l a b -> genHoledVariants' maxDepth b $ holed a
+            TyForall _l maybeTyVarBinds maybeContext typ -> case typ of
+              -- TyFun _l a b -> genHoledVariants' b  $ holed a
+              -- do I wanna pass along the context to the holes?
+              -- ensure type constraints are propagated to the type signatures of variant holes.
+              -- that's still simplified since for `max _ _`, `max (undefined :: Ord a => a) (undefined :: Ord a => a)` would be a bit inaccurate, in that the ordinal used in the holes must match, rather than being independent type variables, but bad hole filling there should get picked up by the compiler afterwards -- in which case perhaps this mostly matters if I'm actually using these hole type annotations myself (am I?).
+              TyFun _l a b -> genHoledVariants' b' $ holed a'
+                where
+                    scoped = tyForall maybeTyVarBinds maybeContext
+                    a' = scoped a
+                    b' = scoped b
               _ -> []
-            TyFun _l a b -> genHoledVariants' maxDepth b $ holed a
-            TyWildCard _l _maybeName -> case maxDepth of
-              0 -> []
-              _ -> genHoledVariants' (maxDepth - 1) tp $ holed wildcard
+            TyFun _l a b -> genHoledVariants' b $ holed a
+            TyWildCard _l _maybeName -> error "unexpected wildcard!"
             _ -> []
-  in \ maxDepth k tp -> genHoledVariants' maxDepth tp $ var k
+  in \ k tp -> genHoledVariants' tp $ var k
 
 -- | _ :: (_ -> _)
 anyFn :: Expr

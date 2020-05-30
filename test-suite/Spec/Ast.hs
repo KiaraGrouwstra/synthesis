@@ -95,4 +95,4 @@ ast = parallel $ let
 
     it "genHoledVariants" $ do
         let tp = parseType "Int -> String -> Tp"
-        fmap pp (genHoledVariants 0 "f" tp) `shouldBe` ["f", "f (undefined :: Int)", "f (undefined :: Int) (undefined :: String)"]
+        fmap pp (genHoledVariants "f" tp) `shouldBe` ["f", "f (undefined :: Int)", "f (undefined :: Int) (undefined :: String)"]

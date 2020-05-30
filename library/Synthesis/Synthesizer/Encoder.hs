@@ -43,7 +43,7 @@ import           Torch.Typed.NN.Recurrent.LSTM
 
 import Synthesis.Orphanage ()
 import Synthesis.Data (Expr)
-import Synthesis.Utility (pp)
+import Synthesis.Utility (pp, mapBoth)
 import Synthesis.Synthesizer.Utility
 import Synthesis.Synthesizer.Params
 
@@ -110,22 +110,24 @@ lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
 
 -- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
-    :: forall batch_size maxStringLength maxChar n' device h
-     . (KnownDevice device, KnownNat batch_size, KnownNat maxStringLength, KnownNat maxChar, KnownNat h)
+    :: forall batch_size maxStringLength maxChar n' device h featTnsr
+     . (KnownDevice device, KnownNat batch_size, KnownNat maxStringLength, KnownNat maxChar, KnownNat h, featTnsr ~ Tensor device 'D.Float '[1, maxStringLength, maxChar])
     => LstmEncoder device maxStringLength batch_size maxChar h
     -> [(Expr, Either String Expr)]
     -> Tensor device 'D.Float '[n', maxStringLength * (2 * Dirs * h)]
 lstmEncoder encoder io_pairs = UnsafeMkTensor feat_vec where
     LstmEncoder{..} = encoder
-    t_ :: Int = natValI @maxStringLength
+    maxStringLength_ :: Int = natValI @maxStringLength
     batch_size_ :: Int = natValI @batch_size
     max_char :: Int = natValI @maxChar
 
     -- TODO: use tree encoding (R3NN) also for expressions instead of just converting to string
     str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
     -- convert char to one-hot encoding (byte -> 256 1/0s as float) as third lstm dimension
-    str2tensor :: Int -> String -> Tensor device 'D.Float '[1, maxStringLength, maxChar] = \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
-    vec_pairs :: [(Tensor device 'D.Float '[1, maxStringLength, maxChar], Tensor device 'D.Float '[1, maxStringLength, maxChar])] = first (str2tensor t_) . second (str2tensor t_) <$> str_pairs
+    str2tensor :: Int -> String -> featTnsr =
+        \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
+    vec_pairs :: [(featTnsr, featTnsr)] =
+        mapBoth (str2tensor maxStringLength_) <$> str_pairs
 
     -- pre-vectored
     -- stack input vectors and pad to static dataset size

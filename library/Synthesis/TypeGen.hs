@@ -34,7 +34,6 @@ import Synthesis.Types
 import Synthesis.Utility
 
 -- | randomly generate a type
--- | deprecated, not in use
 randomType :: HashMap Int [String] -> Bool -> Bool -> Int -> HashMap String [Tp] -> Int -> IO Tp
 randomType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount = do
     -- type variables
@@ -48,6 +47,7 @@ randomType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount = do
     let fns :: [IO Tp] = [gen_fn | allowFns]
     -- base types
     let applied :: HashMap Int [IO Tp] = mapWithKey (\ i strs -> fillChildren i <$> strs) tpsByArity
+    -- TODO: keep the key around to decrement based on the picked key...
     let base :: [IO Tp] = concat $ elems $ filterWithKey (\ k _v -> k <= nestLimit) applied
     -- total
     let options :: [IO Tp] = base ++ tpVars ++ abstracts ++ fns

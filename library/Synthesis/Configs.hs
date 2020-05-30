@@ -26,18 +26,13 @@ generationConfig = GenerationConfig
         ( long "maxInstances"
         <> value 5
         <> showDefault
-        <> help "max number of instantiations to generate for any type containing type variables. may get less after deduplicating type instances." )
+        <> help "max number of type instantiations to generate for any type variable. may get less after deduplicating type instances." )
     -- NSPS: for all results, the program tree generation is conditioned on a set of 10 input/output string pairs.
     <*> option auto
         ( long "numInputs"
         <> value 10
         <> showDefault
         <> help "max number of inputs to generate. may get less after nub filters out duplicates." )
-    <*> option auto
-        ( long "maxWildcardDepth"
-        <> value 2
-        <> showDefault
-        <> help "the maximum level of functions to imagine in a wildcard for function generation" )
     <*> maxHolesOpt
     <*> option auto
         ( long "numMin"
@@ -59,23 +54,26 @@ generationConfig = GenerationConfig
         <> value 5
         <> showDefault
         <> help "the maximum number of elements to generate for list types" )
-    -- TODO: figure out a sensible split. NSPS mentions training/test tho not validation.
-    -- NSPS: We sample a subset of only 1000 training programs from the 5 million program set to report the training results in the tables. The test sets also consist of 1000 programs.
     <*> option auto
         ( long "train"
-        <> value 0.45
+        <> value 0.35
         <> showDefault
         <> help "how much of our dataset to allocate to the training set" )
     <*> option auto
         ( long "validation"
-        <> value 0.1
+        <> value 0.35
         <> showDefault
         <> help "how much of our dataset to allocate to the validation set" )
     <*> option auto
         ( long "test"
-        <> value 0.45
+        <> value 0.3
         <> showDefault
         <> help "how much of our dataset to allocate to the test set" )
+    <*> option auto
+        ( long "maxDataset"
+        <> value 10000
+        <> showDefault
+        <> help "the maximum number of programs we will consider for use in our dataset (before further filtering)" )
 
 parseGenerationConfig :: IO GenerationConfig
 parseGenerationConfig = execParser opts
