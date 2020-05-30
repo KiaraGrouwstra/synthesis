@@ -101,13 +101,13 @@ synth = let
         let ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
         let synth_max_holes = 3
 
-        loss :: Tensor Device 'D.Float '[] <- calcLoss @Rules dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss :: Tensor Device 'D.Float '[] <- interpretUnsafe $ calcLoss @Rules dsl task_fn taskType symbolIdxs model sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes variants
         toFloat loss > 0.0 `shouldBe` True
 
         let optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters model
         (newParam, optim') <- D.runStep model optim (toDynamic loss) lr
         let model' :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H = A.replaceParameters model newParam
-        loss' :: Tensor Device 'D.Float '[] <- calcLoss @Rules dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes
+        loss' :: Tensor Device 'D.Float '[] <- interpretUnsafe $ calcLoss @Rules dsl task_fn taskType symbolIdxs model' sampled_feats variantMap ruleIdxs variant_sizes synth_max_holes variants
         toBool (loss' <. loss) `shouldBe` True
 
     ]
