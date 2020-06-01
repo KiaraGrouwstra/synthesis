@@ -483,6 +483,8 @@ d_mkAdam iter beta1 beta2 parameters =
 untypeParam :: Parameter device dtype shape -> A.Parameter
 untypeParam (UnsafeMkParameter param) = param
 
+-- allow untyped optimization over typed LSTM
+
 instance () => A.Parameterized (LSTMWithInit inputSize hiddenSize numLayers directionality initialization dtype device) where
   flattenParameters LSTMWithConstInit{..} =
            A.flattenParameters lstmWithConstInit_lstm

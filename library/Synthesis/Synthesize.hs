@@ -34,6 +34,7 @@ import Synthesis.Configs
 import Synthesis.Utility
 import Synthesis.Synthesizer.Utility
 import Synthesis.Synthesizer.Encoder
+import Synthesis.Synthesizer.TypeEncoder
 import Synthesis.Synthesizer.R3NN
 import Synthesis.Synthesizer.NSPS
 import Synthesis.Synthesizer.Params
@@ -95,17 +96,19 @@ getM cfg taskFnDataset = let
         (case synthesizer of
             "random" -> do
                 model <- A.sample RandomSynthesizerSpec
-                void . interpretUnsafe $ train @device @rules @'[] @RandomSynthesizer cfg taskFnDataset model
+                void . interpretUnsafe $ train @device @rules @'[] @0 @RandomSynthesizer cfg taskFnDataset model
             "nsps" -> do
                 model <- A.sample spec
-                void . interpretUnsafe $ train @device @rules @'[R3nnBatch, maxStringLength * (4 * Dirs * h)] @(NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h) cfg taskFnDataset model
+                void . interpretUnsafe $ train @device @rules @'[R3nnBatch, maxStringLength * (4 * Dirs * h)] @(maxStringLength * m) @(NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h) cfg taskFnDataset model
                 where
                 variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
                 encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h =
                     LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
-                r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h =
-                    initR3nn variants r3nnBatch dropoutRate hidden0 hidden1
+                r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h maxChar =
+                    initR3nn variants r3nnBatch dropoutRate hidden0 hidden1 charMap
+                rule_encoder_spec :: TypeEncoderSpec device maxStringLength maxChar m =
+                    TypeEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
                 spec :: NSPSSpec device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h =
-                    NSPSSpec encoder_spec r3nn_spec
+                    NSPSSpec encoder_spec rule_encoder_spec r3nn_spec
             _ -> error "synthesizer not recognized")
         $ getM @device @(m + 1) @rules @maxChar @symbols @maxStringLength @h cfg taskFnDataset

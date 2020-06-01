@@ -97,8 +97,9 @@ synth = let
         let io_pairs :: [(Expr, Either String Expr)] = join . elems $ tp_io_pairs
         let charMap :: HashMap Char Int = mkCharMap [tp_io_pairs]
         let encoder_spec :: LstmEncoderSpec Device MaxStringLength EncoderBatch' MaxChar H = LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
-        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn variants r3nnBatch' dropOut hidden0 hidden1
-        model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H <- A.sample $ NSPSSpec encoder_spec r3nn_spec
+        let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H = initR3nn variants r3nnBatch' dropOut hidden0 hidden1 charMap
+        model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H
+                <- A.sample $ NSPSSpec encoder_spec r3nn_spec
         sampled_feats :: Tensor Device 'D.Float '[R3nnBatch', MaxStringLength * (4 * Dirs * H)]
                 <- encode @Device @'[R3nnBatch', MaxStringLength * (4 * Dirs * H)] @Rules model tp_io_pairs
 

@@ -11,6 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
@@ -75,12 +76,16 @@ import           Synthesis.Hint
 import           Synthesis.Types
 import           Synthesis.Synthesizer.Utility
 import           Synthesis.Synthesizer.Encoder
+import           Synthesis.Synthesizer.TypeEncoder
 import           Synthesis.Synthesizer.R3NN
 import           Synthesis.Synthesizer.Params
 import           Synthesis.Synthesizer.Synthesizer
 
--- instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, shape ~ '[r3nnBatch, maxStringLength * (4 * Dirs * h)], synthesizer ~ NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h ) => Synthesizer device shape rules synthesizer where
-instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, shape ~ '[r3nnBatch, maxStringLength * (4 * Dirs * h)] ) => Synthesizer device shape rules (NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h) where
+instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, shape ~ '[r3nnBatch, maxStringLength * (4 * Dirs * h)], ruleFeats ~ (maxStringLength * m) ) => Synthesizer device shape rules ruleFeats (NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h) where
+
+    encode :: NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+            -> HashMap (Tp, Tp) [(Expr, Either String Expr)]
+            -> IO (Tensor device 'D.Float shape)
     -- | sampling embedded features to guarantee a static output size
     -- | to allow R3NN a fixed number of samples for its LSTMs, I'm sampling the actual features to make up for potentially multiple type instances giving me a variable number of i/o samples.
     -- | I opted to pick sampling with replacement, which both more naturally handles sample sizes exceeding the number of items, while also seeming to match the spirit of mini-batching by providing more stochastic gradients.
@@ -88,27 +93,51 @@ instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsVal
     -- | there should be fancy ways to address this like giving more weight to hard programs (/ samples).
     -- sampled_feats :: Tensor device 'D.Float '[r3nnBatch, maxStringLength * (4 * Dirs * h)]
     encode mdl io_pairs = sampleTensor @0 @r3nnBatch (length io_pairs) . toDynamic $ lstmEncoder @encoderBatch @maxStringLength @maxChar @r3nnBatch @device @h (encoder mdl) io_pairs
-    predict mdl = runR3nn @symbols @m @maxStringLength @h @rules @r3nnBatch $ r3nn (mdl :: NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h)
+
+    rule_encode :: NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+                -> [Tp]
+                -> Tensor device 'D.Float '[rules, ruleFeats]
+    rule_encode mdl types = typeEncoder @rules (rule_encoder mdl) types
+
+    predict   :: forall num_holes
+                 . NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+                -> HashMap String Int
+                -> Expr
+                -> Tensor device 'D.Float '[rules, ruleFeats]
+                -> Tensor device 'D.Float shape
+                -> Tensor device 'D.Float '[num_holes, rules]
+    predict mdl = runR3nn $ r3nn (mdl :: NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h)
+
+    patchLoss :: NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+                -> HashMap String Int
+                -> Tensor device 'D.Float '[]
+                -> Tensor device 'D.Float '[]
     patchLoss = patchR3nnLoss . r3nn
 
-nspsSpec :: forall device m symbols maxStringLength encoderBatch r3nnBatch maxChar h rules shape synthesizer . (KnownNat rules, A.Parameterized synthesizer, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, Synthesizer device shape rules synthesizer) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+nspsSpec :: forall synthesizer device m symbols maxStringLength encoderBatch r3nnBatch maxChar h rules shape . (KnownNat rules, A.Parameterized synthesizer, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, Synthesizer device shape rules m synthesizer) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
 nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate hidden0 hidden1 = spec where
     encoder_spec :: LstmEncoderSpec device maxStringLength encoderBatch maxChar h =
         LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
-    r3nn_spec :: R3NNSpec device m symbols rules maxStringLength r3nnBatch h =
-        initR3nn variants r3nnBatch dropoutRate hidden0 hidden1
+    type_encoder_spec :: TypeEncoderSpec device maxStringLength maxChar m =
+        TypeEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
+    r3nn_spec :: R3NNSpec device m symbols rules maxStringLength r3nnBatch h maxChar =
+        initR3nn variants r3nnBatch dropoutRate hidden0 hidden1 charMap
     spec :: NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h =
-        NSPSSpec encoder_spec r3nn_spec
+        NSPSSpec encoder_spec type_encoder_spec r3nn_spec
 
 data NSPSSpec (device :: (D.DeviceType, Nat)) (m :: Nat) (symbols :: Nat) (rules :: Nat) (maxStringLength :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) (maxChar :: Nat) (h :: Nat) where
   NSPSSpec :: forall device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
-     . { encoderSpec :: LstmEncoderSpec device maxStringLength encoderBatch maxChar h, r3nnSpec :: R3NNSpec device m symbols rules maxStringLength r3nnBatch h }
+     . { encoderSpec :: LstmEncoderSpec device maxStringLength encoderBatch maxChar h
+       , typeEncoderSpec :: TypeEncoderSpec device maxStringLength maxChar m
+       , r3nnSpec :: R3NNSpec device m symbols rules maxStringLength r3nnBatch h maxChar }
     -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
  deriving (Show)
 
 data NSPS (device :: (D.DeviceType, Nat)) (m :: Nat) (symbols :: Nat) (rules :: Nat) (maxStringLength :: Nat) (encoderBatch :: Nat) (r3nnBatch :: Nat) (maxChar :: Nat) (h :: Nat) where
   NSPS :: forall device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
-        . { encoder :: LstmEncoder device maxStringLength encoderBatch maxChar h, r3nn :: R3NN device m symbols rules maxStringLength r3nnBatch h }
+        . { encoder :: LstmEncoder device maxStringLength encoderBatch maxChar h
+          , rule_encoder :: TypeEncoder device maxStringLength maxChar m
+          , r3nn :: R3NN device m symbols rules maxStringLength r3nnBatch h maxChar }
        -> NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
  deriving (Show, Generic)
 
@@ -119,4 +148,5 @@ instance ( KnownDevice device, RandDTypeIsValid device 'D.Float, KnownNat m, Kno
   => A.Randomizable (NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h) (NSPS device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h) where
     sample NSPSSpec {..} = NSPS
             <$> A.sample encoderSpec
+            <*> A.sample typeEncoderSpec
             <*> A.sample r3nnSpec

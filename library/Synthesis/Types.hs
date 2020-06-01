@@ -316,13 +316,11 @@ parseMode =
         ]
     }
 
--- -- | this function takes an explicitly typed hole, returning its type
--- -- | deprecated, not in use
--- -- TODO: Maybe
--- holeType :: Expr -> Tp
--- holeType = \case
---   ExpTypeSig _l _exp tp -> tp
---   _ -> error "expected ExpTypeSig!"
+-- | this function takes an explicitly typed hole, returning its type
+holeType :: Expr -> Tp
+holeType = \case
+  ExpTypeSig _l _exp tp -> tp
+  _ -> error "expected ExpTypeSig!"
 
 -- | parse an expression from a string
 parseExpr :: String -> Expr

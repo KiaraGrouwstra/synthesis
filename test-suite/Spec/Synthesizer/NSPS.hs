@@ -111,7 +111,7 @@ nsps = parallel $ let
         enc_model :: LstmEncoder Device MaxStringLength EncoderBatch' MaxChar H <- A.sample $ LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (4 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model tp_io_pairs
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1 charMap
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
         let hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] = runR3nn r3nn_model symbolIdxs ppt sampled_feats
@@ -130,7 +130,7 @@ nsps = parallel $ let
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (4 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model tp_io_pairs
         let ppt :: Expr = parseExpr "not (not (undefined :: Bool))"
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1 charMap
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] = runR3nn r3nn_model symbolIdxs ppt sampled_feats
         (ppt', _used') <- predictHole variants ppt (Set.singleton "not") hole_expansion_probs
@@ -151,7 +151,7 @@ nsps = parallel $ let
         enc_model :: LstmEncoder Device MaxStringLength EncoderBatch' MaxChar H <- A.sample $ LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropOut
         sampled_feats :: Tensor device 'D.Float '[R3nnBatch', MaxStringLength * (4 * Dirs * H)]
                 <- sampleTensor @0 @R3nnBatch' (length io_pairs) . toDynamic $ lstmEncoder enc_model tp_io_pairs
-        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1
+        r3nn_model :: R3NN Device M Symbols Rules MaxStringLength R3nnBatch' H <- A.sample $ initR3nn variants r3nnBatch' dropOut hidden0 hidden1 charMap
         let symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
         let hole_expansion_probs :: Tensor Device 'D.Float '[NumHoles, Rules] = runR3nn r3nn_model symbolIdxs ppt sampled_feats
         (task_fn', gold) :: (Expr, Tensor Device 'D.Float '[NumHoles]) <- fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs
