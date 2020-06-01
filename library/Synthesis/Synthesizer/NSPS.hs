@@ -114,7 +114,7 @@ instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsVal
                 -> Tensor device 'D.Float '[]
     patchLoss = patchR3nnLoss . r3nn
 
-nspsSpec :: forall synthesizer device m symbols maxStringLength encoderBatch r3nnBatch maxChar h rules shape . (KnownNat rules, A.Parameterized synthesizer, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, Synthesizer device shape rules m synthesizer) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
+nspsSpec :: forall synthesizer device m symbols maxStringLength encoderBatch r3nnBatch maxChar h rules shape . (KnownNat rules, A.Parameterized synthesizer, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, Synthesizer device shape rules ruleFeats synthesizer) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h
 nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate hidden0 hidden1 = spec where
     encoder_spec :: LstmEncoderSpec device maxStringLength encoderBatch maxChar h =
         LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
