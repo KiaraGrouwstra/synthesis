@@ -50,8 +50,9 @@ main = interpretUnsafe $ do
 
     say "\ngenerating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType blockAsts
-    let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types
-    programs :: [Expr] <- genFns maxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
+    let variants :: [(String, Expr)] = genBlockVariants block_fn_types
+    let dsl :: HashMap String Expr = filterWithKey (\k v -> k /= pp v) blockAsts
+    programs :: [Expr] <- genFns maxHoles variants dsl
     say "\nprograms:"
     say $ pp_ programs
     -- sample task functions from all programs
@@ -136,7 +137,9 @@ main = interpretUnsafe $ do
             join . elems $ join . elems <$> fn_type_ios_
     let longest_string :: Int = max longest_tp_string $
             maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
-    let charMap :: HashMap Char Int = mkCharMap $ elems fn_type_ios
+    let charMap :: HashMap Char Int = mkCharMap $ elems fn_type_ios_
+    variantTypes :: [Tp] <- (exprType . letIn dsl . snd) `mapM` variants
+    let typeCharMap :: HashMap Char Int = indexChars $ pp <$> variantTypes
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
 
     -- save task function data
@@ -148,9 +151,10 @@ main = interpretUnsafe $ do
         fn_type_ios_
         rest_instantiation_inputs
         datasets
-        expr_blocks
+        variants
         longest_string
         charMap
+        typeCharMap
 
     say "\n\nenumerating function i/o examples:"
     forM_ kept_fns $ \ast -> do
@@ -165,7 +169,7 @@ main = interpretUnsafe $ do
         putStrLn $ k <> ": " <> show (length dataset)
     let numSymbols = 1 + size blockAsts
     say $ "symbols: " <> show numSymbols
-    let numRules = length expr_blocks
+    let numRules = length variants
     say $ "rules: " <> show numRules
     say $ "max input/output string length: " <> show longest_string
     say $ "data written to " <> taskPath

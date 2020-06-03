@@ -39,6 +39,7 @@ data TaskFnDataset = TaskFnDataset
     , exprBlocks :: [(String, Expr)]
     , longestString :: Int
     , charMap :: HashMap Char Int
+    , typeCharMap :: HashMap Char Int
     } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig
@@ -212,3 +213,17 @@ combineConfig optCfg hparComb = cfg
                 , hidden1              = hidden1
                 , synthesizer          = "nsps"
                 }
+
+data PreppedDSL = PreppedDSL
+    { variants :: [(String, Expr)]
+    , variant_sizes :: HashMap String Int
+    , task_type_ins :: HashMap Expr (HashMap (Tp, Tp) [Expr])
+    , task_io_map :: HashMap Expr [(Expr, Either String Expr)]
+    , task_outputs :: HashMap Expr [Either String Expr]
+    , symbolIdxs :: HashMap String Int
+    , ruleIdxs :: HashMap String Int
+    , variantMap :: HashMap String Expr
+    , max_holes :: Int
+    , dsl' :: HashMap String Expr
+    , variantTypes :: [Tp]
+    }

@@ -167,7 +167,7 @@ evalHparComb taskFnDataset cfg hparComb = do
     -- putStrLn . show $ cfg'
     manual_seed_L $ fromIntegral seed
     model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h
-            <- A.sample $ nspsSpec @synthesizer taskFnDataset variants r3nnBatch dropoutRate hidden0 hidden1
+            <- A.sample $ nspsSpec taskFnDataset variants r3nnBatch dropoutRate hidden0 hidden1
     lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @rules @shape @ruleFeats cfg' taskFnDataset model
     let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h @shape @ruleFeats cfg taskFnDataset hparComb lastEvalResult
     -- let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h @shape @(maxStringLength * m) cfg taskFnDataset hparComb lastEvalResult
@@ -185,8 +185,8 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     -- finally re-evaluate the chosen hyperparameters on our test set
     manual_seed_L $ fromIntegral seed
     let test_set :: [Expr] = thdOf3 datasets
-    let prepped_dsl = prep_dsl taskFnDataset
-    let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
+    prepped_dsl <- interpretUnsafe $ prep_dsl taskFnDataset
+    let PreppedDSL{..} = prepped_dsl
     let encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h =
             LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h maxChar =

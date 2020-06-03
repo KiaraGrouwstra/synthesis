@@ -85,8 +85,7 @@ typeEncoder
     => TypeEncoder device maxStringLength maxChar m
     -> [Tp]
     -> Tensor device 'D.Float '[batch_size, maxStringLength * m]
-typeEncoder encoder types = feat_vec where
-    TypeEncoder{..} = encoder
+typeEncoder TypeEncoder{..} types = feat_vec where
     maxStringLength_ :: Int = natValI @maxStringLength
     max_char :: Int = natValI @maxChar
     strs :: [String] = pp <$> types

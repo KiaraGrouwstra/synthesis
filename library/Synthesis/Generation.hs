@@ -228,7 +228,10 @@ createGroups (x:xs) = map ((,) x) xs ++ createGroups xs
 
 -- find the characters occurring in an i/o dataset and hash them to unique contiguous numbers
 mkCharMap :: [HashMap (Tp, Tp) [(Expr, Either String Expr)]] -> HashMap Char Int
-mkCharMap tps_ios = charIndex where
-    charIndex = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . join $ exprStrs <> tpStrs
+mkCharMap tps_ios = indexChars $ exprStrs <> tpStrs
+    where
     exprStrs :: [String] = (\(i,o) -> pp i <> pp_ o) <$> (join . join $ elems <$> tps_ios)
-    tpStrs :: [String] = (\(i,o) -> pp i <> pp o) <$> (join $ keys <$> tps_ios)
+    tpStrs   :: [String] = (\(i,o) -> pp i <> pp  o) <$> (join        $ keys  <$> tps_ios)
+
+indexChars :: [String] -> HashMap Char Int
+indexChars = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . join
