@@ -108,32 +108,6 @@ lstmBatch LstmEncoder{..} in_vec out_vec = feat_vec where
             -- reshape $ cat @2 $ emb_in :. emb_out :. HNil
             asUntyped (D.reshape [natValI @batch_size, natValI @maxStringLength * (4 * natValI @Dirs * natValI @h)]) $ cat @2 $ emb_in :. emb_out :. HNil
 
--- -- | NSPS paper's Baseline LSTM encoder
--- lstmEncoderExpr
---     :: forall batch_size maxStringLength maxChar n' device h featTnsr
---      . (KnownDevice device, KnownNat batch_size, KnownNat maxStringLength, KnownNat maxChar, KnownNat h, featTnsr ~ Tensor device 'D.Float '[1, maxStringLength, maxChar])
---     => LstmEncoder device maxStringLength batch_size maxChar h
---     -> [(Expr, Either String Expr)]
---     -> Tensor device 'D.Float '[n', maxStringLength * (2 * Dirs * h)]
--- lstmEncoderExpr encoder io_pairs = UnsafeMkTensor feat_vec where
---     LstmEncoder{..} = encoder
---     maxStringLength_ :: Int = natValI @maxStringLength
---     batch_size_ :: Int = natValI @batch_size
---     max_char :: Int = natValI @maxChar
---     str_pairs :: [(String, String)] = first pp . second (show . second pp) <$> io_pairs
---     str2tensor :: Int -> String -> featTnsr =
---         \len -> Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.toDevice (deviceVal @device) . flip I.one_hot max_char . D.asTensor . padRight 0 len . fmap ((fromIntegral :: Int -> Int64) . (+1) . (!) charMap)
---     vec_pairs :: [(featTnsr, featTnsr)] = mapBoth (str2tensor maxStringLength_) <$> str_pairs
---     stackPad :: [D.Tensor] -> [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
---             fmap UnsafeMkTensor . batchTensor batch_size_ . stack' 0
---     in_vecs  :: [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
---             stackPad $ toDynamic . fst <$> vec_pairs
---     out_vecs :: [Tensor device 'D.Float '[batch_size, maxStringLength, maxChar]] =
---             stackPad $ toDynamic . snd <$> vec_pairs
---     feat_vecs :: [Tensor device 'D.Float '[batch_size, maxStringLength * (2 * Dirs * h)]] =
---             uncurry (lstmBatch encoder) <$> zip in_vecs out_vecs
---     feat_vec :: D.Tensor = F.cat (F.Dim 0) $ toDynamic <$> feat_vecs
-
 -- | NSPS paper's Baseline LSTM encoder
 lstmEncoder
     :: forall batch_size maxStringLength maxChar n' device h featTnsr

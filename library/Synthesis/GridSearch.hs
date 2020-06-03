@@ -153,10 +153,6 @@ getM cfg taskFnDataset hparCombs = (:)
 
 -- | evaluate a hyper-parameter combination by training a model on them to convergence, returning results plus a button to run final evalution on this
 evalHparComb :: forall device m rules maxChar symbols maxStringLength h shape synthesizer ruleFeats . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownNat ruleFeats, KnownShape shape, shape ~ '[R3nnBatch, maxStringLength * (4 * Dirs * h)], synthesizer ~ NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h, Synthesizer device shape rules ruleFeats synthesizer, ruleFeats ~ (maxStringLength * m)) => TaskFnDataset -> OptimizationConfig -> HparComb -> IO (EvalResult, IO ())
--- , ruleFeats ~ (maxStringLength * m)
--- , (maxStringLength * m) ~ ruleFeats
--- , m ~ ruleFeats
--- , (maxStringLength * m) ~ m
 evalHparComb taskFnDataset cfg hparComb = do
     let cfg' :: SynthesizerConfig = combineConfig cfg hparComb
     let SynthesizerConfig{..} = cfg'
@@ -170,9 +166,7 @@ evalHparComb taskFnDataset cfg hparComb = do
             <- A.sample $ nspsSpec taskFnDataset variants r3nnBatch dropoutRate hidden0 hidden1
     lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @rules @shape @ruleFeats cfg' taskFnDataset model
     let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h @shape @ruleFeats cfg taskFnDataset hparComb lastEvalResult
-    -- let testEval :: IO () = finalEval @device @m @rules @maxChar @symbols @maxStringLength @h @shape @(maxStringLength * m) cfg taskFnDataset hparComb lastEvalResult
     return (lastEvalResult, testEval)
-    -- return undefined
 
 -- | after we finish grid search, do a final evaluation on our test set just in case the grid search overfitted on our validation set
 finalEval :: forall device m rules maxChar symbols maxStringLength h shape ruleFeats . (KnownNat m, KnownNat rules, KnownNat maxChar, KnownNat symbols, KnownNat maxStringLength, KnownNat h, KnownNat ruleFeats, KnownShape shape, shape ~ '[R3nnBatch, maxStringLength * (4 * Dirs * h)], KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, ruleFeats ~ (maxStringLength * m)) => OptimizationConfig -> TaskFnDataset -> HparComb -> EvalResult -> IO ()
