@@ -105,6 +105,7 @@ synthesizerConfig = SynthesizerConfig
     <*> hidden0Opt
     <*> hidden1Opt
     <*> synthesizerOpt
+    <*> maskBadOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -132,6 +133,7 @@ gridSearchConfig = GridSearchConfig
     -- <*> regularizationOpt
     <*> verbosityOpt
     <*> evalRoundsOpt
+    <*> maskBadOpt
 
 parseGridSearchConfig :: IO GridSearchConfig
 parseGridSearchConfig = execParser opts
@@ -159,6 +161,7 @@ evolutionaryConfig = EvolutionaryConfig
     -- <*> regularizationOpt
     <*> verbosityOpt
     -- <*> evalRoundsOpt
+    <*> maskBadOpt
 
 parseEvolutionaryConfig :: IO EvolutionaryConfig
 parseEvolutionaryConfig = execParser opts
@@ -318,3 +321,8 @@ evalRoundsOpt = option auto
     <> value (maxBound :: Int)
     <> showDefault
     <> help "the maximum number of rounds to evaluate for. by default all configurations are evaluated." )
+
+maskBadOpt = switch
+    ( long "maskBad"
+    <> short 'm'
+    <> help "when specified, compile any possible hole fill to mask out any predictions for non-compiling expressions (present implementation for this is slow but this could be improved)." )

@@ -82,6 +82,7 @@ data SynthesizerConfig = SynthesizerConfig
     , hidden0 :: Int
     , hidden1 :: Int
     , synthesizer :: String
+    , maskBad :: Bool
     } deriving (Eq, Show, Generic)
 
 data GridSearchConfig = GridSearchConfig
@@ -100,6 +101,7 @@ data GridSearchConfig = GridSearchConfig
     -- , regularization :: Float
     , verbosity :: String
     , evalRounds :: Int
+    , maskBad :: Bool
     } deriving (Eq, Show, Generic)
 
 -- I should probably include the actual GA config here,
@@ -121,6 +123,7 @@ data EvolutionaryConfig = EvolutionaryConfig
     -- , regularization :: Float
     , verbosity :: String
     -- , evalRounds :: Int
+    , maskBad :: Bool
     } deriving (Eq, Show, Generic)
 
 data OptimizationConfig = OptimizationConfig
@@ -139,6 +142,7 @@ data OptimizationConfig = OptimizationConfig
     -- , regularization :: Float
     , verbosity :: String
     -- , evalRounds :: Int
+    , maskBad :: Bool
     } deriving (Eq, Show, Generic)
 
 data HparComb = HparComb
@@ -209,4 +213,5 @@ combineConfig optCfg hparComb = cfg
                 , hidden0              = hidden0
                 , hidden1              = hidden1
                 , synthesizer          = "nsps"
+                , maskBad              = maskBad
                 }
