@@ -147,16 +147,23 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall rules ruleFeats device shape synthesizer num_holes . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, Synthesizer device shape rules ruleFeats synthesizer) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> synthesizer -> Tensor device 'D.Float shape -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> Tensor device 'D.Float '[rules, ruleFeats] -> IO (Tensor device 'D.Float '[])
-calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes rule_tp_emb = do
+calcLoss :: forall rules ruleFeats device shape synthesizer num_holes . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, Synthesizer device shape rules ruleFeats synthesizer) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> synthesizer -> Tensor device 'D.Float shape -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> Bool -> [(String, Expr)] -> Tensor device 'D.Float '[rules, ruleFeats] -> Interpreter (Tensor device 'D.Float '[])
+calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
             fill = \(ppt, golds, predictions, filled) -> do
                     --  :: Tensor device 'D.Float '[num_holes, rules]
-                    let predicted = predict @device @shape @rules @ruleFeats model symbolIdxs ppt rule_tp_emb io_feats 
-                    (ppt', gold) <- fillHoleTrain variantMap ruleIdxs task_fn ppt predicted
+                    let predicted = predict @device @shape @rules @ruleFeats @synthesizer model symbolIdxs ppt rule_tp_emb io_feats
+                    predicted' <- if not maskBad then pure predicted else do
+                        --  :: Tensor device 'D.Float '[num_holes, rules]
+                        mask <-
+                            fmap (Torch.Typed.Tensor.toDType @'D.Float . UnsafeMkTensor . D.asTensor) $
+                            (\(hole_getter, hole_setter) -> mapM (fitExpr . hole_setter ppt . snd) variants)
+                            `mapM` findHolesExpr ppt
+                        return . Torch.Typed.Tensor.toDevice @device . asUntyped (F.mul $ toDynamic mask) $ predicted
+                    (ppt', gold) <- liftIO $ fillHoleTrain variantMap ruleIdxs task_fn ppt predicted'
                     -- putStrLn $ "ppt': " <> pp ppt'
-                    return (ppt', toDynamic gold : golds, toDynamic predicted : predictions, filled + 1)
+                    return (ppt', toDynamic gold : golds, toDynamic predicted' : predictions, filled + 1)
             in while (\(expr, _, _, filled) -> hasHoles expr && filled < max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
     let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
     let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
@@ -213,7 +220,7 @@ train synthesizerConfig taskFnDataset init_model = do
         let rule_tp_emb :: Tensor device 'D.Float '[rules, ruleFeats] =
                 rule_encode @device @shape @rules @ruleFeats model_ variantTypes
         let foldrM_ x xs f = foldrM f x xs
-        (train_losses, model', optim') :: ([D.Tensor], synthesizer, D.Adam) <- liftIO $ foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
+        (train_losses, model', optim') :: ([D.Tensor], synthesizer, D.Adam) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             -- putStrLn $ "task_fn: \n" <> pp task_fn
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
@@ -223,10 +230,10 @@ train synthesizerConfig taskFnDataset init_model = do
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * h)]
             -- sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
             io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules @ruleFeats model target_tp_io_pairs
-            loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes rule_tp_emb
+            loss :: Tensor device 'D.Float '[] <- calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb
             -- TODO: do once for each mini-batch / fn?
-            -- (newParam, optim') <- D.runStep model optim (toDynamic loss) $ toDynamic lr
-            (newParam, optim') <- doStep @device @shape @rules @ruleFeats model optim loss lr
+            -- (newParam, optim') <- liftIO $ D.runStep model optim (toDynamic loss) $ toDynamic lr
+            (newParam, optim') <- liftIO $ doStep @device @shape @rules @ruleFeats model optim loss lr
             let model' :: synthesizer = A.replaceParameters model newParam
             return (toDynamic loss : train_losses, model', optim')
 
@@ -239,7 +246,7 @@ train synthesizerConfig taskFnDataset init_model = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            (acc_valid, loss_valid) <- evaluate @device @rules @shape @ruleFeats taskFnDataset prepped_dsl bestOf model' validation_set
+            (acc_valid, loss_valid) <- evaluate @device @rules @shape @ruleFeats taskFnDataset prepped_dsl bestOf maskBad model' validation_set
 
             liftIO $ printf
                 "Epoch: %03d. Train loss: %.4f. Validation loss: %.4f. Validation accuracy: %.4f.\n"
@@ -286,8 +293,8 @@ train synthesizerConfig taskFnDataset init_model = do
 
 evaluate :: forall device rules shape ruleFeats synthesizer num_holes
           . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, KnownShape shape, Synthesizer device shape rules ruleFeats synthesizer)
-         => TaskFnDataset -> PreppedDSL -> Int -> synthesizer -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
-evaluate TaskFnDataset{..} PreppedDSL{..} bestOf model dataset = do
+         => TaskFnDataset -> PreppedDSL -> Int -> Bool -> synthesizer -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
+evaluate TaskFnDataset{..} PreppedDSL{..} bestOf maskBad model dataset = do
     let rule_tp_emb :: Tensor device 'D.Float '[rules, ruleFeats] =
                 rule_encode @device @shape @rules @ruleFeats model variantTypes
     eval_stats :: [(Bool, Tensor device 'D.Float '[])] <- forM dataset $ \task_fn -> do
@@ -297,7 +304,7 @@ evaluate TaskFnDataset{..} PreppedDSL{..} bestOf model dataset = do
         let target_outputs :: [Either String Expr] = task_outputs ! task_fn
 
         io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules @ruleFeats model target_tp_io_pairs
-        loss :: Tensor device 'D.Float '[] <- liftIO $ calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes rule_tp_emb
+        loss :: Tensor device 'D.Float '[] <- calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb
 
         -- sample for best of 100 predictions
         -- TODO: dedupe samples before eval to save evals?
