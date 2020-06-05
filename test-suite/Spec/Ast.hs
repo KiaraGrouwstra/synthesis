@@ -86,11 +86,12 @@ ast = parallel $ let
         GenerationConfig{..} <- liftIO parseGenerationConfig
         let stdGen :: StdGen = mkStdGen seed
         let intRange = (numMin, numMax)
+        let charRange = (charMin, charMax)
         let listLengths = (listMin, listMax)
         -- Bool
-        pp <$> (genInputs stdGen intRange listLengths 10 bl) `shouldContain` ["True"]
+        pp <$> (genInputs stdGen intRange charRange listLengths 10 bl) `shouldContain` ["True"]
         -- [Bool]
-        let lists = genInputs stdGen intRange listLengths 10 $ tyList bl
+        let lists = genInputs stdGen intRange charRange listLengths 10 $ tyList bl
         (length . nubPp . concat . fmap unList) lists `shouldBe` 2
 
     it "genHoledVariants" $ do

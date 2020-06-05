@@ -99,7 +99,7 @@ main = interpretUnsafe $ do
     say $ pp_ fn_type_instantiations
     -- do sample generation not for each function but for each function input type
     -- for each non-function parameter combo type instantiation, a list of sample expressions
-    let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (listMin, listMax) numInputs) rest_type_instantiations
+    let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (charMin, charMax) (listMin, listMax) numInputs) rest_type_instantiations
     say "\nrest_instantiation_inputs:"
     say $ pp_ rest_instantiation_inputs
     -- map each instantiated function parameter type combination to a filtered map of generated programs matching its type

@@ -55,6 +55,8 @@ data GenerationConfig = GenerationConfig
     , numInputs :: Int
     , numMin :: Integer
     , numMax :: Integer
+    , charMin :: Char
+    , charMax :: Char
     , listMin :: Int
     , listMax :: Int
     -- dataset generation
