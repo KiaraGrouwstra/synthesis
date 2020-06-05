@@ -45,6 +45,16 @@ generationConfig = GenerationConfig
         <> showDefault
         <> help "the maximum value for numbers to generate" )
     <*> option auto
+        ( long "charMin"
+        <> value '0'
+        <> showDefault
+        <> help "the minimum value for characters to generate" )
+    <*> option auto
+        ( long "charMax"
+        <> value '9'
+        <> showDefault
+        <> help "the maximum value for characters to generate" )
+    <*> option auto
         ( long "listMin"
         <> value 0
         <> showDefault

@@ -21,9 +21,14 @@ import System.Log.Logger
 -- | imports to be loaded in the interpreter. may further specify which parts to import.
 imports :: [ModuleImport]
 imports =
-  [ ModuleImport "Prelude" NotQualified NoImportList
-  , ModuleImport "Control.Exception" NotQualified $ ImportList ["SomeException", "try", "evaluate"]
-  , ModuleImport "Data.Bifunctor" NotQualified $ ImportList ["first", "second"]
+  [ ModuleImport "Prelude"             NotQualified                   NoImportList
+  , ModuleImport "Control.Exception"   NotQualified                   $ ImportList ["SomeException", "try", "evaluate"]
+  , ModuleImport "Data.Bifunctor"      NotQualified                   $ ImportList ["first", "second"]
+  , ModuleImport "Data.Set"            NotQualified                   $ ImportList ["Set"]
+  , ModuleImport "Data.Set"            (QualifiedAs $ Just "Set")     NoImportList
+  , ModuleImport "Data.HashMap.Lazy"   NotQualified                   $ ImportList ["HashMap"]
+  , ModuleImport "Data.HashMap.Lazy"   (QualifiedAs $ Just "HashMap") NoImportList
+  , ModuleImport "Control.Applicative" NotQualified                   $ ImportList ["empty"]
   ]
 
 -- | test an interpreter monad, printing errors, returning values

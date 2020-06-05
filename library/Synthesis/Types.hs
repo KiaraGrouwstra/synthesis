@@ -48,6 +48,7 @@ import Language.Haskell.Exts.Syntax
     TyVarBind (..),
     Type (..),
     IPName (..),
+    ModuleName (..),
   )
 import Synthesis.Data
 import Synthesis.Utility
@@ -69,6 +70,14 @@ qName = UnQual l . Ident l
 -- | create a variable node
 var :: String -> Expr
 var = Var l . qName
+
+-- | create a qualified variable node
+qual :: String -> String -> Expr
+qual mdl str = Var l $ Qual l (moduleName mdl) $ ident str
+
+-- | create a module name node
+moduleName :: String -> ModuleName L
+moduleName = ModuleName l
 
 -- | \$
 dollar :: QOp L
@@ -230,9 +239,17 @@ int :: (Integral a) => a -> Expr
 int i = lit $ Int l i' $ show i'
     where i' = fromIntegral i
 
+-- | Char expression
+char :: Char -> Expr
+char c = lit $ Char l c [c]
+
 -- | String expression
 string :: String -> Expr
 string s = lit $ String l s s
+
+-- | Maybe expression
+mybe :: Expr -> Expr
+mybe = app $ con "Just"
 
 -- | data constructor
 con :: String -> Expr

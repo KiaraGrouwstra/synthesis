@@ -8,9 +8,9 @@ import Synthesis.Data
 -- | synthesized types, categorized by arity
 typesByArity :: HashMap Int [String]
 typesByArity =
-  -- insert 1 ["[]"] $
-  -- singleton 0 ["Bool", "Int"]
-  singleton 0 ["Int"]
+  insert 2 ["(,)", "Either", "HashMap"] $
+  insert 1 ["[]", "Maybe", "Set"] $
+  singleton 0 ["Bool", "Int", "Char"]
 
 -- | building blocks
 -- | cf. NSPS: A DSL can be considered a context-free grammar with a start symbol S and a
@@ -19,7 +19,8 @@ typesByArity =
 -- | `blockAsts` fits that as my only symbol is hole, and these
 -- | blocks (augmented with holed variants) are its expansion rules.
 blockAsts :: HashMap String Expr
-blockAsts = blockAstsTamandu
+blockAsts = blockAstsCategoryTheory
+-- blockAsts = blockAstsTamandu
 -- -- | functions used for testing
 -- blockAsts = insert "not_" "\\b -> not b" $
 -- -- blockAsts = insert "not" "\\b -> not b :: Bool -> Bool" $
@@ -29,6 +30,69 @@ blockAsts = blockAstsTamandu
 --                 insert "not" "not" $
 --                 -- insert "(.)" "(.)" $ -- TODO: combinators error, cannot generate input samples of type function
 --                 singleton "id" "id"  -- TODO: only allow curried version of this function -- applying makes it redundant
+
+blockAstsCategoryTheory :: HashMap String Expr
+blockAstsCategoryTheory =
+  fmap parseExpr
+    -- scalars
+    $ insert "zero" "0"
+    -- Maybe
+    $ insert "just" "Just"
+    $ insert "maybe" "maybe"
+    -- List
+    $ insert "(:)" "(:)"
+    $ insert "null" "null"
+    $ insert "length" "length"
+    -- (,)
+    $ insert "(,)" "(,)"
+    $ insert "zip" "zip"
+    $ insert "unzip" "unzip"
+    -- Set
+    $ insert "insertSet" "Set.insert"
+    -- HashMap
+    $ insert "insertHashMap" "HashMap.insert"
+    -- Enum
+    $ insert "succ" "succ"
+    $ insert "toEnum" "toEnum"
+    $ insert "fromEnum" "fromEnum"
+    -- Foldable
+    $ insert "foldMap" "foldMap"
+    $ insert "foldr" "foldr"
+    $ insert "foldr1" "foldr1"
+    $ insert "elem" "elem"
+    -- Traversable
+    $ insert "traverse" "traverse"
+    $ insert "sequenceA" "sequenceA"
+    $ insert "mapM" "mapM"
+    $ insert "sequence" "sequence"
+    -- Functor
+    $ insert "fmap" "fmap"
+    -- Monad
+    $ insert "(>>=)" "(>>=)"
+    -- Applicative
+    $ insert "pure" "pure"
+    $ insert "(<*>)" "(<*>)"
+    -- Alternative
+    $ insert "empty" "empty"
+    -- Monoid
+    $ insert "mempty" "mempty"
+    -- Semigroup
+    $ insert "(<>)" "(<>)"
+    -- Show
+    $ insert "show" "show"
+    -- -- Bifunctor
+    -- $ insert "bimap" "bimap"
+    -- $ insert "first" "first"
+    -- -- Bifoldable
+    -- $ insert "bifold" "bifold"
+    -- $ insert "bifoldMap" "bifoldMap"
+    -- $ insert "bifoldr" "bifoldr"
+    -- -- Bitraversable
+    -- $ insert "bitraverse" "bitraverse"
+    -- misc
+    $ insert "const" "const"
+    -- $ insert "" ""
+    $ singleton "(.)" "(.)"
 
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/builtin.ml
 -- https://raw.githubusercontent.com/shasfin/ml4fp2016/master/baseline/zil/src/b_library.tm

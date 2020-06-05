@@ -82,22 +82,41 @@ genUncurry n = lambda [pvar fn, ptuple $ pvar <$> letters] $ foldl app (var fn) 
 -- | randomly generate a number of samples for a given type.
 -- | this should cover types from `typesByArity`.
 -- | cf. NSPS: use a rule-based strategy to compute well-formed input strings that satisfy the pre-conditions of the programs.
-genInputs :: RandomGen g => g -> (Integer, Integer) -> (Int, Int) -> Int -> Tp -> [Expr]
-genInputs g intRange listLengths n tp = nubPp . take n $ exprs
+genInputs :: RandomGen g => g -> (Integer, Integer) -> (Char, Char) -> (Int, Int) -> Int -> Tp -> [Expr]
+genInputs g intRange charRange listLengths n tp = nubPp . take n $ exprs
   where
-    f = genInputs g intRange listLengths
+    f = genInputs g intRange charRange listLengths
     msg = "cannot generate from unknown type!"
     lengths :: [Int] = randomRs listLengths g
     genList :: Tp -> [Expr] = \typ -> (\n_ -> list $ f n_ typ) <$> lengths
+    genTpl2 :: Tp -> Tp -> [Expr] = \ a b -> (\(x,y) -> tuple [x,y]) <$> f n a `zip` f n b
     exprs :: [Expr] = case tp of
       TyParen _l a -> f n a
       -- TODO: no nub inside nested genInputs for TyList?
       TyList _l typ -> genList typ
-      TyApp _l a b -> case pp a of
-        "[]" -> genList b
+      TyApp _l a b -> case a of
+        TyCon _l qname -> case pp qname of
+            -- unary
+            "[]" -> genList b
+            "Maybe" -> (\(bl,x) -> if bl then mybe x else con "Nothing") <$> (randoms g :: [Bool]) `zip` f n b
+            "Set" -> app (qual "Set" "fromList") <$> genList b
+            _ -> error msg
+        TyApp _l a c -> case a of
+            TyCon _l qname -> case pp qname of
+                -- binary
+                "(,)" -> genTpl2 b c
+                "Either" -> (\(bl,(x,y)) -> if bl then app (con "Right") x else app (con "Left") y) <$> (randoms g :: [Bool]) `zip` (f n b `zip` f n c)
+                "HashMap" -> app (qual "HashMap" "fromList") <$> genList (tyTuple [c, b])
+                _ -> error msg
+            _ -> error msg
         _ -> error msg
       TyCon _l qname -> case pp qname of
         "Bool" -> con . show <$> (randoms g :: [Bool])
         "Int" -> int <$> (randomRs intRange g :: [Integer])
+        "Char" -> char <$> (randomRs charRange g :: [Char])
+        "String" -> genList $ tyCon "Char"
+        _ -> error msg
+      TyTuple _l _boxed tps -> case tps of
+        [b, c] -> genTpl2 b c
         _ -> error msg
       _ -> error msg
