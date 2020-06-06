@@ -84,8 +84,8 @@ class:
         (<*>) :: f (a -> b) -> f a -> f b  --  = liftA2 id
         -- (*>) :: f a -> f b -> f b
         -- (<*) :: f a -> f b -> f a 
-    class Applicative f => Alternative f where
-        empty :: f a
+    -- class Applicative f => Alternative f where
+        -- empty :: f a
         -- (<|>) :: f a -> f a -> f a
         -- some :: f a -> f [a]
         -- many :: f a -> f [a]

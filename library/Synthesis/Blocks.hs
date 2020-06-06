@@ -72,8 +72,8 @@ blockAstsCategoryTheory =
     -- Applicative
     $ insert "pure" "pure"
     $ insert "(<*>)" "(<*>)"
-    -- Alternative
-    $ insert "empty" "empty"
+    -- -- Alternative
+    -- $ insert "empty" "empty"
     -- Monoid
     $ insert "mempty" "mempty"
     -- Semigroup
