@@ -200,3 +200,7 @@ traverseSnd :: Monad m => (a, m b) -> m (a, b)
 traverseSnd (a, m) = do
     b <- m
     return (a, b)
+
+-- map a HashMap as pairs
+asPairs :: (Eq k2, Hashable k2) => ((k1, v1) -> (k2, v2)) -> HashMap k1 v1 -> HashMap k2 v2
+asPairs f = fromList . fmap f . toList

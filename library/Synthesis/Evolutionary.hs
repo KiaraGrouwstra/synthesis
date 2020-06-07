@@ -163,7 +163,12 @@ evolutionary = do
     putStrLn . show $ generationCfg
     let len = length hparCombs
     let g = mkStdGen seed
-    let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = join . fmap join $ (!! length exprBlocks) $ getRules @device @0 cfg taskFnDataset hparCombs
+    let hparCombs' :: [(HparComb, IO (EvalResult, IO ()))] = join . fmap join $ (!! length exprBlocks) $
+            -- featMult
+            if useTypes then
+                getRules @device @2 @0 cfg taskFnDataset hparCombs
+            else
+                getRules @device @1 @0 cfg taskFnDataset hparCombs
     let hparMap :: HashMap HparComb (IO (EvalResult, IO ())) = fromList hparCombs'
     hparMap'    :: HashMap HparComb (IO (EvalResult, IO ())) <- once `mapM` hparMap
     let getIO :: HparComb -> IO (EvalResult, IO ()) = (hparMap' !)

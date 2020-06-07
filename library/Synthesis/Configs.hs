@@ -116,6 +116,7 @@ synthesizerConfig = SynthesizerConfig
     <*> hidden1Opt
     <*> synthesizerOpt
     <*> maskBadOpt
+    <*> useTypesOpt
 
 parseSynthesizerConfig :: IO SynthesizerConfig
 parseSynthesizerConfig = execParser opts
@@ -144,6 +145,7 @@ gridSearchConfig = GridSearchConfig
     <*> verbosityOpt
     <*> evalRoundsOpt
     <*> maskBadOpt
+    <*> useTypesOpt
 
 parseGridSearchConfig :: IO GridSearchConfig
 parseGridSearchConfig = execParser opts
@@ -172,6 +174,7 @@ evolutionaryConfig = EvolutionaryConfig
     <*> verbosityOpt
     -- <*> evalRoundsOpt
     <*> maskBadOpt
+    <*> useTypesOpt
 
 parseEvolutionaryConfig :: IO EvolutionaryConfig
 parseEvolutionaryConfig = execParser opts
@@ -336,3 +339,8 @@ maskBadOpt = switch
     ( long "maskBad"
     <> short 'm'
     <> help "when specified, compile any possible hole fill to mask out any predictions for non-compiling expressions (present implementation for this is slow but this could be improved)." )
+
+useTypesOpt = switch
+    ( long "useTypes"
+    <> short 't'
+    <> help "supervise synthesis using rule/hole types as additional features" )

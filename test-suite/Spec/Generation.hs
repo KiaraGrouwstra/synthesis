@@ -73,11 +73,11 @@ gen = let
     [ TestLabel "fnOutputs" $ TestCase $ do
         GenerationConfig { crashOnError = crashOnError } :: GenerationConfig <- parseGenerationConfig
         -- not
-        hm1 <- interpretUnsafe $ fnOutputs crashOnError (singleton bl [con "True", con "False"]) (var "not") [[bl]]
-        pp_ hm1 `shouldBe` pp_ ((singleton [bl] [(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))]) :: HashMap [Tp] [(Expr, Either String Expr)])
+        hm1 <- interpretUnsafe $ fnOutputs crashOnError (singleton bl [con "True", con "False"]) (var "not") [([bl], bl)]
+        pp_ hm1 `shouldBe` pp_ ((singleton (bl, bl) [(parseExpr "True", Right (parseExpr "False")), (parseExpr "False", Right (parseExpr "True"))]) :: HashMap (Tp, Tp) [(Expr, Either String Expr)])
         -- (+)
-        hm2 <- interpretUnsafe $ fnOutputs crashOnError (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [[int_,int_]]
-        pp_ hm2 `shouldBe` pp_ ((singleton [int_,int_] [(parseExpr "(1,1)", Right (parseExpr "2")), (parseExpr "(1,2)", Right (parseExpr "3")), (parseExpr "(1,3)", Right (parseExpr "4")), (parseExpr "(2,1)", Right (parseExpr "3")), (parseExpr "(2,2)", Right (parseExpr "4")), (parseExpr "(2,3)", Right (parseExpr "5")), (parseExpr "(3,1)", Right (parseExpr "4")), (parseExpr "(3,2)", Right (parseExpr "5")), (parseExpr "(3,3)", Right (parseExpr "6"))]) :: HashMap [Tp] [(Expr, Either String Expr)])
+        hm2 <- interpretUnsafe $ fnOutputs crashOnError (singleton int_ (int <$> [1,2,3])) (parseExpr "(+)") [([int_,int_], int_)]
+        pp_ hm2 `shouldBe` pp_ ((singleton (tyTuple [int_, int_], int_) [(parseExpr "(1,1)", Right (parseExpr "2")), (parseExpr "(1,2)", Right (parseExpr "3")), (parseExpr "(1,3)", Right (parseExpr "4")), (parseExpr "(2,1)", Right (parseExpr "3")), (parseExpr "(2,2)", Right (parseExpr "4")), (parseExpr "(2,3)", Right (parseExpr "5")), (parseExpr "(3,1)", Right (parseExpr "4")), (parseExpr "(3,2)", Right (parseExpr "5")), (parseExpr "(3,3)", Right (parseExpr "6"))]) :: HashMap (Tp, Tp) [(Expr, Either String Expr)])
 
     , TestLabel "fillHole" $ TestCase $ do
         let blockAsts' = singleton "not_" $ var "not"

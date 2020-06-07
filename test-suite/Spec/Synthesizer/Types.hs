@@ -68,10 +68,11 @@ type RhsSymbols = 3
 type Rules = 4
 type MaxStringLength = 13
 type Symbols = LhsSymbols + RhsSymbols
-type MaxChar = 14
+type MaxChar = 18
 type H = 30
 type EncoderBatch' = 1
 type R3nnBatch' = 1
+type FeatMult = 2
 
 numHoles     :: Int = natValI @NumHoles
 rules        :: Int = natValI @Rules

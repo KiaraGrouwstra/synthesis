@@ -115,15 +115,18 @@ fnOutputs
   :: Bool
   -> HashMap Tp [Expr]
   -> Expr
-  -> [[Tp]]
+  -> [([Tp], Tp)]
   -- | for each type instantiation, for each param, the input type as string
-  -> Interpreter (HashMap [Tp] [(Expr, Either String Expr)])
-fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
-  case in_instantiations of
+  -> Interpreter (HashMap (Tp, Tp) [(Expr, Either String Expr)])
+fnOutputs crash_on_error instantiation_inputs fn_ast tp_instantiations =
+  case tp_instantiations of
     [] -> return empty
     _ -> do
+      let tp_pairs :: [(Tp, Tp)] = first tplIfMultiple <$> tp_instantiations
+      let in_instantiations :: [Tp] = fst <$> tp_pairs
+      let in_par_instantiations :: [[Tp]] = fst <$> tp_instantiations
       -- a list of samples for parameters for types
-      let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_instantiations
+      let inputs :: [[[Expr]]] = fmap (flip (lookupDefault []) instantiation_inputs) <$> in_par_instantiations
       -- tuples of samples by param
       -- `sequence` acts as a cartesian product
       let param_combs :: [[[Expr]]] = sequence <$> inputs
@@ -133,7 +136,7 @@ fnOutputs crash_on_error instantiation_inputs fn_ast in_instantiations =
         _ -> do
           let n = length . head . head $ param_combs
           let ins :: [Expr] = list . fmap tuple <$> param_combs
-          fmap (fromList . zip in_instantiations) $ mapM (uncurry $ fnIoPairs crash_on_error n fn_ast) $ zip in_instantiations ins
+          fmap (fromList . zip tp_pairs) $ mapM (uncurry $ fnIoPairs crash_on_error n fn_ast) $ zip in_instantiations ins
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 
@@ -182,14 +185,14 @@ matchesConstraints arity tp constraints = do
 
 -- | deduplicate functions by matching i/o examples
 -- | TODO: dedupe out only functions equivalent to those in validation/test sets, having redundancy within training seems okay
-dedupeFunctions :: [Expr] -> HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) -> [Expr]
+dedupeFunctions :: [Expr] -> HashMap Expr (HashMap (Tp, Tp) [(Expr, Either String Expr)]) -> [Expr]
 dedupeFunctions task_fns fn_type_ios = kept_fns
   where
   -- programs by types and i/o
-  programsByTypeIOs :: HashMap (HashMap [Tp] String) [Expr] =
+  programsByTypeIOs :: HashMap (HashMap (Tp, Tp) String) [Expr] =
       groupByVal $ toList $ fmap pp_ <$> fn_type_ios
   -- programs that overlap in i/o for any concrete parameter combo instantiation
-  programsByBehavior :: HashMap [Tp] (HashMap String [Expr]) =
+  programsByBehavior :: HashMap (Tp, Tp) (HashMap String [Expr]) =
       fromList $ (\(tpStrMap, exprs) -> second (`singleton` exprs) <.> toList $ tpStrMap) =<< toList programsByTypeIOs
   -- generate any ('ascending') (Expr, Expr) pairs contained in any of those [Expr]; dedupe pairs
   behaviorOverlapping :: [(Expr, Expr)] = nubBy (equating pp_) . join . elems $ ((=<<) createGroups . elems <$> programsByBehavior)
@@ -224,5 +227,11 @@ createGroups [] = []
 createGroups (x:xs) = map ((,) x) xs ++ createGroups xs
 
 -- find the characters occurring in an i/o dataset and hash them to unique contiguous numbers
-mkCharMap :: [(Expr, Either String Expr)] -> HashMap Char Int
-mkCharMap ios = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . foldr (<>) [] $ (\(i,o) -> pp i <> pp_ o) <$> ios
+mkCharMap :: [HashMap (Tp, Tp) [(Expr, Either String Expr)]] -> HashMap Char Int
+mkCharMap tps_ios = indexChars $ exprStrs <> tpStrs
+    where
+    exprStrs :: [String] = (\(i,o) -> pp i <> pp_ o) <$> (join . join $ elems <$> tps_ios)
+    tpStrs   :: [String] = (\(i,o) -> pp i <> pp  o) <$> (join        $ keys  <$> tps_ios)
+
+indexChars :: [String] -> HashMap Char Int
+indexChars = indexList . Set.toList . flip (foldr Set.insert) "\\\"()" . Set.fromList . join

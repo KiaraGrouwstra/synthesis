@@ -106,13 +106,9 @@ interpretIO crash_on_error cmd =
 -- | function application is run through try-evaluate so as to Either-wrap potential run-time errors for partial functions.
 -- | the reason this function needs to be run through the interpreter is I only have the function/inputs as AST,
 -- | meaning I also only know the types at run-time (which is when my programs are constructed).
-fnIoPairs :: Bool -> Int -> Expr -> [Tp] -> Expr -> Interpreter [(Expr, Either String Expr)]
-fnIoPairs crash_on_error n fn_ast in_instantiation ins = do
+fnIoPairs :: Bool -> Int -> Expr -> Tp -> Expr -> Interpreter [(Expr, Either String Expr)]
+fnIoPairs crash_on_error n fn_ast in_tp ins = do
   let unCurry = genUncurry n
-  let in_tp :: Tp = case in_instantiation of
-                      [] -> error "in types expected!"
-                      [tp] -> tp
-                      tps -> tyTuple tps
   -- let cmd = "do; ios :: [(" ++ pp in_tp ++ ", Either SomeException _)] <- zip (" ++ ins ++ ") <$> (sequence $ try . evaluate . UNCURRY (" ++ fn_str ++ ") <$> (" ++ ins ++ " :: [" ++ pp in_tp ++ "])); return . show $ second (first show) <$> ios"
   let cmd =
         pp $

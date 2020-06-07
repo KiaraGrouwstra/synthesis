@@ -333,13 +333,11 @@ parseMode =
         ]
     }
 
--- -- | this function takes an explicitly typed hole, returning its type
--- -- | deprecated, not in use
--- -- TODO: Maybe
--- holeType :: Expr -> Tp
--- holeType = \case
---   ExpTypeSig _l _exp tp -> tp
---   _ -> error "expected ExpTypeSig!"
+-- | this function takes an explicitly typed hole, returning its type
+holeType :: Expr -> Tp
+holeType = \case
+  ExpTypeSig _l _exp tp -> tp
+  _ -> error "expected ExpTypeSig!"
 
 -- | parse an expression from a string
 parseExpr :: String -> Expr
@@ -388,7 +386,6 @@ fnIOTypes :: Tp -> [Tp]
 fnIOTypes = (\tpl -> fst tpl ++ [snd tpl]) . fnTypeIO
 
 -- | extract the input and output types from a function type
--- TODO: Maybe
 fnTypeIO :: Tp -> ([Tp], Tp)
 fnTypeIO = \case
   TyForall _l maybeTyVarBinds maybeContext tp -> case tp of
@@ -399,6 +396,12 @@ fnTypeIO = \case
   TyFun _l a b -> first (a :) $ fnTypeIO b
   TyParen _l a -> fnTypeIO a
   tp -> ([], tp)
+
+tplIfMultiple :: [Tp] -> Tp
+tplIfMultiple = \case
+    [] -> error "in types expected!"
+    [tp] -> tp
+    tps -> tyTuple tps
 
 -- | extract the input types from a function type
 fnInputTypes :: Tp -> [Tp]

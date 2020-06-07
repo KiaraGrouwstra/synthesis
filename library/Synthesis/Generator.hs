@@ -50,8 +50,9 @@ main = interpretUnsafe $ do
 
     say "\ngenerating task functions:"
     block_fn_types :: HashMap String Tp <- mapM exprType blockAsts
-    let expr_blocks :: [(String, Expr)] = genBlockVariants block_fn_types
-    programs :: [Expr] <- genFns maxHoles expr_blocks $ filterWithKey (\k v -> k /= pp v) blockAsts
+    let variants :: [(String, Expr)] = genBlockVariants block_fn_types
+    let dsl :: HashMap String Expr = filterWithKey (\k v -> k /= pp v) blockAsts
+    programs :: [Expr] <- genFns maxHoles variants dsl
     say "\nprograms:"
     say $ pp_ programs
     -- sample task functions from all programs
@@ -86,16 +87,16 @@ main = interpretUnsafe $ do
     let type_fn_instantiations :: HashMap Tp [Tp] = fromList $ zip task_types task_instantiations
     say "\ntype_fn_instantiations:"
     say $ pp_ type_fn_instantiations
-    let type_in_type_instantiations :: HashMap Tp [[Tp]] = fmap fnInputTypes <$> type_fn_instantiations
-    say "\ntype_in_type_instantiations:"
-    say $ pp_ type_in_type_instantiations
-    let in_type_instantiations :: [Tp] = nubPp . concat . concat . elems $ type_in_type_instantiations
+    let type_instantiations :: HashMap Tp [([Tp], Tp)] = fmap fnTypeIO <$> type_fn_instantiations
+    say "\ntype_instantiations:"
+    say $ pp_ type_instantiations
+    let in_type_instantiations :: [Tp] = nubPp . concat . fmap fst . concat . elems $ type_instantiations
     say "\nin_type_instantiations:"
     say $ pp_ in_type_instantiations
     -- for each function, for each type instantiation, for each param, the input type as string
-    let fn_in_type_instantiations :: HashMap Expr [[Tp]] = (type_in_type_instantiations !) <$> fn_types
-    say "\nfn_in_type_instantiations:"
-    say $ pp_ fn_in_type_instantiations
+    let fn_type_instantiations :: HashMap Expr [([Tp], Tp)] = (type_instantiations !) <$> fn_types
+    say "\nfn_type_instantiations:"
+    say $ pp_ fn_type_instantiations
     -- do sample generation not for each function but for each function input type
     -- for each non-function parameter combo type instantiation, a list of sample expressions
     let rest_instantiation_inputs :: HashMap Tp [Expr] = fromKeys (genInputs gen (numMin, numMax) (charMin, charMax) (listMin, listMax) numInputs) rest_type_instantiations
@@ -111,8 +112,8 @@ main = interpretUnsafe $ do
     let both_instantiation_inputs :: HashMap Tp [Expr] = rest_instantiation_inputs `union` instantiated_fn_options
     say "\nboth_instantiation_inputs:"
     say $ pp_ both_instantiation_inputs
-    fn_type_ios :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_in_type_instantiations
-    say "\nfn_in_type_instance_outputs:"
+    fn_type_ios :: HashMap Expr (HashMap (Tp, Tp) [(Expr, Either String Expr)]) <- sequence $ mapWithKey (fnOutputs crashOnError both_instantiation_inputs) fn_type_instantiations
+    say "\nfn_type_ios:"
     say $ pp_ fn_type_ios
     -- combine i/o lists across type instances
     let task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
@@ -129,10 +130,21 @@ main = interpretUnsafe $ do
     let fn_types_ = pickKeys kept_fns fn_types
     let fn_type_ios_ = pickKeys kept_fns fn_type_ios
 
+    let tp_pairs :: [(Tp, Tp)] = join . elems $ keys <$> fn_type_ios
+    let longest_tp_string :: Int =
+            maximum $ length <$> fmap (pp . fst) tp_pairs <> fmap (pp . snd) tp_pairs
     let ios :: [(Expr, Either String Expr)] =
             join . elems $ join . elems <$> fn_type_ios_
-    let longest_string :: Int = maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
-    let charMap :: HashMap Char Int = mkCharMap ios
+
+    let longest_expr_string :: Int =
+            maximum $ length <$> fmap (pp . fst) ios <> fmap (pp_ . snd) ios
+    let exprCharMap :: HashMap Char Int =
+            indexChars $ (\(i,o) -> pp i <> pp_ o) <$> (join . join $ elems <$> elems fn_type_ios_)
+
+    let longest_string :: Int = max longest_expr_string longest_tp_string
+    let bothCharMap :: HashMap Char Int = mkCharMap $ elems fn_type_ios_
+    variantTypes :: [Tp] <- (exprType . letIn dsl . snd) `mapM` variants
+    let ruleCharMap :: HashMap Char Int = indexChars $ pp <$> variantTypes
     let datasets :: ([Expr], [Expr], [Expr]) = randomSplit gen split kept_fns
 
     -- save task function data
@@ -144,16 +156,19 @@ main = interpretUnsafe $ do
         fn_type_ios_
         rest_instantiation_inputs
         datasets
-        expr_blocks
+        variants
+        longest_expr_string
         longest_string
-        charMap
+        exprCharMap
+        bothCharMap
+        ruleCharMap
 
     say "\n\nenumerating function i/o examples:"
     forM_ kept_fns $ \ast -> do
         let fn_type :: Tp = fn_types_ ! ast
         say "================================================"
         say $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-        let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fn_type_ios_ ! ast
+        let in_type_instance_outputs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fn_type_ios_ ! ast
         say $ pp_ in_type_instance_outputs
 
     let set_list = untuple3 datasets
@@ -161,7 +176,7 @@ main = interpretUnsafe $ do
         putStrLn $ k <> ": " <> show (length dataset)
     let numSymbols = 1 + size blockAsts
     say $ "symbols: " <> show numSymbols
-    let numRules = length expr_blocks
+    let numRules = length variants
     say $ "rules: " <> show numRules
     say $ "max input/output string length: " <> show longest_string
     say $ "data written to " <> taskPath

@@ -147,13 +147,13 @@ fillHoleTrain variantMap ruleIdxs task_fn ppt hole_expansion_probs = do
     return (ppt', gold_rule_probs)
 
 -- | calculate the loss by comparing the predicted expansions to the intended programs
-calcLoss :: forall rules device shape synthesizer num_holes . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, Synthesizer device shape rules synthesizer) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> synthesizer -> Tensor device 'D.Float shape -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> Bool -> [(String, Expr)] -> Interpreter (Tensor device 'D.Float '[])
-calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants = do
+calcLoss :: forall rules ruleFeats device shape synthesizer num_holes . (KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, Synthesizer device shape rules ruleFeats synthesizer) => HashMap String Expr -> Expr -> Tp -> HashMap String Int -> synthesizer -> Tensor device 'D.Float shape -> HashMap String Expr -> HashMap String Int -> HashMap String Int -> Int -> Bool -> [(String, Expr)] -> Tensor device 'D.Float '[rules, ruleFeats] -> Interpreter (Tensor device 'D.Float '[])
+calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb = do
     let (_hole_dim, rule_dim) :: (Int, Int) = (0, 1)
     (_program, golds, predictions, _filled) :: (Expr, [D.Tensor], [D.Tensor], Int) <- let
             fill = \(ppt, golds, predictions, filled) -> do
                     --  :: Tensor device 'D.Float '[num_holes, rules]
-                    let predicted = predict @device @shape @rules @synthesizer model symbolIdxs ppt io_feats
+                    let predicted = predict @device @shape @rules @ruleFeats @synthesizer model symbolIdxs ppt rule_tp_emb io_feats
                     predicted' <- if not maskBad then pure predicted else do
                         --  :: Tensor device 'D.Float '[num_holes, rules]
                         mask <-
@@ -167,22 +167,22 @@ calcLoss dsl task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs vari
             in while (\(expr, _, _, filled) -> hasHoles expr && filled < max_holes) fill (letIn dsl (skeleton taskType), [], [], 0 :: Int)
     let gold_rule_probs :: D.Tensor = F.cat (F.Dim 0) golds
     let hole_expansion_probs :: D.Tensor = F.cat (F.Dim 0) predictions
-    let loss :: Tensor device 'D.Float '[] = patchLoss @device @shape @rules model variant_sizes $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
+    let loss :: Tensor device 'D.Float '[] = patchLoss @device @shape @rules @ruleFeats model variant_sizes $ UnsafeMkTensor $ crossEntropy gold_rule_probs rule_dim hole_expansion_probs
     return loss
 
 -- | pre-calculate DSL stuff
-prep_dsl :: TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr)
-prep_dsl TaskFnDataset{..} = tpl where
+prep_dsl :: TaskFnDataset -> Interpreter PreppedDSL
+prep_dsl TaskFnDataset{..} = do
+    variantTypes :: [Tp] <- (exprType . letIn dsl' . snd) `mapM` variants
+    return $ PreppedDSL variants variant_sizes task_type_ins task_io_map task_outputs symbolIdxs ruleIdxs variantMap max_holes dsl' variantTypes
+    where
     variants :: [(String, Expr)] = (\(_k, v) -> (nodeRule v, v)) <$> exprBlocks
     variant_sizes :: HashMap String Int = fromList $ variantInt . snd <$> variants
-    task_type_ins :: HashMap Expr (HashMap [Tp] [Expr]) =
-        fmap (fmap fst) <$> fnInTypeInstanceOutputs
+    task_type_ins :: HashMap Expr (HashMap (Tp, Tp) [Expr]) = fmap (fmap fst) <$> fnTypeIOs
     -- combine i/o lists across type instances
-    task_io_pairs :: HashMap Expr [(Expr, Either String Expr)] =
-        join . elems <$> fnInTypeInstanceOutputs
+    task_io_map :: HashMap Expr [(Expr, Either String Expr)] = join . elems <$> fnTypeIOs
     -- then take their outputs
-    task_outputs :: HashMap Expr [Either String Expr] =
-        fmap snd <$> task_io_pairs
+    task_outputs :: HashMap Expr [Either String Expr] = fmap snd <$> task_io_map
     symbolIdxs :: HashMap String Int = indexList $ "undefined" : keys dsl
     ruleIdxs :: HashMap String Int = indexList $ fst <$> variants
     variantMap :: HashMap String Expr = fromList variants
@@ -191,10 +191,9 @@ prep_dsl TaskFnDataset{..} = tpl where
     -- DSL without entries equal to their key, for constructing let-in expressions.
     -- without this, blocks identical to their keys are seen as recursive, causing non-termination
     dsl' = filterWithKey (\k v -> k /= pp v) dsl
-    tpl = (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl')
 
 -- | train a NSPS model and return results
-train :: forall device rules shape synthesizer . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownShape shape, Synthesizer device shape rules synthesizer) => SynthesizerConfig -> TaskFnDataset -> synthesizer -> Interpreter [EvalResult]
+train :: forall device rules shape ruleFeats synthesizer . (KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, KnownShape shape, Synthesizer device shape rules ruleFeats synthesizer) => SynthesizerConfig -> TaskFnDataset -> synthesizer -> Interpreter [EvalResult]
 train synthesizerConfig taskFnDataset init_model = do
     let SynthesizerConfig{..} = synthesizerConfig
     let TaskFnDataset{..} = taskFnDataset
@@ -207,8 +206,8 @@ train synthesizerConfig taskFnDataset init_model = do
     let modelFolder = resultFolder <> "/" <> ppCfg synthesizerConfig
     liftIO $ createDirectoryIfMissing True modelFolder
 
-    let prepped_dsl = prep_dsl taskFnDataset
-    let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
+    prepped_dsl <- prep_dsl taskFnDataset
+    let PreppedDSL{..} = prepped_dsl
 
     -- MODELS
     let init_optim :: D.Adam = d_mkAdam 0 0.9 0.999 $ A.flattenParameters init_model
@@ -218,21 +217,23 @@ train synthesizerConfig taskFnDataset init_model = do
         let (train_set', gen') = fisherYates gen train_set    -- shuffle
         start <- liftIO $ getCPUTime
         -- TRAIN LOOP
+        let rule_tp_emb :: Tensor device 'D.Float '[rules, ruleFeats] =
+                rule_encode @device @shape @rules @ruleFeats model_ variantTypes
         let foldrM_ x xs f = foldrM f x xs
         (train_losses, model', optim') :: ([D.Tensor], synthesizer, D.Adam) <- foldrM_ ([], model_, optim_) train_set' $ \ task_fn (train_losses, model, optim) -> do
             -- putStrLn $ "task_fn: \n" <> pp task_fn
             let taskType :: Tp = fnTypes ! task_fn
             -- putStrLn $ "taskType: " <> pp taskType
-            let target_io_pairs :: [(Expr, Either String Expr)] =
-                    task_io_pairs ! task_fn
-            -- putStrLn $ "target_io_pairs: " <> pp_ target_io_pairs
+            let target_tp_io_pairs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] =
+                    fnTypeIOs ! task_fn
+            -- putStrLn $ "target_tp_io_pairs: " <> pp_ target_tp_io_pairs
             --  :: Tensor device 'D.Float '[n'1, t * (2 * Dirs * h)]
             -- sampled_feats :: Tensor device 'D.Float '[r3nnBatch, t * (2 * Dirs * h)]
-            io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules model target_io_pairs
-            loss :: Tensor device 'D.Float '[] <- calcLoss @rules dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants
+            io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules @ruleFeats model target_tp_io_pairs
+            loss :: Tensor device 'D.Float '[] <- calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb
             -- TODO: do once for each mini-batch / fn?
             -- (newParam, optim') <- liftIO $ D.runStep model optim (toDynamic loss) $ toDynamic lr
-            (newParam, optim') <- liftIO $ doStep @device @shape @rules model optim loss lr
+            (newParam, optim') <- liftIO $ doStep @device @shape @rules @ruleFeats model optim loss lr
             let model' :: synthesizer = A.replaceParameters model newParam
             return (toDynamic loss : train_losses, model', optim')
 
@@ -245,7 +246,7 @@ train synthesizerConfig taskFnDataset init_model = do
         -- EVAL
         (earlyStop, eval_results') <- whenOrM (False, eval_results) (mod epoch evalFreq == 0) $ do
 
-            (acc_valid, loss_valid) <- evaluate @device @rules @shape taskFnDataset prepped_dsl bestOf maskBad model' validation_set
+            (acc_valid, loss_valid) <- evaluate @device @rules @shape @ruleFeats taskFnDataset prepped_dsl bestOf maskBad model' validation_set
 
             liftIO $ printf
                 "Epoch: %03d. Train loss: %.4f. Validation loss: %.4f. Validation accuracy: %.4f.\n"
@@ -290,34 +291,32 @@ train synthesizerConfig taskFnDataset init_model = do
 
     return eval_results'
 
-evaluate :: forall device rules shape synthesizer num_holes
-          . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownShape shape, Synthesizer device shape rules synthesizer)
-         => TaskFnDataset -> ([(String, Expr)], HashMap String Int, HashMap Expr (HashMap [Tp] [Expr]), HashMap Expr [(Expr, Either String Expr)], HashMap Expr [Either String Expr], HashMap String Int, HashMap String Int, HashMap String Expr, Int, HashMap String Expr) -> Int -> Bool -> synthesizer -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
-evaluate taskFnDataset prepped_dsl bestOf maskBad model dataset = do
-    let TaskFnDataset{..} = taskFnDataset
-    let (variants, variant_sizes, task_type_ins, task_io_pairs, task_outputs, symbolIdxs, ruleIdxs, variantMap, max_holes, dsl') = prepped_dsl
+evaluate :: forall device rules shape ruleFeats synthesizer num_holes
+          . ( KnownDevice device, RandDTypeIsValid device 'D.Float, MatMulDTypeIsValid device 'D.Float, SumDTypeIsValid device 'D.Float, BasicArithmeticDTypeIsValid device 'D.Float, RandDTypeIsValid device 'D.Int64, KnownNat rules, KnownNat ruleFeats, KnownShape shape, Synthesizer device shape rules ruleFeats synthesizer)
+         => TaskFnDataset -> PreppedDSL -> Int -> Bool -> synthesizer -> [Expr] -> Interpreter (Tensor device 'D.Float '[], Tensor device 'D.Float '[])
+evaluate TaskFnDataset{..} PreppedDSL{..} bestOf maskBad model dataset = do
+    let rule_tp_emb :: Tensor device 'D.Float '[rules, ruleFeats] =
+                rule_encode @device @shape @rules @ruleFeats model variantTypes
     eval_stats :: [(Bool, Tensor device 'D.Float '[])] <- forM dataset $ \task_fn -> do
-        let taskType :: Tp = fnTypes                        ! task_fn
-        let type_ins :: HashMap [Tp] [Expr] = task_type_ins ! task_fn
-        let target_io_pairs :: [(Expr, Either String Expr)] =
-                task_io_pairs                               ! task_fn
-        let target_outputs :: [Either String Expr] =
-                task_outputs                                ! task_fn
+        let taskType :: Tp = fnTypes ! task_fn
+        let type_ins :: HashMap (Tp, Tp) [Expr] = task_type_ins ! task_fn
+        let target_tp_io_pairs :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fnTypeIOs ! task_fn
+        let target_outputs :: [Either String Expr] = task_outputs ! task_fn
 
-        io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules model target_io_pairs
-        loss :: Tensor device 'D.Float '[] <- calcLoss @rules dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants
+        io_feats :: Tensor device 'D.Float shape <- liftIO $ encode @device @shape @rules @ruleFeats model target_tp_io_pairs
+        loss :: Tensor device 'D.Float '[] <- calcLoss @rules @ruleFeats dsl' task_fn taskType symbolIdxs model io_feats variantMap ruleIdxs variant_sizes max_holes maskBad variants rule_tp_emb
 
         -- sample for best of 100 predictions
         -- TODO: dedupe samples before eval to save evals?
         -- TODO: consider A* / branch-and-bound / beam search instead
         sample_matches :: [Bool] <- replicateM bestOf $ do
-            -- TODO: use these ExprTypeSig type annotations
+            -- TODO: use these ExpTypeSig type annotations
             -- TODO: split io_feats and taskType based on param type instance combo 
             (program, used, _filled) :: (Expr, Set String, Int) <- let
                     --  :: (Int, Expr) -> IO (Int, Expr)
                     fill = \(ppt, used, filled) -> do
                             --  :: Tensor device 'D.Float '[num_holes, rules]
-                            let predicted = predict @device @shape @rules @synthesizer model symbolIdxs ppt io_feats
+                            let predicted = predict @device @shape @rules @ruleFeats @synthesizer model symbolIdxs ppt rule_tp_emb io_feats
                             (ppt', used') <- liftIO $ predictHole variants ppt used predicted
                             return (ppt', used', filled + 1)
                     in while (\(ppt, used, filled) -> hasHoles ppt && filled < max_holes) fill (skeleton taskType, empty, 0 :: Int)
@@ -329,12 +328,12 @@ evaluate taskFnDataset prepped_dsl bestOf maskBad model dataset = do
                 if not sane then pure False else do
 
                     -- say $ "type_ins: " <> pp_ type_ins
-                    prediction_type_ios :: HashMap [Tp] [(Expr, Either String Expr)] <- let
-                            compileInput :: [Tp] -> [Expr] -> Interpreter [(Expr, Either String Expr)] = \ in_instantiation ins -> let
+                    prediction_type_ios :: HashMap (Tp, Tp) [(Expr, Either String Expr)] <- let
+                            compileInput :: (Tp, Tp) -> [Expr] -> Interpreter [(Expr, Either String Expr)] = \ tp_instantiation ins -> let
                                     n :: Int = length $ unTuple' $ ins !! 0
                                     -- crash_on_error=False is slower but lets me check if it compiles.
                                     -- fitExpr already does a type-check tho, so don't repeat that here.
-                                    in fnIoPairs True n program' in_instantiation $ list ins
+                                    in fnIoPairs True n program' (fst tp_instantiation) $ list ins
                             in sequence $ compileInput `mapWithKey` type_ins
                     -- say $ "prediction_type_ios: " <> pp_ prediction_type_ios
                     let prediction_io_pairs :: [(Expr, Either String Expr)] =

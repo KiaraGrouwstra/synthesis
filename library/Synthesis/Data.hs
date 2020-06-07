@@ -25,18 +25,23 @@ type Tp = Type L
 -- | Expression node, where my branches consist of function application, my leaves of typed holes or variables.
 type Expr = Exp L
 
+type Tpl2 a = (a,a)
+
 -- | things I wanna transfer between generation and synthesis sessions
 data TaskFnDataset = TaskFnDataset
     { generationCfg :: GenerationConfig
     , dsl :: HashMap String Expr
     , generatedTypes :: HashMap Int [String]  -- i.e. typesByArity
     , fnTypes :: HashMap Expr Tp
-    , fnInTypeInstanceOutputs :: HashMap Expr (HashMap [Tp] [(Expr, Either String Expr)])
+    , fnTypeIOs :: HashMap Expr (HashMap (Tp, Tp) [(Expr, Either String Expr)])
     , restInstantiationInputs :: HashMap Tp [Expr]
     , datasets :: ([Expr], [Expr], [Expr])
     , exprBlocks :: [(String, Expr)]
+    , longestExprString :: Int
     , longestString :: Int
-    , charMap :: HashMap Char Int
+    , exprCharMap :: HashMap Char Int
+    , bothCharMap :: HashMap Char Int
+    , ruleCharMap :: HashMap Char Int
     } deriving (Show, Generic)
 
 data GenerationConfig = GenerationConfig
@@ -85,6 +90,7 @@ data SynthesizerConfig = SynthesizerConfig
     , hidden1 :: Int
     , synthesizer :: String
     , maskBad :: Bool
+    , useTypes :: Bool
     } deriving (Eq, Show, Generic)
 
 data GridSearchConfig = GridSearchConfig
@@ -104,6 +110,7 @@ data GridSearchConfig = GridSearchConfig
     , verbosity :: String
     , evalRounds :: Int
     , maskBad :: Bool
+    , useTypes :: Bool
     } deriving (Eq, Show, Generic)
 
 -- I should probably include the actual GA config here,
@@ -126,6 +133,7 @@ data EvolutionaryConfig = EvolutionaryConfig
     , verbosity :: String
     -- , evalRounds :: Int
     , maskBad :: Bool
+    , useTypes :: Bool
     } deriving (Eq, Show, Generic)
 
 data OptimizationConfig = OptimizationConfig
@@ -145,6 +153,7 @@ data OptimizationConfig = OptimizationConfig
     , verbosity :: String
     -- , evalRounds :: Int
     , maskBad :: Bool
+    , useTypes :: Bool
     } deriving (Eq, Show, Generic)
 
 data HparComb = HparComb
@@ -216,4 +225,19 @@ combineConfig optCfg hparComb = cfg
                 , hidden1              = hidden1
                 , synthesizer          = "nsps"
                 , maskBad              = maskBad
+                , useTypes             = useTypes
                 }
+
+data PreppedDSL = PreppedDSL
+    { variants :: [(String, Expr)]
+    , variant_sizes :: HashMap String Int
+    , task_type_ins :: HashMap Expr (HashMap (Tp, Tp) [Expr])
+    , task_io_map :: HashMap Expr [(Expr, Either String Expr)]
+    , task_outputs :: HashMap Expr [Either String Expr]
+    , symbolIdxs :: HashMap String Int
+    , ruleIdxs :: HashMap String Int
+    , variantMap :: HashMap String Expr
+    , max_holes :: Int
+    , dsl' :: HashMap String Expr
+    , variantTypes :: [Tp]
+    }

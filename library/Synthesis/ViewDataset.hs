@@ -39,5 +39,5 @@ printTaskFns TaskFnDataset{..} train_set = do
         let fn_type :: Tp = fnTypes ! ast
         putStrLn "================================================"
         putStrLn $ "\n" ++ pp_ (expTypeSig (letRes ast) fn_type)
-        let in_type_instance_outputs :: HashMap [Tp] [(Expr, Either String Expr)] = fnInTypeInstanceOutputs ! ast
-        putStrLn $ pp_ in_type_instance_outputs
+        let tp_ios :: HashMap (Tp, Tp) [(Expr, Either String Expr)] = fnTypeIOs ! ast
+        putStrLn $ pp_ tp_ios
