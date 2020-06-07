@@ -47,8 +47,7 @@ randomType tpsByArity allowAbstract allowFns nestLimit typeVars tyVarCount = do
     let fns :: [IO Tp] = [gen_fn | allowFns]
     -- base types
     let applied :: HashMap Int [IO Tp] = mapWithKey (\ i strs -> fillChildren i <$> strs) tpsByArity
-    -- TODO: keep the key around to decrement based on the picked key...
-    let base :: [IO Tp] = concat $ elems $ filterWithKey (\ k _v -> k <= nestLimit) applied
+    let base :: [IO Tp] = concat $ elems $ filterWithKey (\ k _v -> k == 0 || nestLimit > 0) applied
     -- total
     let options :: [IO Tp] = base ++ tpVars ++ abstracts ++ fns
     join $ pick options
