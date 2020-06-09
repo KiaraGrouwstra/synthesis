@@ -19,7 +19,7 @@ generationConfig = GenerationConfig
     <*> seedOpt
     <*> option auto
         ( long "nestLimit"
-        <> value 0
+        <> value 1
         <> showDefault
         <> help "max number of levels of nesting for generated types. high values make for big logs while debugging..." )
     <*> option auto
@@ -213,7 +213,7 @@ seedOpt = option auto
 
 maxHolesOpt = option auto
     ( long "maxHoles"
-    <> value (1 :: Int)
+    <> value (6 :: Int)
     <> showDefault
     <> help "the maximum number of holes to allow in a generated expression" )
 
@@ -221,7 +221,7 @@ numEpochsOpt = option auto
     ( long "numEpochs"
     <> value (1000 :: Int)
     <> showDefault
-    <> help "the number of epochs to train for" )
+    <> help "the maximum number of epochs to train for" )
 
 bestOfOpt = option auto
     ( long "bestOf"
@@ -251,7 +251,7 @@ evalFreqOpt = option auto
     ( long "evalFreq"
     <> value (5 :: Int)
     <> showDefault
-    <> help "the number of epochs for which to run on train test before evaluating on the test set again" )
+    <> help "the number of epochs for which to run on train set before evaluating on the validation set again" )
 
 learningRateOpt = option auto
     ( long "learningRate"
@@ -300,25 +300,25 @@ verbosityOpt = strOption
 
 mOpt = option auto
     ( long "m"
-    <> value (20 :: Int)
+    <> value (32 :: Int)
     <> showDefault
     <> help "number of features for R3NN expansions/symbols. must be an even number for H." )
 
 hOpt = option auto
     ( long "h"
-    <> value (30 :: Int)
+    <> value (32 :: Int)
     <> showDefault
     <> help "H is the topmost LSTM hidden dimension." )
 
 hidden0Opt = option auto
     ( long "hidden0"
-    <> value (20 :: Int)
+    <> value (16 :: Int)
     <> showDefault
     <> help "MLP hidden layer 0" )
 
 hidden1Opt = option auto
     ( long "hidden1"
-    <> value (20 :: Int)
+    <> value (16 :: Int)
     <> showDefault
     <> help "MLP hidden layer 1" )
 
@@ -333,7 +333,7 @@ evalRoundsOpt = option auto
     ( long "evalRounds"
     <> value (maxBound :: Int)
     <> showDefault
-    <> help "the maximum number of rounds to evaluate for. by default all configurations are evaluated." )
+    <> help "the maximum number of rounds to evaluate for during hyperparameter optimization. by default all configurations are evaluated." )
 
 maskBadOpt = switch
     ( long "maskBad"
@@ -343,4 +343,4 @@ maskBadOpt = switch
 useTypesOpt = switch
     ( long "useTypes"
     <> short 't'
-    <> help "supervise synthesis using rule/hole types as additional features" )
+    <> help "supervise synthesis using rule/hole types as additional features." )
