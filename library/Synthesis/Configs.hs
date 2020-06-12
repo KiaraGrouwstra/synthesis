@@ -81,7 +81,7 @@ generationConfig = GenerationConfig
         <> help "how much of our dataset to allocate to the test set" )
     <*> option auto
         ( long "maxDataset"
-        <> value 10000
+        <> value 1000
         <> showDefault
         <> help "the maximum number of programs we will consider for use in our dataset (before further filtering)" )
 
