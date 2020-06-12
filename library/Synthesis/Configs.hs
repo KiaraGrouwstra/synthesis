@@ -28,12 +28,12 @@ generationConfig = GenerationConfig
         <> showDefault
         <> help "max number of type instantiations to generate for any type variable. may get less after deduplicating type instances." )
     -- NSPS: for all results, the program tree generation is conditioned on a set of 10 input/output string pairs.
+    <*> maxHolesOpt
     <*> option auto
         ( long "numInputs"
         <> value 10
         <> showDefault
         <> help "max number of inputs to generate. may get less after nub filters out duplicates." )
-    <*> maxHolesOpt
     <*> option auto
         ( long "numMin"
         <> value (-20)
