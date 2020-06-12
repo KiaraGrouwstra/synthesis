@@ -29,6 +29,7 @@ imports =
   , ModuleImport "Data.HashMap.Lazy"   NotQualified                   $ ImportList ["HashMap"]
   , ModuleImport "Data.HashMap.Lazy"   (QualifiedAs $ Just "HashMap") $ ImportList ["insert"]
   , ModuleImport "Control.Applicative" NotQualified                   $ ImportList ["empty"]
+  , ModuleImport "Data.Hashable"       NotQualified                   $ ImportList ["Hashable"]
   ]
 
 -- | test an interpreter monad, printing errors, returning values
