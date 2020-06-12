@@ -213,7 +213,7 @@ seedOpt = option auto
 
 maxHolesOpt = option auto
     ( long "maxHoles"
-    <> value (6 :: Int)
+    <> value (3 :: Int)
     <> showDefault
     <> help "the maximum number of holes to allow in a generated expression" )
 
