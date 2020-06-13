@@ -47,10 +47,10 @@ blockAstsCategoryTheory =
     $ insert "(,)" "(,)"
     $ insert "zip" "zip"
     $ insert "unzip" "unzip"
-    -- Set
-    $ insert "insertSet" "Set.insert"
+    -- -- Set
+    -- $ insert "insertSet" "Set.insert"
     -- HashMap
-    $ insert "insertHashMap" "HashMap.insert"
+    $ insert "insert" "insert"
     -- Enum
     $ insert "succ" "succ"
     $ insert "toEnum" "toEnum"

@@ -26,7 +26,7 @@ data:
         -- snd = foldr1 const
     -- Either: Left/Right, either
 
-    Set: mempty, insert --, fromList
+    -- Set: mempty, insert --, fromList
     HashMap: mempty, insert --, fromList --, keys/elems
     -- Tree: Node
 
