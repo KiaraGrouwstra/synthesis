@@ -104,7 +104,7 @@ genInputs g intRange charRange listLengths n tp = nubPp . take n $ exprs
         TyApp _l a c -> case a of
             TyCon _l qname -> case pp qname of
                 -- binary
-                "(,)" -> genTpl2 b c
+                "(,)" -> genTpl2 c b
                 "Either" -> (\(bl,(x,y)) -> if bl then app (con "Right") x else app (con "Left") y) <$> (randoms g :: [Bool]) `zip` (f n b `zip` f n c)
                 "HashMap" -> app (qual "HashMap" "fromList") <$> genList (tyTuple [c, b])
                 _ -> error msg
