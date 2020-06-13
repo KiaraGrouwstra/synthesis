@@ -112,7 +112,7 @@ genInputs g intRange charRange listLengths n tp = nubPp . take n $ exprs
         _ -> error msg
       TyCon _l qname -> case pp qname of
         "Bool" -> con . show <$> (randoms g :: [Bool])
-        "Int" -> int <$> (randomRs intRange g :: [Integer])
+        "Int" -> paren . int <$> (randomRs intRange g :: [Integer])
         "Char" -> char <$> (randomRs charRange g :: [Char])
         "String" -> genList $ tyCon "Char"
         _ -> error msg
