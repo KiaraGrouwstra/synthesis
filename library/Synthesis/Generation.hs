@@ -152,7 +152,7 @@ instantiateTypeVars types_by_arity instTpsByArity variableConstraints = do
   let arities :: [Int] = elems keyArities
   let ks :: [String] = keys variableConstraints
   let combs :: [[Tp]] = (\tps -> sequence $ replicate (length ks) tps) $ concat $ elems $ instTpsByArity
-  let combs_ :: [[Tp]] = filter (\tps -> ((tpArity !) <$> tps) == arities) combs
+  let combs_ :: [[Tp]] = filter (\tps -> ((\k -> lookupDefault 0 k tpArity) <$> tps) == arities) combs
   let maps :: [HashMap String Tp] = fromList . zip ks <$> combs_
   let keysOk :: HashMap String Tp -> Interpreter Bool = allM (\(k, v) -> let (arity, tps) = variableConstraints ! k in matchesConstraints arity v tps) . toList
   res <- filterM keysOk maps
