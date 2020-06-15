@@ -269,7 +269,7 @@ checkWindowOpt = option auto
 
 convergenceThresholdOpt = option auto
     ( long "convergenceThreshold"
-    <> value 0.000001
+    <> value 0.0
     <> showDefault
     <> help "the minimum loss increment we consider as indicating convergence" )
 
