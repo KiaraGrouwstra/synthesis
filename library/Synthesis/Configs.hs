@@ -241,9 +241,10 @@ r3nnBatchOpt = option auto
     <> showDefault
     <> help "the R3NN batch size i.e. number of i/o samples to sample per invocation" )
 
+dropoutRateDef = 0.0    -- drop-out not mentioned in NSPS
 dropoutRateOpt = option auto
     ( long "dropoutRate"
-    <> value 0.0    -- drop-out not mentioned in NSPS
+    <> value dropoutRateDef
     <> showDefault
     <> help "drop-out rate for the encoder LSTM" )
 
@@ -253,9 +254,10 @@ evalFreqOpt = option auto
     <> showDefault
     <> help "the number of epochs for which to run on train set before evaluating on the validation set again" )
 
+learningRateDef = 0.001
 learningRateOpt = option auto
     ( long "learningRate"
-    <> value 0.001
+    <> value learningRateDef
     <> showDefault
     <> help "initial learning rate used in ML optimizer" )
 
@@ -280,13 +282,14 @@ resultFolderOpt = strOption
 
 learningDecayOpt = option auto
     ( long "learningDecay"
-    <> value (5 :: Int)
+    <> value (1 :: Int)
     <> showDefault
     <> help "by how much to divide the learning rate when accuracy decreases" )
 
+regularizationDef = 0.0
 regularizationOpt = option auto
     ( long "regularization"
-    <> value 0.0
+    <> value regularizationDef
     <> showDefault
     <> help "L2 weight decay used in the optimizer" )
 
@@ -298,27 +301,31 @@ verbosityOpt = strOption
     <> completeWith ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
     <> help "the log level to use" )
 
+mDef = (32 :: Int)
 mOpt = option auto
     ( long "m"
-    <> value (32 :: Int)
+    <> value mDef
     <> showDefault
     <> help "number of features for R3NN expansions/symbols. must be an even number for H." )
 
+hDef = (32 :: Int)
 hOpt = option auto
     ( long "h"
-    <> value (32 :: Int)
+    <> value hDef
     <> showDefault
     <> help "H is the topmost LSTM hidden dimension." )
 
+hidden0Def = (16 :: Int)
 hidden0Opt = option auto
     ( long "hidden0"
-    <> value (16 :: Int)
+    <> value hidden0Def
     <> showDefault
     <> help "MLP hidden layer 0" )
 
+hidden1Def = (16 :: Int)
 hidden1Opt = option auto
     ( long "hidden1"
-    <> value (16 :: Int)
+    <> value hidden1Def
     <> showDefault
     <> help "MLP hidden layer 1" )
 

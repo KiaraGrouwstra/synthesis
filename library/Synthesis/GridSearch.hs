@@ -62,7 +62,8 @@ import           Synthesis.Synthesizer.NSPS
 import           Synthesis.Synthesizer.Train
 import           Synthesis.Synthesizer.Params
 
-hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
+hparCombs :: [HparComb] = HparComb <$> -- uncurry7 HparComb <$> cartesianProduct7
+    learningRateOpts
     dropoutRateOpts
     regularizationOpts
     mOpts
@@ -70,24 +71,27 @@ hparCombs :: [HparComb] = uncurry6 HparComb <$> cartesianProduct6
     hidden0Opts
     hidden1Opts
 
+learningRateOpts :: [Float]
+learningRateOpts = reverse ((\x -> 10 ** (-x)) <$> [3..6])
+
 dropoutRateOpts :: [Double]
-dropoutRateOpts = 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
+dropoutRateOpts = [dropoutRateDef] -- 0 : reverse ((\x -> 2 ** (-x)) <$> [1..5])
 
 regularizationOpts :: [Float]
-regularizationOpts = [0.0] -- 0 : reverse ((\x -> 10 ** (-x)) <$> [1..4])
+regularizationOpts = [regularizationDef] -- 0 : reverse ((\x -> 10 ** (-x)) <$> [1..4])
 
 -- | skip `m=1`: must be an even number for H.
 mOpts :: [Int]
-mOpts = (2 ^) <$> [3..7]
+mOpts = [mDef] -- (2 ^) <$> [3..7]
 
 hOpts :: [Int]
-hOpts = (2 ^) <$> [3..7]
+hOpts = [hDef] -- (2 ^) <$> [3..7]
 
 hidden0Opts :: [Int]
-hidden0Opts = (2 ^) <$> [2..6]
+hidden0Opts = [hidden0Def] -- (2 ^) <$> [2..6]
 
 hidden1Opts :: [Int]
-hidden1Opts = (2 ^) <$> [2..6]
+hidden1Opts = [hidden1Def] -- (2 ^) <$> [2..6]
 
 -- | main function
 main :: IO ()

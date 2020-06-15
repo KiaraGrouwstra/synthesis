@@ -100,7 +100,7 @@ data GridSearchConfig = GridSearchConfig
     , bestOf :: Int
     -- , dropoutRate :: Double
     , evalFreq :: Int
-    , learningRate :: Float
+    -- , learningRate :: Float
     , checkWindow :: Int
     , convergenceThreshold :: Float
     -- , maxHoles :: Int
@@ -123,7 +123,7 @@ data EvolutionaryConfig = EvolutionaryConfig
     , bestOf :: Int
     -- , dropoutRate :: Double
     , evalFreq :: Int
-    , learningRate :: Float
+    -- , learningRate :: Float
     , checkWindow :: Int
     , convergenceThreshold :: Float
     -- , maxHoles :: Int
@@ -143,7 +143,7 @@ data OptimizationConfig = OptimizationConfig
     , bestOf :: Int
     -- , dropoutRate :: Double
     , evalFreq :: Int
-    , learningRate :: Float
+    -- , learningRate :: Float
     , checkWindow :: Int
     , convergenceThreshold :: Float
     -- , maxHoles :: Int
@@ -157,7 +157,8 @@ data OptimizationConfig = OptimizationConfig
     } deriving (Eq, Show, Generic)
 
 data HparComb = HparComb
-    { dropoutRate :: Double
+    { learningRate :: Float
+    , dropoutRate :: Double
     , regularization :: Float
     , m :: Int
     , h :: Int
@@ -191,7 +192,8 @@ evalResultHeader :: Header = header ["epoch", "epochSeconds", "lossTrain", "loss
 
 instance ToNamedRecord (HparComb, EvalResult) where
     toNamedRecord (HparComb{..}, evalResult) =
-        namedRecord [ "dropoutRate"    .= dropoutRate
+        namedRecord [ "learningRate"   .= learningRate
+                    , "dropoutRate"    .= dropoutRate
                     , "regularization" .= regularization
                     , "m"              .= m
                     , "h"              .= h
