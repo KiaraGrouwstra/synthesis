@@ -119,7 +119,7 @@ getM cfg taskFnDataset = let
                 encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h featMult =
                     LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
                 r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h maxChar featMult =
-                    initR3nn variants r3nnBatch dropoutRate hidden0 hidden1 charMap
+                    initR3nn variants r3nnBatch dropoutRate charMap
                 rule_encoder_spec :: TypeEncoderSpec device maxStringLength maxChar m =
                     TypeEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
                 spec :: NSPSSpec device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h featMult =

@@ -105,8 +105,6 @@ regularizationVar :: Ordinal Float  = Ordinal regularizationOpts
 -- | skip `m=1`: must be an even number for H.
 mVar              :: Ordinal Int    = Ordinal mOpts
 hVar              :: Ordinal Int    = Ordinal hOpts
-hidden0Var        :: Ordinal Int    = Ordinal hidden0Opts
-hidden1Var        :: Ordinal Int    = Ordinal hidden1Opts
 
 instance Entity HparComb Float (HparComb -> IO (EvalResult, IO ())) () IO where
 
@@ -115,22 +113,18 @@ instance Entity HparComb Float (HparComb -> IO (EvalResult, IO ())) () IO where
         (genRand seed regularizationVar)
         (genRand seed mVar)
         (genRand seed hVar)
-        (genRand seed hidden0Var)
-        (genRand seed hidden1Var)
 
   crossover () _p seed e1 e2 = return $ Just e
     where
       anE = \bl -> if bl then e1 else e2
       g = mkStdGen seed
-      [b1,b2,b3,b4,b5,b6] =
-          take 6 $ randoms g
+      [b1,b2,b3,b4] =
+          take 4 $ randoms g
       e = HparComb
         (dropoutRate    $ anE b1)
         (regularization $ anE b2)
         (m              $ anE b3)
         (h              $ anE b4)
-        (hidden0        $ anE b5)
-        (hidden1        $ anE b6)
 
   mutation () _p seed e = return $ Just e' where
       HparComb{..} = e
@@ -139,8 +133,6 @@ instance Entity HparComb Float (HparComb -> IO (EvalResult, IO ())) () IO where
           , \e -> e { regularization = mutate seed regularizationVar regularization }
           , \e -> e { m              = mutate seed mVar m }
           , \e -> e { h              = mutate seed hVar h }
-          , \e -> e { hidden0        = mutate seed hidden0Var hidden0 }
-          , \e -> e { hidden1        = mutate seed hidden1Var hidden1 }
           ]
       e' = (pickG seed mutations) e
 

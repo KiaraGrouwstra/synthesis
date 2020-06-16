@@ -62,14 +62,12 @@ import           Synthesis.Synthesizer.NSPS
 import           Synthesis.Synthesizer.Train
 import           Synthesis.Synthesizer.Params
 
-hparCombs :: [HparComb] = HparComb <$> -- uncurry7 HparComb <$> cartesianProduct7
+hparCombs :: [HparComb] = uncurry5 HparComb <$> cartesianProduct5
     learningRateOpts
     dropoutRateOpts
     regularizationOpts
     mOpts
     hOpts
-    hidden0Opts
-    hidden1Opts
 
 learningRateOpts :: [Float]
 learningRateOpts = reverse ((\x -> 10 ** (-x)) <$> [3..6])
@@ -86,12 +84,6 @@ mOpts = [mDef] -- (2 ^) <$> [3..7]
 
 hOpts :: [Int]
 hOpts = [hDef] -- (2 ^) <$> [3..7]
-
-hidden0Opts :: [Int]
-hidden0Opts = [hidden0Def] -- (2 ^) <$> [2..6]
-
-hidden1Opts :: [Int]
-hidden1Opts = [hidden1Def] -- (2 ^) <$> [2..6]
 
 -- | main function
 main :: IO ()
@@ -180,7 +172,7 @@ evalHparComb taskFnDataset cfg hparComb = do
     -- putStrLn . show $ cfg'
     manual_seed_L $ fromIntegral seed
     model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h featMult
-            <- A.sample $ nspsSpec taskFnDataset variants r3nnBatch dropoutRate hidden0 hidden1
+            <- A.sample $ nspsSpec taskFnDataset variants r3nnBatch dropoutRate
     lastEvalResult :: EvalResult <- last <.> interpretUnsafe $ train @device @rules @shape @ruleFeats cfg' taskFnDataset model
     let testEval :: IO () = finalEval @device @featMult @m @rules @maxChar @symbols @maxStringLength @h @shape @ruleFeats cfg taskFnDataset hparComb lastEvalResult
     return (lastEvalResult, testEval)
@@ -203,7 +195,7 @@ finalEval cfg taskFnDataset bestHparComb bestEvalResult = do
     let encoder_spec :: LstmEncoderSpec device maxStringLength EncoderBatch maxChar h featMult =
             LstmEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
     let r3nn_spec :: R3NNSpec device m symbols rules maxStringLength R3nnBatch h maxChar featMult =
-            initR3nn variants r3nnBatch dropoutRate hidden0 hidden1 charMap
+            initR3nn variants r3nnBatch dropoutRate charMap
     let rule_encoder_spec :: TypeEncoderSpec device maxStringLength maxChar m =
             TypeEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate
     model :: NSPS device m symbols rules maxStringLength EncoderBatch R3nnBatch maxChar h featMult <-

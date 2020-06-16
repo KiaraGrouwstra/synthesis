@@ -613,11 +613,11 @@ liftA7 :: Applicative f => (a -> b -> c -> d -> e -> f' -> g -> h) -> f a -> f b
 liftA7 f a b c d e f' g = liftA6 f a b c d e f' <*> g
 
 -- | calculate a cartesian product, used for hyper-parameter combinations
-cartesianProduct7 :: [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [g] -> [(a, b, c, d, e, f, g)]
-cartesianProduct7 = liftA7 (,,,,,,)
+cartesianProduct5 :: [a] -> [b] -> [c] -> [d] -> [e] -> [(a, b, c, d, e)]
+cartesianProduct5 = liftA5 (,,,,)
 
-uncurry7 :: (a -> b -> c -> d -> e -> f' -> g -> h) -> (a, b, c, d, e, f', g) -> h
-uncurry7 f ~(a, b, c, d, e, f', g) = f a b c d e f' g
+uncurry5 :: (a -> b -> c -> d -> e -> f') -> (a, b, c, d, e) -> f'
+uncurry5 f ~(a, b, c, d, e) = f a b c d e
 
 knownNat :: forall n. KnownNat n => Integer
 knownNat = natVal $ Proxy @n

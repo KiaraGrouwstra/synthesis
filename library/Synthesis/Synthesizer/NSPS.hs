@@ -115,7 +115,7 @@ instance ( KnownDevice device, MatMulDTypeIsValid device 'D.Float, SumDTypeIsVal
     patchLoss = patchR3nnLoss . r3nn
 
 nspsSpec :: forall device m symbols maxStringLength encoderBatch r3nnBatch maxChar h rules featMult . (KnownNat rules, KnownNat m, KnownNat symbols, KnownNat rules, KnownNat maxStringLength, KnownNat encoderBatch, KnownNat r3nnBatch, KnownNat maxChar, KnownNat h, KnownNat featMult) => TaskFnDataset -> [(String, Expr)] -> Int -> Double -> Int -> Int -> NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h featMult
-nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate hidden0 hidden1 = spec where
+nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate = spec where
     useTypes = natValI @featMult > 1
     charMap = if useTypes then bothCharMap else exprCharMap
     encoder_spec :: LstmEncoderSpec device maxStringLength encoderBatch maxChar h featMult =
@@ -123,7 +123,7 @@ nspsSpec TaskFnDataset{..} variants r3nnBatch dropoutRate hidden0 hidden1 = spec
     type_encoder_spec :: TypeEncoderSpec device maxStringLength maxChar m =
         TypeEncoderSpec ruleCharMap $ LSTMSpec $ DropoutSpec dropoutRate
     r3nn_spec :: R3NNSpec device m symbols rules maxStringLength r3nnBatch h maxChar featMult =
-        initR3nn variants r3nnBatch dropoutRate hidden0 hidden1 ruleCharMap
+        initR3nn variants r3nnBatch dropoutRate ruleCharMap
     spec :: NSPSSpec device m symbols rules maxStringLength encoderBatch r3nnBatch maxChar h featMult =
         NSPSSpec encoder_spec type_encoder_spec r3nn_spec
 

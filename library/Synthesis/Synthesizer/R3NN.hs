@@ -68,11 +68,7 @@ data R3NNSpec
         -- ppt :: Expr
       . { variant_sizes :: HashMap String Int
         , conditionSpec :: LSTMSpec (m + batch_size * maxStringLength * (2 * featMult * Dirs * h)) (Div m Dirs) NumLayers Dir 'D.Float device
-        , scoreSpec     :: LSTMSpec  m                                                  (Div m Dirs) NumLayers Dir 'D.Float device
-        , leftH0  :: Int
-        , leftH1  :: Int
-        , rightH0 :: Int
-        , rightH1 :: Int
+        , scoreSpec     :: LSTMSpec  m                                                             (Div m Dirs) NumLayers Dir 'D.Float device
         , holeEncoderSpec :: TypeEncoderSpec device maxStringLength maxChar m
         }
         -> R3NNSpec device m symbols rules maxStringLength batch_size h maxChar featMult
@@ -139,9 +135,9 @@ instance ( KnownDevice device
             -- score_model
             <*> A.sample (LSTMWithZerosInitSpec scoreSpec)
             -- left: untyped as q is not static
-            <*> mapM (\q -> A.sample $ MLPSpec (q * m) leftH0 leftH1 m) variant_sizes
+            <*> mapM (\q -> A.sample $ MLPSpec (q * m) m) variant_sizes
             -- right: ditto
-            <*> mapM (\q -> A.sample $ MLPSpec m rightH0 rightH1 (q * m)) variant_sizes
+            <*> mapM (\q -> A.sample $ MLPSpec m (q * m)) variant_sizes
             -- symbol_emb
             <*> (fmap UnsafeMkParameter . D.makeIndependent =<< D.randnIO' [symbols, m])
             -- rule_emb
@@ -169,18 +165,12 @@ initR3nn :: forall m symbols rules maxStringLength batch_size h device maxChar f
          -> Int
          -> HashMap Char Int
          -> (R3NNSpec device m symbols rules maxStringLength batch_size h maxChar featMult)
-initR3nn variants batch_size dropoutRate hidden0 hidden1 charMap = R3NNSpec @device @m @symbols @rules @maxStringLength @batch_size @h @maxChar @featMult
+initR3nn variants batch_size dropoutRate charMap = R3NNSpec @device @m @symbols @rules @maxStringLength @batch_size @h @maxChar @featMult
         variant_sizes
         -- condition
         (LSTMSpec $ DropoutSpec dropoutRate)
         -- score
         (LSTMSpec $ DropoutSpec dropoutRate)
-        -- left
-        hidden0
-        hidden1
-        -- right
-        hidden0
-        hidden1
         -- hole encoder
         (TypeEncoderSpec charMap $ LSTMSpec $ DropoutSpec dropoutRate)
     where

@@ -118,7 +118,5 @@ util = parallel $ do
                 , regularization = 0.0
                 , m = 20
                 , h = 30
-                , hidden0 = 20
-                , hidden1 = 20
                 }
         combineConfig optCfg hparComb `shouldBe` synthCfg

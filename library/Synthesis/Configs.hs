@@ -112,8 +112,6 @@ synthesizerConfig = SynthesizerConfig
     <*> verbosityOpt
     <*> mOpt
     <*> hOpt
-    <*> hidden0Opt
-    <*> hidden1Opt
     <*> synthesizerOpt
     <*> maskBadOpt
     <*> useTypesOpt
@@ -314,20 +312,6 @@ hOpt = option auto
     <> value hDef
     <> showDefault
     <> help "H is the topmost LSTM hidden dimension." )
-
-hidden0Def = (16 :: Int)
-hidden0Opt = option auto
-    ( long "hidden0"
-    <> value hidden0Def
-    <> showDefault
-    <> help "MLP hidden layer 0" )
-
-hidden1Def = (16 :: Int)
-hidden1Opt = option auto
-    ( long "hidden1"
-    <> value hidden1Def
-    <> showDefault
-    <> help "MLP hidden layer 1" )
 
 synthesizerOpt = strOption
     ( long "synthesizer"

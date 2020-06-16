@@ -76,8 +76,6 @@ synth = let
         int_ = tyCon "Int"
         str = tyCon "String"
         dropOut :: Double = 0.0
-        hidden0 :: Int = 20
-        hidden1 :: Int = 20
         dsl = fmap parseExpr
                 $ insert "nil" "[]"
                 $ insert "not" "not"
@@ -103,7 +101,7 @@ synth = let
         variantTypes :: [Tp] <- interpretUnsafe $ (exprType . letIn dsl' . snd) `mapM` variants
         let ruleCharMap :: HashMap Char Int = indexChars $ pp <$> variantTypes
         let r3nn_spec :: R3NNSpec Device M Symbols Rules MaxStringLength R3nnBatch' H MaxChar FeatMult =
-                initR3nn variants r3nnBatch' dropOut hidden0 hidden1 ruleCharMap
+                initR3nn variants r3nnBatch' dropOut ruleCharMap
         let type_encoder_spec :: TypeEncoderSpec Device MaxStringLength MaxChar M =
                 TypeEncoderSpec ruleCharMap $ LSTMSpec $ DropoutSpec dropOut
         model :: NSPS Device M Symbols Rules MaxStringLength EncoderBatch' R3nnBatch' MaxChar H FeatMult
