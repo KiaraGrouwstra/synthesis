@@ -8,10 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v7
-    # - name: Setup repo
-    #   run: |
-    #     git submodule init && git submodule update
+    - uses: cachix/install-nix-action@v8
     - uses: cachix/cachix-action@releases/v5
       with:
         skipNixBuild: false
