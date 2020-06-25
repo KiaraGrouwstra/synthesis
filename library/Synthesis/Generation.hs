@@ -140,7 +140,7 @@ fnOutputs crash_on_error instantiation_inputs fn_ast tp_instantiations =
 
 -- TODO: c.f. https://hackage.haskell.org/package/ghc-8.6.5/docs/TcHsSyn.html#v:zonkTcTypeToType
 
--- | generate any combinations of a polymorphic type filled using a list of concrete types
+-- | generate any combinations of a polymorphic type filled using a list of monomorphic types
 instantiateTypes :: HashMap Int [String] -> HashMap Int [Tp] -> Tp -> Interpreter [Tp]
 instantiateTypes types_by_arity tps tp = fmap (fillTypeVars tp) <$> instantiateTypeVars types_by_arity tps (findTypeVars tp)
 
@@ -191,7 +191,7 @@ dedupeFunctions task_fns fn_type_ios = kept_fns
   -- programs by types and i/o
   programsByTypeIOs :: HashMap (HashMap (Tp, Tp) String) [Expr] =
       groupByVal $ toList $ fmap pp_ <$> fn_type_ios
-  -- programs that overlap in i/o for any concrete parameter combo instantiation
+  -- programs that overlap in i/o for any monomorphic parameter combo instantiation
   programsByBehavior :: HashMap (Tp, Tp) (HashMap String [Expr]) =
       fromList $ (\(tpStrMap, exprs) -> second (`singleton` exprs) <.> toList $ tpStrMap) =<< toList programsByTypeIOs
   -- generate any ('ascending') (Expr, Expr) pairs contained in any of those [Expr]; dedupe pairs

@@ -147,7 +147,7 @@ fillTypeVars tp substitutions =
         TyBang _l bangType unpackedness a -> TyBang l bangType unpackedness $ f a
         _ -> tp
 
--- | generate a number of concrete types to be used in type variable substitution
+-- | generate a number of monomorphic types to be used in type variable substitution
 genTypes :: HashMap Int [String] -> Int -> Int -> IO (HashMap Int [Tp])
 genTypes tpsByArity nestLimit maxInstances = do
   tps :: [Tp] <- nubPp . flatten <$> Many . fmap (One . pure) <$> replicateM maxInstances makeTp

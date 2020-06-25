@@ -48,7 +48,7 @@ blockAstsCategoryTheory =
     $ insert "zip" "zip"
     $ insert "unzip" "unzip"
     -- -- Set
-    -- -- TODO: having this definition in a let-in construction errors as it suddenly wants a concrete type for some reason. should I manually type-annotate all of these myself?
+    -- -- TODO: having this definition in a let-in construction errors as it suddenly wants a monomorphic type for some reason. should I manually type-annotate all of these myself?
     -- $ insert "insertSet" "Set.insert"
     -- HashMap
     $ insert "insert" "insert"
